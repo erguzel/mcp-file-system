@@ -1,0 +1,281 @@
+"""Tool result models.
+
+Each model is both the structured output of a tool (its JSON schema is published as the
+tool's output schema) and, via :meth:`ToolResult.render`, the compact plain-text view
+that the agent reads. The text view is designed for token efficiency and mirrors
+familiar CLI output (``cat -n``, ``grep -n``, ``tree``, unified diffs).
+"""
+
+from abc import ABC, abstractmethod
+from datetime import datetime
+from pathlib import PurePosixPath
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from mcp_file_system.core.render import human_size
+
+OutputMode = Literal["content", "files_with_matches", "count"]
+
+
+class ToolResult(BaseModel, ABC):
+    """Base class for every tool result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    @abstractmethod
+    def render(self) -> str:
+        """Return the agent-facing text representation."""
+
+
+class FileInfo(ToolResult):
+    """Metadata about a file or directory."""
+
+    path: str
+    kind: Literal["file", "directory"]
+    size_bytes: int
+    modified: datetime
+    etag: str | None = Field(default=None, description="Version token required by edit tools.")
+    is_binary: bool | None = None
+    encoding: str | None = None
+    newline: str | None = Field(default=None, description="LF, CRLF or CR.")
+    line_count: int | None = None
+    entry_count: int | None = Field(default=None, description="Immediate children (dirs).")
+
+    def render(self) -> str:  # noqa: D102
+        rows = [f"path: {self.path}", f"kind: {self.kind}"]
+        if self.kind == "directory":
+            rows.append(f"entries: {self.entry_count}")
+        else:
+            rows.append(f"size: {human_size(self.size_bytes)} ({self.size_bytes} bytes)")
+            if self.is_binary:
+                rows.append("binary: yes")
+            else:
+                rows.append(f"lines: {self.line_count}")
+                rows.append(f"encoding: {self.encoding}, newline: {self.newline}")
+        rows.append(f"modified: {self.modified.isoformat()}")
+        if self.etag:
+            rows.append(f"etag: {self.etag}")
+        return "\n".join(rows)
+
+
+class LinesResult(ToolResult):
+    """A contiguous, numbered block of lines from one file."""
+
+    path: str
+    start_line: int = Field(description="First line in content (0 if empty).")
+    end_line: int = Field(description="Last line in content (0 if empty).")
+    total_lines: int
+    etag: str
+    content: str = Field(description="Lines formatted as '<number>\\t<text>'.")
+    truncated: bool = False
+    next_start: int | None = Field(
+        default=None, description="Pass as read_lines(start=...) to continue."
+    )
+    note: str | None = None
+
+    def render(self) -> str:  # noqa: D102
+        span = f"lines {self.start_line}-{self.end_line}" if self.end_line else "no lines"
+        parts = [f"==> {self.path} ({span} of {self.total_lines}, etag {self.etag}) <=="]
+        if self.content:
+            parts.append(self.content)
+        if self.note:
+            parts.append(f"[{self.note}]")
+        if self.truncated and self.next_start is not None:
+            hint = f"read_lines(path={self.path!r}, start={self.next_start})"
+            parts.append(f"[Truncated. Continue with {hint}]")
+        return "\n".join(parts)
+
+
+class GrepHit(BaseModel):
+    """One matching line (or, with only_matching, one match) plus surrounding context."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    line: int
+    text: str
+    before: list[str] = Field(default_factory=list, description="Lines line-N..line-1.")
+    after: list[str] = Field(default_factory=list, description="Lines line+1..line+N.")
+
+
+class FileCount(BaseModel):
+    """Number of matching lines (or matches) in one file."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    count: int
+
+
+class GrepResult(ToolResult):
+    """Search results across one or more files."""
+
+    pattern: str
+    mode: OutputMode
+    hits: list[GrepHit] = Field(default_factory=list)
+    files: list[FileCount] = Field(default_factory=list)
+    files_scanned: int = 0
+    files_skipped: int = Field(default=0, description="Binary or unreadable files.")
+    truncated: bool = False
+    note: str | None = None
+
+    def render(self) -> str:  # noqa: D102
+        if self.mode == "content":
+            body = self._render_content()
+            matched = len({hit.path for hit in self.hits})
+            summary = f"{len(self.hits)} hit(s) in {matched} file(s)"
+        elif self.mode == "count":
+            body = "\n".join(f"{f.path}:{f.count}" for f in self.files)
+            summary = f"{sum(f.count for f in self.files)} hit(s) in {len(self.files)} file(s)"
+        else:
+            body = "\n".join(f.path for f in self.files)
+            summary = f"{len(self.files)} matching file(s)"
+        if not (self.hits or self.files):
+            body, summary = "", "No matches"
+        footer = f"[{summary}; scanned {self.files_scanned} file(s)"
+        if self.files_skipped:
+            footer += f", skipped {self.files_skipped} binary/unreadable"
+        footer += "]"
+        if self.truncated:
+            footer += (
+                f"\n[Truncated: {self.note or 'limit reached'}. Narrow the path, glob or pattern.]"
+            )
+        elif self.note:
+            footer += f"\n[{self.note}]"
+        return f"{body}\n{footer}" if body else footer
+
+    def _render_content(self) -> str:
+        blocks: list[str] = []
+        for path in dict.fromkeys(hit.path for hit in self.hits):
+            rows: dict[int, tuple[str, bool]] = {}
+            for hit in (h for h in self.hits if h.path == path):
+                for offset, text in enumerate(hit.before):
+                    rows.setdefault(hit.line - len(hit.before) + offset, (text, False))
+                for offset, text in enumerate(hit.after, start=1):
+                    rows.setdefault(hit.line + offset, (text, False))
+            for hit in (h for h in self.hits if h.path == path):
+                previous = rows.get(hit.line)
+                # With only_matching, several matches share a line: show each one.
+                text = f"{previous[0]} | {hit.text}" if previous and previous[1] else hit.text
+                rows[hit.line] = (text, True)
+            lines = [path]
+            last: int | None = None
+            for number in sorted(rows):
+                if last is not None and number > last + 1:
+                    lines.append("--")
+                text, is_match = rows[number]
+                lines.append(f"{number}{':' if is_match else '-'}{text}")
+                last = number
+            blocks.append("\n".join(lines))
+        return "\n\n".join(blocks)
+
+
+class DirEntry(BaseModel):
+    """One entry of a directory listing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str
+    kind: Literal["file", "directory"]
+    depth: int = Field(description="1 for immediate children.")
+    size_bytes: int | None = None
+
+
+class DirectoryListing(ToolResult):
+    """A depth-limited directory tree."""
+
+    path: str
+    depth: int
+    entries: list[DirEntry]
+    truncated: bool = False
+
+    def render(self) -> str:  # noqa: D102
+        lines = [f"==> {self.path} (depth {self.depth}, {len(self.entries)} entries) <=="]
+        for entry in self.entries:
+            name = PurePosixPath(entry.path).name
+            indent = "  " * (entry.depth - 1)
+            if entry.kind == "directory":
+                lines.append(f"{indent}{name}/")
+            else:
+                size = f"  ({human_size(entry.size_bytes)})" if entry.size_bytes is not None else ""
+                lines.append(f"{indent}{name}{size}")
+        if self.truncated:
+            lines.append("[Truncated: entry limit reached. List a subdirectory or lower depth.]")
+        return "\n".join(lines)
+
+
+class FileList(ToolResult):
+    """Paths matching a glob."""
+
+    pattern: str
+    base: str
+    paths: list[str]
+    truncated: bool = False
+
+    def render(self) -> str:  # noqa: D102
+        if not self.paths:
+            return f"[No paths under {self.base} match {self.pattern!r}]"
+        footer = f"[{len(self.paths)} path(s) under {self.base} match {self.pattern!r}]"
+        if self.truncated:
+            footer += "\n[Truncated: result limit reached. Use a more specific glob or path.]"
+        return "\n".join([*self.paths, footer])
+
+
+class Symbol(BaseModel):
+    """A structural element of a file (class, function, heading, ...)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    qualified_name: str = Field(description="Accepted by read_symbol, e.g. 'Class.method'.")
+    kind: str
+    start_line: int
+    end_line: int
+    depth: int = Field(description="Nesting depth, 0 for top level.")
+    signature: str | None = None
+
+
+class OutlineResult(ToolResult):
+    """The structural skeleton of a file."""
+
+    path: str
+    language: str
+    total_lines: int
+    symbols: list[Symbol]
+    truncated: bool = False
+
+    def render(self) -> str:  # noqa: D102
+        header = f"==> {self.path} ({self.language}, {self.total_lines} lines) <=="
+        if not self.symbols:
+            return f"{header}\n[No symbols found]"
+        width = len(str(self.total_lines))
+        rows = [header]
+        for symbol in self.symbols:
+            span = f"{symbol.start_line:>{width}}-{symbol.end_line:<{width}}"
+            label = symbol.signature or f"{symbol.kind} {symbol.name}"
+            rows.append(f"{span}  {'  ' * symbol.depth}{label}")
+        if self.truncated:
+            rows.append("[Truncated: too many symbols for one response.]")
+        return "\n".join(rows)
+
+
+class EditResult(ToolResult):
+    """Outcome of an edit tool."""
+
+    path: str
+    applied: bool
+    dry_run: bool
+    changes: int = Field(description="Replacements made or lines changed.")
+    etag: str | None = Field(default=None, description="The file's etag after the edit.")
+    diff: str
+    created: bool = False
+
+    def render(self) -> str:  # noqa: D102
+        if self.dry_run:
+            head = f"Dry run: {self.changes} change(s) would be applied to {self.path}"
+        elif self.created:
+            head = f"Created {self.path} (etag {self.etag})"
+        else:
+            head = f"Applied {self.changes} change(s) to {self.path} (new etag {self.etag})"
+        return f"{head}\n{self.diff}" if self.diff else f"{head}\n[No textual changes]"

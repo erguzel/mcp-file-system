@@ -1,0 +1,111 @@
+[project]
+name = "mcp-file-system"
+version = "0.1.0"
+description = "A secure MCP filesystem server with fine-grained, partial-read tools (line ranges, grep, outlines, guarded edits) for AI agents."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Olgun Erguezel", email = "olgunerguzel@gmail.com" }
+]
+requires-python = ">=3.12"
+keywords = ["mcp", "model-context-protocol", "filesystem", "grep", "llm", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+dependencies = [
+    "mcp>=2.3,<3",
+    "pathspec>=1.1.1",
+    "pydantic-settings>=2.15.0",
+    "regex>=2026.9.29",
+]
+
+[project.scripts]
+mcp-file-system = "mcp_file_system.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.168.3",
+    "mypy>=2.4.0",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.10",
+    "types-regex>=2026.9.10.20260911",
+]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "PTH", "S", "BLE",
+    "T20", "PT", "RUF", "D", "PL", "TRY", "PERF", "FBT003", "ISC", "PIE", "TC",
+]
+ignore = [
+    "D105",    # magic methods are self-explanatory
+    "D107",    # __init__ is documented on the class
+    "D301",    # backslashes in docstrings describe regex/escape syntax literally
+    "PLR0917", # MCP tool adapters mirror their (keyword-called) tool schemas
+    "PLR0913", # tool signatures legitimately take many keyword arguments
+    "PLR2004", # magic values are fine in small, local comparisons
+    "TRY003",  # descriptive error messages are the point of agent-facing errors
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "PLR2004", "S108", "FBT003", "PLC0415", "TC"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+mypy_path = ["src", "tests"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["mcp_file_system"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+    "\\.\\.\\.$",
+]
