@@ -21,6 +21,13 @@ All notable changes to this project are documented here. The format follows
 - Outlines for JSON, TOML and YAML: key trees with line spans and inline scalar values,
   so `read_symbol("tool.ruff.lint")` or `read_symbol("jobs.test.steps[0]")` returns just
   that section. TOML tables include their directly following sub-tables.
+- Optional `[code]` extra: outlines for JavaScript, TypeScript/TSX, Go (methods qualified
+  by receiver, e.g. `Server.Handle`) and Java (nested types: `Outer.Inner.method`), using
+  individual pinned grammar packages. Without the extra, `outline` names the extra to
+  install.
+- Dockerfile outlines (pure Python): build stages (`FROM ... AS name`) and their
+  instructions, with line continuations, `# escape=` and BuildKit heredocs. `Dockerfile`,
+  `Dockerfile.*`, `*.dockerfile` and `Containerfile` are recognized by name.
 - Shell script outlines (functions) via `tree-sitter-bash`; files without a suffix are
   recognized by their shebang (`#!/usr/bin/env bash`, `#!/usr/bin/env python3`).
 - Helm/Go templates in YAML (`{{ ... }}`) outline like plain YAML, with the original

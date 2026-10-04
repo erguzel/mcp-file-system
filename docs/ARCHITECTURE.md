@@ -25,8 +25,8 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.reader.FileReader` | `file_info`, `read_lines`, `read_between`. |
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
-| `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, `Outliner` service; Python provider (`ast`), regex Markdown fallback. |
-| `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base). |
+| `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, `Outliner` service; Python (`ast`) and Dockerfile (pure Python) providers, regex Markdown fallback. |
+| `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base); `code.py` holds the optional `[code]` languages (JS/TS, Go, Java). |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
@@ -86,8 +86,12 @@ registry.register(MyTomlOutlineProvider())
 server = create_server(context=AppContext.from_settings(settings, outline_registry=registry))
 ```
 
-Providers may also declare `interpreters` (e.g. `frozenset({"bash", "sh"})`); the
-registry then matches files without a known suffix by their shebang line.
+Providers may also declare `filenames` (lower-case globs such as `"dockerfile.*"`) and
+`interpreters` (e.g. `frozenset({"bash", "sh"})`). The registry matches by suffix first,
+then by file name, then by the interpreter in a shebang line. Providers whose grammar
+lives in an optional extra are registered only if the import succeeds; list their
+suffixes in `registry.OPTIONAL_SUFFIXES` so `outline` can tell users which extra to
+install.
 
 For a language with a tree-sitter grammar, subclass `TreeSitterOutlineProvider`
 (`core/outline/treesitter/_base.py`): implement `_grammar()` and

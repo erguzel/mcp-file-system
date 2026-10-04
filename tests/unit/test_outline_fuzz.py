@@ -15,6 +15,8 @@ from hypothesis import strategies as st
 
 from mcp_file_system.core.models import Symbol
 from mcp_file_system.core.outline.base import OutlineProvider
+from mcp_file_system.core.outline.dockerfile import DockerfileOutlineProvider
+from mcp_file_system.core.outline.registry import _code_factories
 from mcp_file_system.core.outline.treesitter import (
     JsonOutlineProvider,
     ShellOutlineProvider,
@@ -24,12 +26,22 @@ from mcp_file_system.core.outline.treesitter import (
 )
 from mcp_file_system.core.textio import split_lines
 
-PROVIDERS = [
+
+def _code_providers() -> list[OutlineProvider]:
+    try:
+        return [factory() for factory in _code_factories()]
+    except ImportError:  # pragma: no cover - the [code] extra is not installed
+        return []
+
+
+PROVIDERS: list[OutlineProvider] = [
     TreeSitterMarkdownOutlineProvider(),
     JsonOutlineProvider(),
     TomlOutlineProvider(),
     YamlOutlineProvider(),
     ShellOutlineProvider(),
+    DockerfileOutlineProvider(),
+    *_code_providers(),
 ]
 FUZZ = settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -47,6 +59,13 @@ SYNTAX = st.sampled_from(
         "true",
         "{{",
         "}}",
+        "FROM ",
+        "RUN ",
+        "\\",
+        "<<EOF",
+        "func ",
+        "class ",
+        "=>",
         "f() {",
         "fi",
     ]

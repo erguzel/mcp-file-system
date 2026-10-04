@@ -54,9 +54,9 @@ and prints a summary table.
 
 ## 3. Tree-sitter outline backbone
 
-- [ ] **Status:** in progress. Done: Markdown, JSON, TOML, YAML (including Helm/Go
-  templates), shell scripts (incl. shebang detection). Next: the `[code]` extra and
-  Dockerfiles. `tree-sitter` is pinned below 0.26 because 0.26.0 corrupts the heap.
+- [x] **Status:** done. Markdown, JSON, TOML, YAML (incl. Helm/Go templates), shell
+  scripts (incl. shebang detection) and Dockerfiles in core; JS/TS, Go and Java in the
+  `[code]` extra. `tree-sitter` is pinned below 0.26 because 0.26.0 corrupts the heap.
 
 **What**
 - Add `tree-sitter` plus the Markdown, JSON, TOML and YAML grammars as **core

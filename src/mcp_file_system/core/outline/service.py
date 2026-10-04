@@ -92,6 +92,12 @@ class Outliner:
             _first_line(resolved)
         )
         if provider is None:
+            extra = self._registry.missing_extra(resolved.path)
+            if extra is not None:
+                raise InvalidArgumentError(
+                    f"Outlines for {resolved.display!r} need the optional '{extra}' extra: "
+                    f'pip install "mcp-file-system[{extra}]". Use grep meanwhile.'
+                )
             suffixes = ", ".join(self._registry.supported_suffixes)
             interpreters = ", ".join(self._registry.supported_interpreters)
             raise InvalidArgumentError(
