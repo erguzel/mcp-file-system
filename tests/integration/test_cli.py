@@ -89,3 +89,25 @@ async def test_real_stdio_subprocess(root: Path) -> None:
         assert not result.is_error
         assert result.structured_content is not None
         assert result.structured_content["content"] == "2\tworld"
+
+
+def test_profile_tools_and_output_schema_flags(root: Path) -> None:
+    settings = cli.settings_from_args(
+        parse(
+            "--root",
+            str(root),
+            "--profile",
+            "lite",
+            "--tools",
+            "grep, read_lines",
+            "--output-schema",
+        )
+    )
+    assert settings.profile == "lite"
+    assert settings.tools == ("grep", "read_lines")
+    assert settings.emit_output_schema is True
+
+
+def test_unknown_tool_exits_with_code_2(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["--root", str(root), "--tools", "nope"]) == cli.EXIT_CONFIG_ERROR
+    assert "Unknown tool(s)" in capsys.readouterr().err

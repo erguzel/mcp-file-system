@@ -1,6 +1,12 @@
 import pytest
 
-from mcp_file_system.core.render import clip_line, human_size, number_lines, truncate_text
+from mcp_file_system.core.render import (
+    clip_line,
+    human_count,
+    human_size,
+    number_lines,
+    truncate_text,
+)
 
 
 def test_clip_line_keeps_short_lines() -> None:
@@ -75,3 +81,11 @@ def test_truncate_text() -> None:
     assert text == "line one\nline two\n[cut]"
     text, cut = truncate_text("x" * 30, 10, "cut")
     assert text == "x" * 10 + "\n[cut]"
+
+
+@pytest.mark.parametrize(
+    ("value", "text"),
+    [(0, "0"), (999, "999"), (1000, "1.0k"), (12_400, "12.4k"), (3_200_000, "3.2M")],
+)
+def test_human_count(value: int, text: str) -> None:
+    assert human_count(value) == text

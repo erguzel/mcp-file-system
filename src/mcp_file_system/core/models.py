@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mcp_file_system.core.render import human_size
+from mcp_file_system.core.render import human_count, human_size
 
 OutputMode = Literal["content", "files_with_matches", "count"]
 
@@ -40,6 +40,9 @@ class FileInfo(ToolResult):
     encoding: str | None = None
     newline: str | None = Field(default=None, description="LF, CRLF or CR.")
     line_count: int | None = None
+    approx_tokens: int | None = Field(
+        default=None, description="Rough token cost of reading the whole file (bytes / 4)."
+    )
     entry_count: int | None = Field(default=None, description="Immediate children (dirs).")
 
     def render(self) -> str:  # noqa: D102
@@ -47,7 +50,10 @@ class FileInfo(ToolResult):
         if self.kind == "directory":
             rows.append(f"entries: {self.entry_count}")
         else:
-            rows.append(f"size: {human_size(self.size_bytes)} ({self.size_bytes} bytes)")
+            size = f"size: {human_size(self.size_bytes)} ({self.size_bytes} bytes"
+            if self.approx_tokens is not None:
+                size += f", ~{human_count(self.approx_tokens)} tokens"
+            rows.append(size + ")")
             if self.is_binary:
                 rows.append("binary: yes")
             else:

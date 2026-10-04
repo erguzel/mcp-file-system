@@ -3,12 +3,14 @@
 import functools
 import logging
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Any
 
+from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
+from mcp_file_system.config import Settings
 from mcp_file_system.core.models import ToolResult
 from mcp_file_system.errors import FsError
 
@@ -31,6 +33,20 @@ DirArg = Annotated[
 IncludeHiddenArg = Annotated[
     bool, Field(description="Also walk dot-files and dot-directories (deny rules still apply).")
 ]
+
+# Tool parameters avoid `X | None = None`: nullable types become `anyOf` schemas, which
+# small models handle poorly. "Unset" is expressed with an empty string or 0 instead,
+# and adapters translate these sentinels back to None for the services.
+
+
+def unset_str(value: str) -> str | None:
+    """Map the empty-string sentinel to ``None``."""
+    return value or None
+
+
+def unset_int(value: int) -> int | None:
+    """Map the zero sentinel to ``None``."""
+    return value or None
 
 
 def to_call_result(result: ToolResult) -> CallToolResult:
@@ -60,3 +76,39 @@ def translate_errors[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
             raise ToolError(f"Filesystem error: {exc.strerror or type(exc).__name__}") from exc
 
     return wrapper
+
+
+class ToolRegistry:
+    """Registers tool functions on a server, applying the cross-cutting settings.
+
+    It is the single place that decides, per tool, whether the tool is exposed
+    (``Settings.tools`` allowlist), whether it publishes an output schema
+    (``Settings.emit_output_schema``) and that errors are translated.
+    """
+
+    def __init__(self, server: MCPServer[Any], settings: Settings) -> None:
+        self._server = server
+        self._settings = settings
+        self.offered: list[str] = []
+        """Every tool name offered by the registrars that ran, allowed or not."""
+        self.registered: list[str] = []
+        """Tool names actually exposed to clients."""
+
+    def tool[F: Callable[..., Any]](self, annotations: ToolAnnotations) -> Callable[[F], F]:
+        """Decorator registering ``fn`` as a tool named after the function."""
+
+        def decorator(fn: F) -> F:
+            name = fn.__name__
+            self.offered.append(name)
+            if self._settings.tools and name not in self._settings.tools:
+                return fn
+            self._server.add_tool(
+                translate_errors(fn),
+                annotations=annotations,
+                # None lets the SDK derive the schema from the return annotation.
+                structured_output=None if self._settings.emit_output_schema else False,
+            )
+            self.registered.append(name)
+            return fn
+
+        return decorator

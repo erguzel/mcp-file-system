@@ -31,13 +31,16 @@ class TestInfo:
         assert info.newline == "CRLF"
         assert info.is_binary is False
         assert info.etag == compute_etag(path.stat())
+        assert info.approx_tokens == 3  # 10 bytes / 4, rounded up
         assert "lines: 2" in info.render()
+        assert "~3 tokens" in info.render()
 
     def test_binary_file(self, ctx: AppContext, root: Path) -> None:
         write(root / "b.bin", b"\x00\x01")
         info = ctx.reader.info("b.bin")
         assert info.is_binary is True
         assert info.line_count is None
+        assert info.approx_tokens is None
         assert "binary: yes" in info.render()
 
     def test_directory(self, ctx: AppContext, root: Path) -> None:

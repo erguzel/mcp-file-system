@@ -8,6 +8,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Tool profiles: `--profile lite` exposes a small but complete tool set with essential
+  parameters and short descriptions for small local models (the tool listing shrinks
+  from ~23.6k to ~6.6k characters). `lite`'s `grep` searches invalid regexes literally.
+- `--tools NAME,...` (`MCP_FS_TOOLS`) allowlist and `--[no-]output-schema`
+  (`MCP_FS_OUTPUT_SCHEMA`); output schemas default to off in `lite`.
+- `file_info` reports an approximate token count for text files.
+
+### Changed
+
+- Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
+  "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,
+  `grep(glob="")`, `replace_in_file(expected_count=0)` for any count). Results are
+  unchanged.
+
+## [0.1.0] - 2026-10-03
+
+### Added
+
 - Read-only tools: `file_info`, `read_lines`, `read_between`, `grep`, `list_directory`,
   `find_files`, `outline` (Python, Markdown) and `read_symbol`.
 - Opt-in editing tools (`--allow-write`): `replace_in_file`, `edit_lines` and

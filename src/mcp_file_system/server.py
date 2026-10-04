@@ -18,22 +18,25 @@ SERVER_NAME = "mcp-file-system"
 
 
 def build_instructions(settings: Settings) -> str:
-    """Usage guidance sent to the client during initialization."""
+    """Usage guidance sent to the client during initialization (profile-aware)."""
     roots = "\n".join(f"- {root}" for root in settings.roots)
+    lite = settings.profile == "lite"
+    read_tools = "read_lines or read_symbol" if lite else "read_lines, read_between or read_symbol"
     lines = [
         "Fine-grained filesystem access. Read only what you need instead of whole files.",
         f"Allowed roots (relative paths resolve against the first):\n{roots}",
         (
             "Workflow: list_directory/find_files to navigate; grep (output_mode='count' or "
             "'files_with_matches' first) to locate; file_info or outline to size up a file; "
-            "read_lines, read_between or read_symbol to read the relevant part."
+            f"{read_tools} to read the relevant part."
         ),
         "Every read returns an etag identifying the file version.",
     ]
     if settings.allow_write:
+        preview = "" if lite else "; use dry_run=true to preview a diff"
         lines.append(
             "Editing is enabled: prefer replace_in_file (unique match) or edit_lines (with "
-            "the etag of your latest read); use dry_run=true to preview a diff."
+            f"the etag of your latest read){preview}."
         )
     else:
         lines.append("The server is read-only.")

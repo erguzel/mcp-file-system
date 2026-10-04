@@ -14,6 +14,14 @@ from mcp_file_system.errors import InvalidArgumentError, NoMatchError, PathTypeE
 from mcp_file_system.security.paths import PathGuard, ResolvedPath
 from mcp_file_system.security.regex import Deadline, SafePattern, compile_pattern
 
+BYTES_PER_TOKEN = 4
+"""Common rule of thumb for English text and code with current tokenizers."""
+
+
+def estimate_tokens(size_bytes: int) -> int:
+    """Rough number of tokens needed to read ``size_bytes`` of text."""
+    return -(-size_bytes // BYTES_PER_TOKEN)  # ceiling division
+
 
 class FileReader:
     """Reads metadata and selected parts of text files without loading them whole."""
@@ -55,6 +63,7 @@ class FileReader:
             encoding=fmt.encoding,
             newline=fmt.newline_name,
             line_count=count_lines(resolved.path, fmt, stat),
+            approx_tokens=estimate_tokens(stat.st_size),
         )
 
     def read_lines(self, path: str, start: int = 1, end: int | None = None) -> LinesResult:

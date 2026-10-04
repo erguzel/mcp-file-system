@@ -9,7 +9,7 @@ models. Item 1 introduces profiles so that later additions can be gated.
 
 ## 1. Small-model profile and schema slimming
 
-- [ ] **Status:** not started
+- [x] **Status:** done
 
 **What**
 - Replace every `X | None = None` tool parameter with a concrete default (e.g.
