@@ -80,7 +80,7 @@ async def test_calls_are_recorded_without_file_contents(
         "read_lines",
     ]
     assert all(entry["profile"] == "lite" for entry in log)
-    assert log[0]["args"] == {"path": "config.py", "start": 1, "end": -1}
+    assert log[0]["args"] == {"path": "config.py", "start": 1, "end": -1, "if_changed_since": ""}
     assert log[0]["result_chars"] > 0
     assert log[0]["error"] is None
     assert log[1]["args"]["pattern"] == "api_token"

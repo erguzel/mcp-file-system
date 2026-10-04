@@ -95,7 +95,7 @@ the `[code]` extra is not installed; CI stays green on all three operating syste
 
 ## 4. Change-aware reads and navigation hints
 
-- [ ] **Status:** not started
+- [x] **Status:** done
 
 **What**
 - **Not-modified reads:** `read_lines` and `read_symbol` accept `if_changed_since=<etag>`.

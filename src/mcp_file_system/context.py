@@ -9,6 +9,7 @@ from mcp_file_system.core.finder import FileFinder, Walker
 from mcp_file_system.core.outline import Outliner, OutlineRegistry, default_registry
 from mcp_file_system.core.reader import FileReader
 from mcp_file_system.core.search import PythonSearchBackend, SearchBackend, Searcher
+from mcp_file_system.core.tracking import ReadTracker
 from mcp_file_system.security import AccessPolicy, PathGuard
 
 
@@ -41,13 +42,17 @@ class AppContext:
         guard = PathGuard(settings.roots, AccessPolicy(settings.deny_globs))
         walker = Walker(guard, respect_gitignore=settings.respect_gitignore)
         finder = FileFinder(guard, walker, settings)
+        tracker = ReadTracker()  # shared, so read_lines and read_symbol see each other's reads
+        outliner = Outliner(guard, outline_registry or default_registry(), settings, tracker)
         return cls(
             settings=settings,
             guard=guard,
-            reader=FileReader(guard, settings),
+            reader=FileReader(guard, settings, tracker),
             finder=finder,
-            searcher=Searcher(finder, search_backend or PythonSearchBackend(), settings),
-            outliner=Outliner(guard, outline_registry or default_registry(), settings),
+            searcher=Searcher(
+                finder, search_backend or PythonSearchBackend(), settings, symbols=outliner
+            ),
+            outliner=outliner,
             editor=FileEditor(guard, settings),
             audit=(
                 AuditLog(settings.audit_log, profile=settings.profile)

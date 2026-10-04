@@ -78,6 +78,10 @@ class LinesResult(ToolResult):
     next_start: int | None = Field(
         default=None, description="Pass as read_lines(start=...) to continue."
     )
+    unchanged: bool = Field(
+        default=False,
+        description="True if content was omitted because if_changed_since matched.",
+    )
     note: str | None = None
 
     def render(self) -> str:  # noqa: D102
@@ -101,6 +105,9 @@ class GrepHit(BaseModel):
     path: str
     line: int
     text: str
+    symbol: str = Field(
+        default="", description="Innermost enclosing symbol (e.g. 'Parser.parse'), if known."
+    )
     before: list[str] = Field(default_factory=list, description="Lines line-N..line-1.")
     after: list[str] = Field(default_factory=list, description="Lines line+1..line+N.")
 
@@ -160,17 +167,25 @@ class GrepResult(ToolResult):
                     rows.setdefault(hit.line - len(hit.before) + offset, (text, False))
                 for offset, text in enumerate(hit.after, start=1):
                     rows.setdefault(hit.line + offset, (text, False))
+            symbols: dict[int, str] = {}
             for hit in (h for h in self.hits if h.path == path):
                 previous = rows.get(hit.line)
                 # With only_matching, several matches share a line: show each one.
                 text = f"{previous[0]} | {hit.text}" if previous and previous[1] else hit.text
                 rows[hit.line] = (text, True)
+                if hit.symbol:
+                    symbols[hit.line] = hit.symbol
             lines = [path]
             last: int | None = None
+            current_symbol = ""
             for number in sorted(rows):
                 if last is not None and number > last + 1:
                     lines.append("--")
                 text, is_match = rows[number]
+                symbol = symbols.get(number, "")
+                if is_match and symbol and symbol != current_symbol:
+                    lines.append(f"[{symbol}]")  # read it with read_symbol
+                    current_symbol = symbol
                 lines.append(f"{number}{':' if is_match else '-'}{text}")
                 last = number
             blocks.append("\n".join(lines))

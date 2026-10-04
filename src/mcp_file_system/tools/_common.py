@@ -31,6 +31,13 @@ DirArg = Annotated[
     str,
     Field(description="Directory (or file) relative to the primary root, or absolute."),
 ]
+IfChangedSinceArg = Annotated[
+    str,
+    Field(
+        description="Etag from your earlier read of these same lines. If the file is "
+        "unchanged, only a short 'unchanged' answer is returned. Empty: always read."
+    ),
+]
 IncludeHiddenArg = Annotated[
     bool, Field(description="Also walk dot-files and dot-directories (deny rules still apply).")
 ]

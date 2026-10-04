@@ -35,7 +35,7 @@ def test_content_mode_lists_hits_grouped_by_file(ctx: AppContext, project: Path)
     assert result.files_scanned == 3  # app.py, lib/helper.py, notes.md
     assert result.files_skipped == 1  # image.png
     rendered = result.render()
-    assert "app.py\n3:def alpha():" in rendered
+    assert "app.py\n[alpha]\n3:def alpha():" in rendered  # enclosing-symbol header
     assert "[2 hit(s) in 2 file(s); scanned 3 file(s), skipped 1 binary/unreadable]" in rendered
 
 
@@ -51,13 +51,16 @@ def test_context_lines_are_merged_in_render(ctx: AppContext, project: Path) -> N
     assert [h.line for h in hits] == [3, 7]
     assert hits[0].before == [""]
     assert hits[0].after == ["    return os.getcwd()"]
-    assert result.render().splitlines()[:8] == [
+    assert [h.symbol for h in hits] == ["alpha", "beta"]
+    assert result.render().splitlines()[:10] == [
         "app.py",
         "2-",
+        "[alpha]",
         "3:def alpha():",
         "4-    return os.getcwd()",
         "--",
         "6-def beta():",
+        "[beta]",
         "7:    return alpha()",
         "[2 hit(s) in 1 file(s); scanned 1 file(s)]",
     ]

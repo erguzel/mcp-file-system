@@ -10,6 +10,7 @@ from mcp_file_system.core.etag import compute_etag
 from mcp_file_system.core.models import FileInfo, LinesResult
 from mcp_file_system.core.render import number_lines
 from mcp_file_system.core.textio import count_lines, detect_format, open_lines, require_text
+from mcp_file_system.core.tracking import ReadTracker, track_result, unchanged_result
 from mcp_file_system.errors import InvalidArgumentError, NoMatchError, PathTypeError
 from mcp_file_system.security.paths import PathGuard, ResolvedPath
 from mcp_file_system.security.regex import Deadline, SafePattern, compile_pattern
@@ -26,9 +27,12 @@ def estimate_tokens(size_bytes: int) -> int:
 class FileReader:
     """Reads metadata and selected parts of text files without loading them whole."""
 
-    def __init__(self, guard: PathGuard, settings: Settings) -> None:
+    def __init__(
+        self, guard: PathGuard, settings: Settings, tracker: ReadTracker | None = None
+    ) -> None:
         self._guard = guard
         self._settings = settings
+        self._tracker = tracker or ReadTracker()
 
     def info(self, path: str) -> FileInfo:
         """Describe a file or directory so the caller can choose a reading strategy."""
@@ -66,12 +70,17 @@ class FileReader:
             approx_tokens=estimate_tokens(stat.st_size),
         )
 
-    def read_lines(self, path: str, start: int = 1, end: int | None = None) -> LinesResult:
+    def read_lines(
+        self, path: str, start: int = 1, end: int | None = None, *, if_changed_since: str = ""
+    ) -> LinesResult:
         """Return numbered lines ``start..end`` (1-based, inclusive).
 
         Negative values count from the end of the file: ``start=-20`` returns the last
         twenty lines. Output is capped by ``max_read_lines`` and ``max_output_chars``;
         when capped, ``next_start`` tells the caller where to continue.
+
+        With ``if_changed_since=<etag>``, an unchanged file whose requested lines were
+        already returned in this session yields a content-free "unchanged" result.
         """
         if start == 0:
             raise InvalidArgumentError(
@@ -98,10 +107,23 @@ class FileReader:
             raise InvalidArgumentError(f"end ({end}) resolves to before start ({start}).")
         last = min(last, total)
         window_last = min(last, first + self._settings.max_read_lines - 1)
+        unchanged = unchanged_result(
+            self._tracker,
+            resolved.path,
+            display=resolved.display,
+            etag=etag,
+            if_changed_since=if_changed_since,
+            start=first,
+            end=window_last,
+            total=total,
+        )
+        if unchanged is not None:
+            return unchanged
 
         with open_lines(resolved.path, fmt) as lines:
             selected = enumerate(islice(lines, first - 1, window_last), start=first)
-            return self._build(resolved, etag, total, selected, requested_last=last)
+            result = self._build(resolved, etag, total, selected, requested_last=last)
+        return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
 
     def read_between(
         self,
@@ -157,7 +179,8 @@ class FileReader:
         if not block:
             return self._empty(resolved, etag, "The block between the patterns is empty.", total)
         requested_last = block[-1][0] + 1 if cut else block[-1][0]
-        return self._build(resolved, etag, total, block, requested_last=requested_last, note=note)
+        result = self._build(resolved, etag, total, block, requested_last=requested_last, note=note)
+        return track_result(self._tracker, resolved.path, result)
 
     def _compile(
         self, pattern: str, deadline: Deadline, fixed_string: bool, ignore_case: bool

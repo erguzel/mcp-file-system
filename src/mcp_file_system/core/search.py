@@ -43,6 +43,14 @@ class SearchRequest:
     max_output_chars: int = 50_000
 
 
+class SymbolLocator(Protocol):
+    """Finds the innermost symbol enclosing given lines (implemented by the Outliner)."""
+
+    def enclosing_symbols(self, path: str, lines: Iterable[int]) -> dict[int, str]:
+        """Map line numbers of ``path`` to qualified symbol names."""
+        ...
+
+
 class SearchBackend(Protocol):
     """Strategy interface for matching a pattern against a set of vetted files."""
 
@@ -219,10 +227,17 @@ def _feed_after_context(
 class Searcher:
     """Application service behind the ``grep`` tool: selects files, then delegates matching."""
 
-    def __init__(self, finder: FileFinder, backend: SearchBackend, settings: Settings) -> None:
+    def __init__(
+        self,
+        finder: FileFinder,
+        backend: SearchBackend,
+        settings: Settings,
+        symbols: SymbolLocator | None = None,
+    ) -> None:
         self._finder = finder
         self._backend = backend
         self._settings = settings
+        self._symbols = symbols
 
     def grep(
         self,
@@ -264,4 +279,27 @@ class Searcher:
             max_output_chars=self._settings.max_output_chars,
         )
         files = self._finder.iter_files(path, glob=glob, include_hidden=include_hidden)
-        return self._backend.search(files, request, deadline)
+        result = self._backend.search(files, request, deadline)
+        if mode == "content" and result.hits and self._symbols is not None:
+            result = self._annotate_symbols(result, deadline)
+        return result
+
+    def _annotate_symbols(self, result: GrepResult, deadline: Deadline) -> GrepResult:
+        """Add each hit's enclosing symbol, so the agent can go straight to read_symbol."""
+        assert self._symbols is not None  # noqa: S101 - checked by the caller
+        lines_by_path: dict[str, list[int]] = {}
+        for hit in result.hits:
+            lines_by_path.setdefault(hit.path, []).append(hit.line)
+        names: dict[tuple[str, int], str] = {}
+        for path, lines in lines_by_path.items():
+            if deadline.expired:
+                break  # symbols are a convenience; never exceed the search budget for them
+            for line, name in self._symbols.enclosing_symbols(path, lines).items():
+                names[(path, line)] = name
+        if not names:
+            return result
+        hits = [
+            hit.model_copy(update={"symbol": names.get((hit.path, hit.line), "")})
+            for hit in result.hits
+        ]
+        return result.model_copy(update={"hits": hits})

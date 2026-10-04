@@ -32,6 +32,7 @@ from mcp_file_system.tools._common import (
     READ_ONLY,
     WRITES,
     DirArg,
+    IfChangedSinceArg,
     PathArg,
     ToolRegistry,
     to_call_result,
@@ -115,18 +116,23 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         return to_call_result(outliner.outline(path))
 
     @registry.tool(READ_ONLY)
-    def read_symbol(path: PathArg, name: SymbolNameArg) -> Annotated[CallToolResult, LinesResult]:
-        """Read one class, function or Markdown section by name (see outline)."""
-        return to_call_result(outliner.read_symbol(path, name))
+    def read_symbol(
+        path: PathArg, name: SymbolNameArg, if_changed_since: IfChangedSinceArg = ""
+    ) -> Annotated[CallToolResult, LinesResult]:
+        """Read one class, function, section or config key by name (see outline)."""
+        return to_call_result(outliner.read_symbol(path, name, if_changed_since=if_changed_since))
 
     @registry.tool(READ_ONLY)
     def read_lines(
         path: PathArg,
         start: Annotated[int, Field(description="First line (1-based; negative = from end).")] = 1,
         end: Annotated[int, Field(description="Last line, inclusive (-1 = last line).")] = -1,
+        if_changed_since: IfChangedSinceArg = "",
     ) -> Annotated[CallToolResult, LinesResult]:
         """Read numbered lines. If truncated, continue from next_start."""
-        return to_call_result(reader.read_lines(path, start, end))
+        return to_call_result(
+            reader.read_lines(path, start, end, if_changed_since=if_changed_since)
+        )
 
 
 def register_edit(registry: ToolRegistry, ctx: AppContext) -> None:

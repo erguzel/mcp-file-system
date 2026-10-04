@@ -93,7 +93,7 @@ every request. Large models handle the full set easily. Small local models (roug
 | Tools | all 8 (+3 editing) | 7 (+3 editing): no `read_between` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
-| Tool listing size* | ~23.6k characters | ~6.6k characters |
+| Tool listing size* | ~25k characters | ~7.1k characters |
 
 \* With editing enabled, measured on version 0.1.x.
 
@@ -110,13 +110,13 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | Tool | Purpose |
 |---|---|
 | `file_info` | Size, approximate token count, line count, encoding, newline style, binary flag and **etag** of a file (or entry count of a directory). |
-| `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). Continues via `next_start`. |
+| `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). Continues via `next_start`. `if_changed_since=<etag>` returns a one-line "unchanged" answer instead of lines you already have. |
 | `read_between` | Lines from the Nth match of `start_pattern` to the next `end_pattern`, like `sed -n '/a/,/b/p'`. |
-| `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and three output modes. |
+| `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and three output modes. Hits show their enclosing symbol (`[Parser.parse]`, `[jobs.test.steps[0]]`), ready for `read_symbol`. |
 | `list_directory` | Indented tree with sizes, depth-limited. |
 | `find_files` | Gitignore-style glob search for files or directories. |
 | `outline` | Code symbols with signatures (Python; JS/TS, Go, Java with `[code]`), shell functions, Dockerfile stages and instructions, Markdown headings (incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. `Dockerfile`/`Containerfile` are recognized by name and extensionless scripts by their shebang. |
-| `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. |
+| `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. Accepts `if_changed_since` like `read_lines`. |
 | `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1). |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |
 | `write_file`* | Create a file (with parent directories), or overwrite one when its etag is supplied. |
@@ -125,6 +125,11 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 
 Each tool returns compact text for the model and the same data as structured content,
 so clients can also consume results programmatically.
+
+Reads are **change-aware** within a session: re-reading lines that were already sent
+(and have not changed) adds a short note, and `if_changed_since=<etag>` skips resending
+them entirely. The "unchanged" answer is only given for lines this session really
+received, so a misused etag never leaves the model without content.
 
 A typical agent workflow:
 

@@ -29,6 +29,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base); `code.py` holds the optional `[code]` languages (JS/TS, Go, Java). |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
+| `core.tracking.ReadTracker` | Session memory of which lines of which file version were returned; powers "already returned" notes and `if_changed_since`. One per server process (one stdio session); a multi-session transport must key it by session. |
 | `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
 | `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting and error translation. |

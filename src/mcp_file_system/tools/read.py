@@ -9,6 +9,7 @@ from mcp_file_system.context import AppContext
 from mcp_file_system.core.models import FileInfo, LinesResult
 from mcp_file_system.tools._common import (
     READ_ONLY,
+    IfChangedSinceArg,
     PathArg,
     ToolRegistry,
     to_call_result,
@@ -42,14 +43,18 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             int,
             Field(description="Last line, inclusive; negative counts from the end (-1 = last)."),
         ] = -1,
+        if_changed_since: IfChangedSinceArg = "",
     ) -> Annotated[CallToolResult, LinesResult]:
         """Read a numbered range of lines from a text file.
 
         Prefer this over reading whole files: locate the region with grep, outline or
         read_between first, then read only the lines you need. Output is capped; if
-        truncated, continue from `next_start`.
+        truncated, continue from `next_start`. To re-check lines you already have, pass
+        their etag as if_changed_since instead of reading them again.
         """
-        return to_call_result(reader.read_lines(path, start, end))
+        return to_call_result(
+            reader.read_lines(path, start, end, if_changed_since=if_changed_since)
+        )
 
     @registry.tool(READ_ONLY)
     def read_between(
