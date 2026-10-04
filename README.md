@@ -6,8 +6,9 @@ context, pull out a section between two patterns, or read one function by name, 
 loading whole files into their context window.
 
 - **Partial reads:** numbered line ranges (with tail), `sed -n '/a/,/b/p'`-style sections,
-  symbol-level reads for Python, Markdown, JSON, TOML, YAML (including Helm templates)
-  and shell scripts (e.g. read just `tool.ruff.lint` from a `pyproject.toml`).
+  symbol-level reads for Python, Markdown, JSON, TOML, YAML (including Helm templates),
+  shell scripts and Dockerfiles, plus JavaScript/TypeScript, Go and Java with the
+  `[code]` extra (e.g. read just `tool.ruff.lint` from a `pyproject.toml`).
 - **Search:** recursive grep with context, `count` / `files_with_matches` modes and globs.
   It honors `.gitignore` and skips binaries.
 - **Navigation:** depth-limited trees, glob finds, file metadata (lines, encoding, newline
@@ -34,6 +35,17 @@ pip install "git+https://github.com/erguzel/mcp-file-system.git"
 # Or run without installing (uv)
 uvx --from "git+https://github.com/erguzel/mcp-file-system.git" mcp-file-system --help
 ```
+
+Outlines for JavaScript/TypeScript, Go and Java come from the optional `[code]` extra
+(small, pinned grammar packages; nothing is downloaded at runtime):
+
+```bash
+pip install "mcp-file-system[code] @ git+https://github.com/erguzel/mcp-file-system.git"
+uv tool install --editable "mcp-file-system[code] @ /path/to/mcp-file-system"
+```
+
+Without it, those files still work with every reading and search tool; `outline`
+explains how to add the extra.
 
 ## Usage
 
@@ -103,7 +115,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and three output modes. |
 | `list_directory` | Indented tree with sizes, depth-limited. |
 | `find_files` | Gitignore-style glob search for files or directories. |
-| `outline` | Classes/functions/methods with signatures (Python), shell functions, headings (Markdown, incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. Files without a suffix are recognized by their shebang. |
+| `outline` | Code symbols with signatures (Python; JS/TS, Go, Java with `[code]`), shell functions, Dockerfile stages and instructions, Markdown headings (incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. `Dockerfile`/`Containerfile` are recognized by name and extensionless scripts by their shebang. |
 | `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. |
 | `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1). |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |
@@ -192,7 +204,7 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
 ## Development
 
 ```bash
-uv sync                     # create .venv with all dev tools
+uv sync --all-extras        # create .venv with all dev tools and optional grammars
 uv run pytest --cov         # tests (coverage gate: 90%)
 uv run ruff check . && uv run ruff format --check .
 uv run mypy src tests       # strict typing

@@ -3,13 +3,19 @@
 import logging
 import re
 from collections.abc import Callable, Iterable
+from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 
 from mcp_file_system.core.outline.base import OutlineProvider
+from mcp_file_system.core.outline.dockerfile import DockerfileOutlineProvider
 from mcp_file_system.core.outline.markdown import RegexMarkdownOutlineProvider
 from mcp_file_system.core.outline.python import PythonOutlineProvider
 
 logger = logging.getLogger("mcp_file_system.outline")
+
+_CODE_SUFFIXES = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".go", ".java")
+OPTIONAL_SUFFIXES: dict[str, str] = dict.fromkeys(_CODE_SUFFIXES, "code")
+"""Suffixes served by providers from an optional extra (suffix -> extra name)."""
 
 _SHEBANG = re.compile(r"#!\s*(\S+)((?:\s+\S+)*)")
 _VERSION_SUFFIX = re.compile(r"[\d.]+$")
@@ -36,27 +42,45 @@ def shebang_interpreter(first_line: str) -> str | None:
 class OutlineRegistry:
     """Selects the outline provider for a file (later registrations win).
 
-    Files are matched by suffix. Files without a known suffix (e.g. ``bin/deploy``) can
-    be matched by the interpreter in their shebang line, for providers that declare an
-    optional ``interpreters`` attribute (a frozenset such as ``{"bash", "sh"}``).
+    Files are matched by suffix first, so ``Dockerfile.md`` stays Markdown. A file
+    whose suffix is unknown is then matched by file-name pattern (optional
+    ``filenames`` attribute: lower-case globs such as ``"dockerfile.*"``, which covers
+    ``Dockerfile`` and ``Dockerfile.dev``), and finally by the interpreter in its
+    shebang line (optional ``interpreters`` attribute, e.g. ``{"bash", "sh"}``).
     """
 
     def __init__(self, providers: Iterable[OutlineProvider] = ()) -> None:
         self._by_suffix: dict[str, OutlineProvider] = {}
         self._by_interpreter: dict[str, OutlineProvider] = {}
+        self._by_filename: dict[str, OutlineProvider] = {}
         for provider in providers:
             self.register(provider)
 
     def register(self, provider: OutlineProvider) -> None:
-        """Register ``provider`` for each of its extensions and interpreters."""
+        """Register ``provider`` for its file-name patterns, extensions and interpreters."""
         for suffix in provider.extensions:
             self._by_suffix[suffix.lower()] = provider
         for interpreter in getattr(provider, "interpreters", frozenset()):
             self._by_interpreter[interpreter] = provider
+        for pattern in getattr(provider, "filenames", ()):
+            self._by_filename[pattern.lower()] = provider
 
     def for_path(self, path: Path) -> OutlineProvider | None:
-        """Return the provider for ``path``'s suffix, or ``None`` if unsupported."""
-        return self._by_suffix.get(path.suffix.lower())
+        """Return the provider for ``path``'s name or suffix, or ``None`` if unsupported."""
+        by_suffix = self._by_suffix.get(path.suffix.lower())
+        if by_suffix is not None:
+            return by_suffix
+        name = path.name.lower()
+        return next(
+            (p for pattern, p in self._by_filename.items() if fnmatchcase(name, pattern)), None
+        )
+
+    def missing_extra(self, path: Path) -> str | None:
+        """Name of the extra that would add support for ``path``, if it is not installed."""
+        suffix = path.suffix.lower()
+        if suffix in self._by_suffix:
+            return None
+        return OPTIONAL_SUFFIXES.get(suffix)
 
     def for_shebang(self, first_line: str) -> OutlineProvider | None:
         """Return the provider for the interpreter in a shebang line, or ``None``."""
@@ -92,14 +116,36 @@ def _tree_sitter_factories() -> list[Callable[[], OutlineProvider]]:
     ]
 
 
+def _code_factories() -> list[Callable[[], OutlineProvider]]:
+    from mcp_file_system.core.outline.treesitter.code import (  # noqa: PLC0415 - optional
+        GoOutlineProvider,
+        JavaOutlineProvider,
+        JavaScriptOutlineProvider,
+        TsxOutlineProvider,
+        TypeScriptOutlineProvider,
+    )
+
+    return [
+        JavaScriptOutlineProvider,
+        TypeScriptOutlineProvider,
+        TsxOutlineProvider,
+        GoOutlineProvider,
+        JavaOutlineProvider,
+    ]
+
+
 def default_registry() -> OutlineRegistry:
     """Registry with the built-in providers.
 
-    Python uses the standard library. Markdown, JSON, TOML, YAML and shell use
-    tree-sitter grammars; if a grammar cannot be loaded (e.g. no wheel for the platform), that
-    format is skipped with a warning and Markdown falls back to the regex provider.
+    Python and Dockerfiles need no grammar. Markdown, JSON, TOML, YAML and shell use
+    tree-sitter grammars (core dependencies); JavaScript/TypeScript, Go and Java use
+    grammars from the optional ``[code]`` extra and are silently skipped without it.
+    If a core grammar cannot be loaded (e.g. no wheel for the platform), that format
+    is skipped with a warning and Markdown falls back to the regex provider.
     """
-    registry = OutlineRegistry([PythonOutlineProvider(), RegexMarkdownOutlineProvider()])
+    registry = OutlineRegistry(
+        [PythonOutlineProvider(), RegexMarkdownOutlineProvider(), DockerfileOutlineProvider()]
+    )
     try:
         factories = _tree_sitter_factories()
     except (ImportError, OSError) as exc:
@@ -110,4 +156,10 @@ def default_registry() -> OutlineRegistry:
             registry.register(factory())
         except (ImportError, OSError, ValueError) as exc:
             logger.warning("outline provider %s unavailable: %s", factory.__name__, exc)
+    # The [code] extra is optional: a missing grammar is expected, not a warning.
+    for factory in _code_factories():
+        try:
+            registry.register(factory())
+        except (ImportError, OSError, ValueError) as exc:
+            logger.debug("optional outline provider %s unavailable: %s", factory.__name__, exc)
     return registry

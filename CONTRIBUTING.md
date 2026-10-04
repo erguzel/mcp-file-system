@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-uv sync                    # Python 3.12 virtual environment with all dev tools
+uv sync --all-extras       # Python 3.12 environment with dev tools and optional grammars
 uv run pre-commit install  # run ruff and mypy on every commit
 ```
 

@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
-      - run: uv sync
+      - run: uv sync --all-extras
       - run: uv run ruff check --output-format=github .
       - run: uv run ruff format --check .
       - run: uv run mypy src tests
@@ -50,7 +50,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           enable-cache: true
-      - run: uv sync
+      - run: uv sync --all-extras
       - run: uv run pytest --cov --cov-report=term-missing
 
   security:
@@ -83,3 +83,7 @@ jobs:
           uv pip install --python /tmp/smoke/bin/python dist/*.whl
           /tmp/smoke/bin/mcp-file-system --version
           /tmp/smoke/bin/mcp-file-system --help
+      - name: Install the [code] extra and check its outline languages load
+        run: |
+          uv pip install --python /tmp/smoke/bin/python "$(ls dist/*.whl)[code]"
+          /tmp/smoke/bin/python -c "from mcp_file_system.core.outline.registry import default_registry as r; s = set(r().supported_suffixes); assert {'.ts', '.go', '.java'} <= s, s"

@@ -31,7 +31,7 @@ Security is the core feature, not an add-on.
 Use `uv` for everything. Do not use `pip` directly in this repository.
 
 ```bash
-uv sync                                   # install/refresh the dev environment
+uv sync --all-extras                      # install/refresh the dev environment (incl. [code])
 uv run ruff format .                      # format
 uv run ruff check . --fix                 # lint (and auto-fix)
 uv run mypy src tests                     # strict type check
