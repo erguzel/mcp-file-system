@@ -34,7 +34,9 @@ documents the profiles.
 
 ## 2. Audit log and evaluation harness
 
-- [ ] **Status:** in progress (audit log done; evaluation harness next)
+- [ ] **Status:** audit log done; evaluation harness deferred until a profile comparison
+  is needed (current local models are 27B+, so `full` with `--no-output-schema` is the
+  default; real-usage data comes from the audit log).
 
 **What**
 - Optional `--audit-log PATH`: one JSON line per tool call with timestamp, tool, arguments,
