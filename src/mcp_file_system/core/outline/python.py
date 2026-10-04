@@ -21,6 +21,7 @@ class PythonOutlineProvider:
 
     language = "python"
     extensions = frozenset({".py", ".pyi", ".pyw"})
+    interpreters = frozenset({"python"})
 
     def outline(self, text: str) -> list[Symbol]:
         """Parse ``text`` and return its definitions in source order."""

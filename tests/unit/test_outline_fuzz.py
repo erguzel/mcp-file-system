@@ -17,6 +17,7 @@ from mcp_file_system.core.models import Symbol
 from mcp_file_system.core.outline.base import OutlineProvider
 from mcp_file_system.core.outline.treesitter import (
     JsonOutlineProvider,
+    ShellOutlineProvider,
     TomlOutlineProvider,
     TreeSitterMarkdownOutlineProvider,
     YamlOutlineProvider,
@@ -28,12 +29,27 @@ PROVIDERS = [
     JsonOutlineProvider(),
     TomlOutlineProvider(),
     YamlOutlineProvider(),
+    ShellOutlineProvider(),
 ]
 FUZZ = settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
 # Text biased towards the syntax of the formats under test.
 SYNTAX = st.sampled_from(
-    [*"{}[]:,=\"'#-*>`~\n\r\t .", "---", "[[", "]]", "```", "# ", "key", "1", "true"]
+    [
+        *"{}[]:,=\"'#-*>`~\n\r\t .",
+        "---",
+        "[[",
+        "]]",
+        "```",
+        "# ",
+        "key",
+        "1",
+        "true",
+        "{{",
+        "}}",
+        "f() {",
+        "fi",
+    ]
 )
 SYNTAX_TEXT = st.lists(st.one_of(SYNTAX, st.text(max_size=5)), max_size=60).map("".join)
 

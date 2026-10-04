@@ -26,7 +26,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
 | `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, `Outliner` service; Python provider (`ast`), regex Markdown fallback. |
-| `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (`TreeSitterOutlineProvider` base). |
+| `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base). |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
@@ -86,8 +86,14 @@ registry.register(MyTomlOutlineProvider())
 server = create_server(context=AppContext.from_settings(settings, outline_registry=registry))
 ```
 
+Providers may also declare `interpreters` (e.g. `frozenset({"bash", "sh"})`); the
+registry then matches files without a known suffix by their shebang line.
+
 For a language with a tree-sitter grammar, subclass `TreeSitterOutlineProvider`
-(`core/outline/treesitter/_base.py`): implement `_grammar()` and `_extract(root)`. The
+(`core/outline/treesitter/_base.py`): implement `_grammar()` and
+`_extract(root, source)`, reading node text with `node_text(node, source)`. Override
+`_prepare(source)` to transform the input before parsing without changing byte offsets
+(the YAML provider masks `{{ ... }}` template directives this way). The
 base class normalizes line endings and creates a fresh `Parser` per call, because
 parsers are not thread-safe and tools run in worker threads. Add the provider to
 `tests/unit/test_outline_fuzz.py`: tree-sitter is a C extension, so a bug there crashes

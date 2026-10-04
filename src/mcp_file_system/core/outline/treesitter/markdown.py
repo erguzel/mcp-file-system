@@ -37,7 +37,7 @@ class TreeSitterMarkdownOutlineProvider(TreeSitterOutlineProvider):
     def _grammar(self) -> object:
         return tree_sitter_markdown.language()
 
-    def _extract(self, root: Node) -> list[Symbol]:
+    def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         headings: list[Heading] = []
         _collect(root, headings)
         total = end_line(root) if root.end_byte else 0

@@ -6,6 +6,7 @@ are shown in signatures, which often answers a question without any further read
 """
 
 import json
+import re
 
 import tree_sitter_json
 import tree_sitter_toml
@@ -65,7 +66,7 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
     def _grammar(self) -> object:
         return tree_sitter_json.language()
 
-    def _extract(self, root: Node) -> list[Symbol]:
+    def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         out = SymbolCollector()
         for value in root.named_children:
             self._children(value, "", 0, out)
@@ -141,7 +142,7 @@ class TomlOutlineProvider(TreeSitterOutlineProvider):
     def _grammar(self) -> object:
         return tree_sitter_toml.language()
 
-    def _extract(self, root: Node) -> list[Symbol]:
+    def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         out = SymbolCollector()
         array_counts: dict[str, int] = {}
         for child in root.named_children:
@@ -269,6 +270,8 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
     """Outlines YAML mappings and sequence elements.
 
     Multi-document streams are indexed by document: ``[0].name``, ``[1].kind``.
+    Go/Helm template directives (``{{ ... }}``) are masked before parsing, so templated
+    manifests outline like plain YAML; signatures still show the original directives.
     """
 
     language = "yaml"
@@ -277,7 +280,10 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
     def _grammar(self) -> object:
         return tree_sitter_yaml.language()
 
-    def _extract(self, root: Node) -> list[Symbol]:
+    def _prepare(self, source: bytes) -> bytes:
+        return mask_templates(source)
+
+    def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         out = SymbolCollector()
         documents = [d for d in root.named_children if d.type == "document"]
         multiple = len(documents) > 1
@@ -294,10 +300,12 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
                     signature=f"--- document {index}",
                 )
             for child in document.named_children:
-                self._children(child, path, depth, out)
+                self._children(child, path, depth, source, out)
         return out.symbols
 
-    def _children(self, node: Node, path: str, depth: int, out: SymbolCollector) -> None:
+    def _children(
+        self, node: Node, path: str, depth: int, source: bytes, out: SymbolCollector
+    ) -> None:
         if depth >= MAX_DEPTH:
             return
         content = _yaml_content(node)
@@ -309,9 +317,9 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
                 if pair.type not in _YAML_PAIRS or key is None:
                     continue
                 value = pair.child_by_field_name("value")
-                name = _yaml_key(key)
+                name = _yaml_key(key, source)
                 child_path = join_key(path, name)
-                described = _yaml_describe(value)
+                described = _yaml_describe(value, source)
                 out.add(
                     path=child_path,
                     name=name,
@@ -321,11 +329,13 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
                     signature=f"{format_key(name)}: {described}".rstrip(),
                 )
                 if value is not None:
-                    self._children(value, child_path, depth + 1, out)
+                    self._children(value, child_path, depth + 1, source, out)
         elif content.type in _YAML_SEQUENCES:
-            self._sequence(content, path, depth, out)
+            self._sequence(content, path, depth, source, out)
 
-    def _sequence(self, node: Node, path: str, depth: int, out: SymbolCollector) -> None:
+    def _sequence(
+        self, node: Node, path: str, depth: int, source: bytes, out: SymbolCollector
+    ) -> None:
         listed = 0
         for index, item in enumerate(c for c in node.named_children if c.type != "comment"):
             if item.type == "block_sequence_item" and item.named_child_count == 0:
@@ -342,9 +352,43 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
                 kind=kind,
                 node=item,
                 depth=depth,
-                signature=f"[{index}]: {_yaml_describe(value)}",
+                signature=f"[{index}]: {_yaml_describe(value, source)}",
             )
-            self._children(value, child_path, depth + 1, out)
+            self._children(value, child_path, depth + 1, source, out)
+
+
+_TEMPLATE = re.compile(rb"\{\{.*?\}\}", re.DOTALL)
+_FILLER, _BLANK, _NEWLINE = ord("x"), ord(" "), ord("\n")
+
+
+def mask_templates(source: bytes) -> bytes:
+    """Hide Go/Helm template directives from the YAML parser, keeping byte offsets.
+
+    Inline directives (``replicas: {{ .Values.n }}``) become ``x`` filler, which parses
+    as a plain scalar. Lines made only of directives (``{{- if .Values.on }}``,
+    ``{{- end }}``) become blank, so they do not break the indentation structure.
+    Newlines are never touched, so line numbers stay exact.
+    """
+    if b"{{" not in source:
+        return source
+    masked = bytearray(source)
+    hidden = bytearray(len(source))
+    for match in _TEMPLATE.finditer(source):
+        for index in range(match.start(), match.end()):
+            if source[index] != _NEWLINE:
+                masked[index] = _FILLER
+                hidden[index] = 1
+    start = 0
+    while start <= len(source):
+        end = source.find(b"\n", start)
+        end = len(source) if end == -1 else end
+        line = range(start, end)
+        if any(hidden[i] for i in line) and all(hidden[i] or source[i] in b" \t" for i in line):
+            for index in line:
+                if hidden[index]:
+                    masked[index] = _BLANK
+        start = end + 1
+    return bytes(masked)
 
 
 def _yaml_content(node: Node | None) -> Node | None:
@@ -365,17 +409,17 @@ def _yaml_kind(value: Node | None) -> str:
     return "value"
 
 
-def _yaml_describe(value: Node | None) -> str:
+def _yaml_describe(value: Node | None, source: bytes) -> str:
     content = _yaml_content(value)
     if content is None:
         return ""
     entries = [c for c in content.named_children if c.type != "comment"]
-    return _describe(_yaml_kind(value), len(entries), node_text(content))
+    return _describe(_yaml_kind(value), len(entries), node_text(content, source))
 
 
-def _yaml_key(key: Node) -> str:
+def _yaml_key(key: Node, source: bytes) -> str:
     content = _yaml_content(key)
-    text = node_text(content) if content is not None else node_text(key)
+    text = node_text(content, source) if content is not None else node_text(key, source)
     if content is not None and content.type in {"double_quote_scalar", "single_quote_scalar"}:
         return _unquote(text)
     return text
