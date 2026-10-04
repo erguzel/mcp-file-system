@@ -33,33 +33,34 @@ class TreeSitterMarkdownOutlineProvider(TreeSitterOutlineProvider):
 
     language = "markdown"
     extensions = frozenset({".md", ".markdown", ".mdx"})
+    masks_wide_chars = True
 
     def _grammar(self) -> object:
         return tree_sitter_markdown.language()
 
     def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         headings: list[Heading] = []
-        _collect(root, headings)
+        _collect(root, source, headings)
         total = end_line(root) if root.end_byte else 0
         return symbols_from_headings(headings, total)
 
 
-def _collect(node: Node, headings: list[Heading]) -> None:
+def _collect(node: Node, source: bytes, headings: list[Heading]) -> None:
     for child in node.named_children:
         if child.type == "section":
-            _collect(child, headings)
+            _collect(child, source, headings)
         elif child.type in {"atx_heading", "setext_heading"}:
-            heading = _heading(child)
+            heading = _heading(child, source)
             if heading is not None:
                 headings.append(heading)
 
 
-def _heading(node: Node) -> Heading | None:
+def _heading(node: Node, source: bytes) -> Heading | None:
     level = next((_LEVELS[c.type] for c in node.children if c.type in _LEVELS), None)
     content = node.child_by_field_name("heading_content")
     if level is None or content is None:
         return None
-    title = " ".join(node_text(content).split())
+    title = " ".join(node_text(content, source).split())
     if node.type == "atx_heading":
         title = _CLOSING_HASHES.sub("", title).strip()
     return Heading(level, title, start_line(node)) if title else None
