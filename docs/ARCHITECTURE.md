@@ -28,6 +28,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, Python/Markdown providers, `Outliner` service. |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
+| `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
 | `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting and error translation. |
 

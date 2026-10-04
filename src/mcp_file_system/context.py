@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from mcp_file_system.audit import AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.editor import FileEditor
 from mcp_file_system.core.finder import FileFinder, Walker
@@ -22,6 +23,7 @@ class AppContext:
     searcher: Searcher
     outliner: Outliner
     editor: FileEditor
+    audit: AuditLog | None = None
 
     @classmethod
     def from_settings(
@@ -31,7 +33,11 @@ class AppContext:
         search_backend: SearchBackend | None = None,
         outline_registry: OutlineRegistry | None = None,
     ) -> "AppContext":
-        """Build every service from ``settings``; extension points can be overridden."""
+        """Build every service from ``settings``; extension points can be overridden.
+
+        Raises:
+            OSError: The configured audit log cannot be created or written.
+        """
         guard = PathGuard(settings.roots, AccessPolicy(settings.deny_globs))
         walker = Walker(guard, respect_gitignore=settings.respect_gitignore)
         finder = FileFinder(guard, walker, settings)
@@ -43,4 +49,9 @@ class AppContext:
             searcher=Searcher(finder, search_backend or PythonSearchBackend(), settings),
             outliner=Outliner(guard, outline_registry or default_registry(), settings),
             editor=FileEditor(guard, settings),
+            audit=(
+                AuditLog(settings.audit_log, profile=settings.profile)
+                if settings.audit_log is not None
+                else None
+            ),
         )

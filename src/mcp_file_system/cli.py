@@ -69,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Publish tool output schemas (default: on for full, off for lite).",
     )
+    parser.add_argument(
+        "--audit-log",
+        type=Path,
+        metavar="FILE",
+        help="Append one JSON line per tool call to FILE (must be outside the roots).",
+    )
     limits = parser.add_argument_group("limits")
     limits.add_argument("--max-file-bytes", type=int, metavar="N")
     limits.add_argument("--max-read-lines", type=int, metavar="N")
@@ -96,6 +102,7 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         "profile",
         "tools",
         "output_schema",
+        "audit_log",
     )
     overrides: dict[str, Any] = {
         name: getattr(args, name) for name in names if getattr(args, name) is not None
@@ -124,7 +131,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         server = create_server(settings)
-    except ValueError as exc:  # e.g. an unknown name in --tools
+    except (ValueError, OSError) as exc:  # e.g. unknown --tools name, unwritable audit log
         sys.stderr.write(f"mcp-file-system: invalid configuration\n{exc}\n")
         return EXIT_CONFIG_ERROR
     try:
