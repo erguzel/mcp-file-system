@@ -21,6 +21,10 @@ All notable changes to this project are documented here. The format follows
 - Outlines for JSON, TOML and YAML: key trees with line spans and inline scalar values,
   so `read_symbol("tool.ruff.lint")` or `read_symbol("jobs.test.steps[0]")` returns just
   that section. TOML tables include their directly following sub-tables.
+- Shell script outlines (functions) via `tree-sitter-bash`; files without a suffix are
+  recognized by their shebang (`#!/usr/bin/env bash`, `#!/usr/bin/env python3`).
+- Helm/Go templates in YAML (`{{ ... }}`) outline like plain YAML, with the original
+  directives shown in signatures, so templated Kubernetes manifests are covered.
 - Markdown outlines now use the tree-sitter grammar: setext headings are recognized and
   lines inside HTML blocks or indented code are no longer mistaken for headings. The
   regex provider remains as a fallback if a grammar cannot be loaded.
@@ -33,7 +37,7 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - New core dependencies: `tree-sitter` (pinned `>=0.25.2,<0.26`: 0.26.0 crashes with heap
-  corruption during tree walks) and the Markdown, JSON, TOML and YAML grammars.
+  corruption during tree walks) and the Markdown, JSON, TOML, YAML and Bash grammars.
 
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,

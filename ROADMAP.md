@@ -54,8 +54,9 @@ and prints a summary table.
 
 ## 3. Tree-sitter outline backbone
 
-- [ ] **Status:** in progress (core formats done: Markdown, JSON, TOML, YAML; `[code]`
-  extra next). `tree-sitter` is pinned below 0.26 because 0.26.0 corrupts the heap.
+- [ ] **Status:** in progress. Done: Markdown, JSON, TOML, YAML (including Helm/Go
+  templates), shell scripts (incl. shebang detection). Next: the `[code]` extra and
+  Dockerfiles. `tree-sitter` is pinned below 0.26 because 0.26.0 corrupts the heap.
 
 **What**
 - Add `tree-sitter` plus the Markdown, JSON, TOML and YAML grammars as **core
@@ -69,8 +70,17 @@ and prints a summary table.
   and `tomllib` cannot do this: they return values without line positions.)
 - Markdown moves to tree-sitter, which also handles setext headings and HTML blocks.
   Keep the current regex provider as a tested fallback.
-- Other programming languages (JavaScript/TypeScript, Go, Rust, Java, ...) behind an
-  optional extra, `mcp-file-system[code]`, backed by `tree-sitter-language-pack`.
+- Shell scripts via `tree-sitter-bash` (core dependency): functions, with files without
+  a suffix matched by their shebang (`#!/usr/bin/env bash`).
+- Helm/Go templates in YAML: `{{ ... }}` directives are masked (same byte length) before
+  parsing, so templated Kubernetes manifests outline like plain YAML.
+- JavaScript/TypeScript, Go and Java behind an optional extra, `mcp-file-system[code]`,
+  using the individual grammar packages (`tree-sitter-javascript`,
+  `tree-sitter-typescript`, `tree-sitter-go`, `tree-sitter-java`). Not
+  `tree-sitter-language-pack`: it downloads grammars at runtime, i.e. unpinned native
+  code fetched while the server runs.
+- Dockerfiles via a small pure-Python provider (stages and instructions; the format is
+  line-based). The `tree-sitter-dockerfile` package has no Windows wheels.
 - Python stays on the standard library `ast` (no dependency, richer signatures).
 
 **Why:** `outline` and `read_symbol` save the most tokens, but only for Python and Markdown

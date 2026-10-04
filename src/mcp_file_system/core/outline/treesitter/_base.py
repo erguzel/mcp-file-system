@@ -40,8 +40,16 @@ class TreeSitterOutlineProvider(ABC):
         """Return the grammar handle (e.g. ``tree_sitter_json.language()``)."""
 
     @abstractmethod
-    def _extract(self, root: Node) -> list[Symbol]:
-        """Turn the syntax tree into symbols in source order."""
+    def _extract(self, root: Node, source: bytes) -> list[Symbol]:
+        """Turn the syntax tree into symbols in source order.
+
+        ``source`` is the original text (before :meth:`_prepare`); read node text from it
+        with ``node_text(node, source)``. Byte offsets are identical in both.
+        """
+
+    def _prepare(self, source: bytes) -> bytes:
+        """Transform the source before parsing; must keep every byte offset unchanged."""
+        return source
 
     def outline(self, text: str) -> list[Symbol]:
         """Parse ``text`` and return its symbols.
@@ -51,8 +59,11 @@ class TreeSitterOutlineProvider(ABC):
         """
         # Tree-sitter counts rows at "\n" only; normalize so rows match our line numbers.
         source = _LINE_BREAK.sub("\n", text).encode("utf-8", errors="replace")
-        tree = Parser(self._language).parse(source)
-        return self._extract(tree.root_node)
+        prepared = self._prepare(source)
+        if len(prepared) != len(source):  # pragma: no cover - programming error guard
+            raise ValueError("_prepare must preserve byte offsets")
+        tree = Parser(self._language).parse(prepared)
+        return self._extract(tree.root_node, source)
 
 
 def start_line(node: Node) -> int:
@@ -68,9 +79,10 @@ def end_line(node: Node) -> int:
     return end.row + 1
 
 
-def node_text(node: Node) -> str:
-    """Source text of ``node``."""
-    return (node.text or b"").decode("utf-8", errors="replace")
+def node_text(node: Node, source: bytes | None = None) -> str:
+    """Text of ``node``, taken from ``source`` when given (else from the parsed text)."""
+    raw = source[node.start_byte : node.end_byte] if source is not None else node.text
+    return (raw or b"").decode("utf-8", errors="replace")
 
 
 def format_key(key: str) -> str:

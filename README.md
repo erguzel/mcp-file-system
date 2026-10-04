@@ -6,8 +6,8 @@ context, pull out a section between two patterns, or read one function by name, 
 loading whole files into their context window.
 
 - **Partial reads:** numbered line ranges (with tail), `sed -n '/a/,/b/p'`-style sections,
-  symbol-level reads for Python, Markdown, JSON, TOML and YAML (e.g. read just
-  `tool.ruff.lint` from a `pyproject.toml`).
+  symbol-level reads for Python, Markdown, JSON, TOML, YAML (including Helm templates)
+  and shell scripts (e.g. read just `tool.ruff.lint` from a `pyproject.toml`).
 - **Search:** recursive grep with context, `count` / `files_with_matches` modes and globs.
   It honors `.gitignore` and skips binaries.
 - **Navigation:** depth-limited trees, glob finds, file metadata (lines, encoding, newline
@@ -103,7 +103,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and three output modes. |
 | `list_directory` | Indented tree with sizes, depth-limited. |
 | `find_files` | Gitignore-style glob search for files or directories. |
-| `outline` | Classes/functions/methods with signatures (Python), headings (Markdown, incl. setext), or key trees with inline scalar values (JSON, TOML, YAML), all with line spans. |
+| `outline` | Classes/functions/methods with signatures (Python), shell functions, headings (Markdown, incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. Files without a suffix are recognized by their shebang. |
 | `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. |
 | `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1). |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |

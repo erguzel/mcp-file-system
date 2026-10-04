@@ -88,12 +88,15 @@ class Outliner:
         self, path: str
     ) -> tuple[ResolvedPath, OutlineProvider, list[str], list[Symbol], str]:
         resolved = self._guard.resolve_file(path)
-        provider = self._registry.for_path(resolved.path)
+        provider = self._registry.for_path(resolved.path) or self._registry.for_shebang(
+            _first_line(resolved)
+        )
         if provider is None:
-            supported = ", ".join(self._registry.supported_suffixes)
+            suffixes = ", ".join(self._registry.supported_suffixes)
+            interpreters = ", ".join(self._registry.supported_interpreters)
             raise InvalidArgumentError(
-                f"No outline support for {resolved.display!r}. Supported suffixes: {supported}. "
-                "Use grep to locate definitions instead."
+                f"No outline support for {resolved.display!r}. Supported suffixes: {suffixes}; "
+                f"shebang interpreters: {interpreters}. Use grep to locate definitions instead."
             )
         stat = resolved.path.stat()
         check_size(resolved, stat.st_size, self._settings.max_file_bytes)
@@ -107,6 +110,13 @@ class Outliner:
                 "Use read_lines or grep instead."
             ) from None
         return resolved, provider, split_lines(text), symbols, compute_etag(stat)
+
+
+def _first_line(resolved: ResolvedPath) -> str:
+    """The first line of a file, from at most its first 256 bytes."""
+    with resolved.path.open("rb") as handle:
+        head = handle.read(256)
+    return head.split(b"\n", 1)[0].decode("latin-1")
 
 
 def _describe(symbols: list[Symbol]) -> str:
