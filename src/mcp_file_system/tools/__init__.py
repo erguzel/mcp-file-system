@@ -42,7 +42,7 @@ def register_all(server: MCPServer[Any], ctx: AppContext) -> list[str]:
         ValueError: The ``tools`` allowlist names a tool the profile does not offer.
     """
     settings = ctx.settings
-    registry = ToolRegistry(server, settings)
+    registry = ToolRegistry(server, settings, ctx.audit)
     registrars = READ_TOOLSETS[settings.profile]
     if settings.allow_write:
         registrars += WRITE_TOOLSETS[settings.profile]

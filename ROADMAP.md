@@ -34,7 +34,7 @@ documents the profiles.
 
 ## 2. Audit log and evaluation harness
 
-- [ ] **Status:** not started
+- [ ] **Status:** in progress (audit log done; evaluation harness next)
 
 **What**
 - Optional `--audit-log PATH`: one JSON line per tool call with timestamp, tool, arguments,

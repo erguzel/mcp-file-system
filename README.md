@@ -144,6 +144,32 @@ CLI flags take precedence. Complex values in the environment are JSON.
 | `profile` | `--profile` | `full` | Tool set: `full` or `lite` (see [Profiles](#profiles-full-and-lite)). |
 | `tools` | `--tools NAME,...` | all | Only expose these tools of the profile (`MCP_FS_TOOLS=grep,read_lines`). |
 | `output_schema` | `--[no-]output-schema` | by profile | Publish output schemas (on for `full`, off for `lite`). |
+| `audit_log` | `--audit-log FILE` | off | Append one JSON line per tool call (see [Audit log](#audit-log)). |
+
+## Audit log
+
+`--audit-log FILE` appends one JSON line per tool call, for you rather than the model.
+It never changes tool results or tool definitions, so it costs no tokens, and agents
+cannot read it: the file must be outside the allowed roots (startup fails otherwise).
+
+```json
+{"ts": "2026-10-04T12:00:01Z", "tool": "read_lines", "profile": "lite",
+ "args": {"path": "src/a.py", "start": 10, "end": 40},
+ "duration_ms": 2.5, "result_chars": 1240, "truncated": false, "error": null}
+```
+
+- **No file contents:** content-carrying arguments (`replace_in_file`'s pattern and
+  replacement, `edit_lines`' new text, `write_file`'s content) are logged as
+  `{"chars": N}`. Errors are logged with their type, e.g. `StaleFileError`.
+- **Cost:** about 25 µs and 200 bytes per call (≈1 MB per 5,000 calls). Each record is
+  appended and the file closed again, so external log rotation is safe.
+- **Failure handling:** if the log cannot be written (e.g. a full disk), the tool call still
+  succeeds and a warning goes to stderr.
+
+```bash
+jq -r .tool audit.jsonl | sort | uniq -c | sort -rn   # most used tools
+jq 'select(.error != null)' audit.jsonl               # failed calls
+```
 
 ## Security model
 

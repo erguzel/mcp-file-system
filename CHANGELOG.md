@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows
 - `--tools NAME,...` (`MCP_FS_TOOLS`) allowlist and `--[no-]output-schema`
   (`MCP_FS_OUTPUT_SCHEMA`); output schemas default to off in `lite`.
 - `file_info` reports an approximate token count for text files.
+- `--audit-log FILE` (`MCP_FS_AUDIT_LOG`): one JSON line per tool call (tool, arguments,
+  duration, result size, truncation, error type). File contents are never logged, and
+  the file must be outside the roots.
 
 ### Changed
 

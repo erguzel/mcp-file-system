@@ -10,6 +10,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
+from mcp_file_system.audit import AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.models import ToolResult
 from mcp_file_system.errors import FsError
@@ -83,12 +84,16 @@ class ToolRegistry:
 
     It is the single place that decides, per tool, whether the tool is exposed
     (``Settings.tools`` allowlist), whether it publishes an output schema
-    (``Settings.emit_output_schema``) and that errors are translated.
+    (``Settings.emit_output_schema``), that errors are translated, and whether calls
+    are recorded in the audit log.
     """
 
-    def __init__(self, server: MCPServer[Any], settings: Settings) -> None:
+    def __init__(
+        self, server: MCPServer[Any], settings: Settings, audit: AuditLog | None = None
+    ) -> None:
         self._server = server
         self._settings = settings
+        self._audit = audit
         self.offered: list[str] = []
         """Every tool name offered by the registrars that ran, allowed or not."""
         self.registered: list[str] = []
@@ -102,8 +107,11 @@ class ToolRegistry:
             self.offered.append(name)
             if self._settings.tools and name not in self._settings.tools:
                 return fn
+            tool_fn: Callable[..., Any] = translate_errors(fn)
+            if self._audit is not None:
+                tool_fn = self._audit.wrap(name, tool_fn)
             self._server.add_tool(
-                translate_errors(fn),
+                tool_fn,
                 annotations=annotations,
                 # None lets the SDK derive the schema from the return annotation.
                 structured_output=None if self._settings.emit_output_schema else False,

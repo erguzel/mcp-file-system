@@ -6,10 +6,11 @@ Complex values in the environment are JSON, e.g. ``MCP_FS_ROOTS='["/srv/a", "/sr
 ``MCP_FS_TOOLS`` also accepts a comma-separated list.
 """
 
+import os
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -51,6 +52,14 @@ DEFAULT_DENY_GLOBS: tuple[str, ...] = (
     ".pypirc",
 )
 """Gitignore-style patterns that are always blocked, even for direct access."""
+
+
+def _is_inside(path: Path, root: Path) -> bool:
+    candidate, base = os.path.normcase(path), os.path.normcase(root)
+    try:
+        return os.path.commonpath([candidate, base]) == base
+    except ValueError:  # different drives on Windows
+        return False
 
 
 def _cwd_roots() -> tuple[Path, ...]:
@@ -116,6 +125,10 @@ class Settings(BaseSettings):
         default=None,
         description="Publish output schemas. Default: on for 'full', off for 'lite'.",
     )
+    audit_log: Path | None = Field(
+        default=None,
+        description="Append one JSON line per tool call to this file (outside the roots).",
+    )
 
     @field_validator("roots")
     @classmethod
@@ -131,6 +144,22 @@ class Settings(BaseSettings):
             if real not in resolved:
                 resolved.append(real)
         return tuple(resolved)
+
+    @field_validator("audit_log")
+    @classmethod
+    def _resolve_audit_log(cls, path: Path | None) -> Path | None:
+        return path.expanduser().resolve() if path is not None else None
+
+    @model_validator(mode="after")
+    def _audit_log_outside_roots(self) -> "Settings":
+        if self.audit_log is not None and any(
+            _is_inside(self.audit_log, root) for root in self.roots
+        ):
+            raise ValueError(
+                f"audit_log must be outside the allowed roots: {self.audit_log} "
+                "(an agent with access to it could read or tamper with the log)"
+            )
+        return self
 
     @field_validator("tools", mode="before")
     @classmethod
