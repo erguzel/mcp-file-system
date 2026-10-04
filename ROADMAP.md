@@ -54,7 +54,8 @@ and prints a summary table.
 
 ## 3. Tree-sitter outline backbone
 
-- [ ] **Status:** not started
+- [ ] **Status:** in progress (core formats done: Markdown, JSON, TOML, YAML; `[code]`
+  extra next). `tree-sitter` is pinned below 0.26 because 0.26.0 corrupts the heap.
 
 **What**
 - Add `tree-sitter` plus the Markdown, JSON, TOML and YAML grammars as **core

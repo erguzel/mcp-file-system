@@ -27,6 +27,13 @@ dependencies = [
     "pathspec>=1.1.1",
     "pydantic-settings>=2.15.0",
     "regex>=2026.9.29",
+    # 0.26.0 corrupts the heap in our tree walks (segfault); keep below 0.26 until a fixed
+    # release passes tests/unit/test_outline_fuzz.py and test_array_elements_are_capped.
+    "tree-sitter>=0.25.2,<0.26",
+    "tree-sitter-json>=0.24",
+    "tree-sitter-markdown>=0.5",
+    "tree-sitter-toml>=0.7",
+    "tree-sitter-yaml>=0.7",
 ]
 
 [project.scripts]

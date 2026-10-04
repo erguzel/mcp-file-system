@@ -18,12 +18,22 @@ All notable changes to this project are documented here. The format follows
   duration, result size, truncation, error type). File contents are never logged, and
   the file must be outside the roots.
 
+- Outlines for JSON, TOML and YAML: key trees with line spans and inline scalar values,
+  so `read_symbol("tool.ruff.lint")` or `read_symbol("jobs.test.steps[0]")` returns just
+  that section. TOML tables include their directly following sub-tables.
+- Markdown outlines now use the tree-sitter grammar: setext headings are recognized and
+  lines inside HTML blocks or indented code are no longer mistaken for headings. The
+  regex provider remains as a fallback if a grammar cannot be loaded.
+
 ### Security
 
 - Denied paths inside the roots no longer reveal whether they exist: a missing `.env`
   now reports "denied by policy" like an existing one, instead of "No such file".
 
 ### Changed
+
+- New core dependencies: `tree-sitter` (pinned `>=0.25.2,<0.26`: 0.26.0 crashes with heap
+  corruption during tree walks) and the Markdown, JSON, TOML and YAML grammars.
 
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,

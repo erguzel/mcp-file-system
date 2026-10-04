@@ -1,4 +1,10 @@
-"""Markdown outlines: ATX headings and the sections they introduce."""
+"""Markdown outlines: headings and the sections they introduce.
+
+This module holds the parser-independent section logic (:func:`symbols_from_headings`)
+and a regex-based provider. The default registry prefers the tree-sitter provider, which
+also understands setext headings and HTML blocks; the regex provider is the fallback
+when the grammar is unavailable.
+"""
 
 import re
 from dataclasses import dataclass
@@ -14,18 +20,51 @@ _FRONT_MATTER_END = frozenset({"---", "..."})
 
 
 @dataclass(frozen=True, slots=True)
-class _Heading:
+class Heading:
+    """A heading found by a Markdown parser."""
+
     level: int
     title: str
     line: int
 
 
-class MarkdownOutlineProvider:
-    """Lists ATX headings (``#`` ... ``######``).
+def symbols_from_headings(headings: list[Heading], total_lines: int) -> list[Symbol]:
+    """Turn headings (in document order) into section symbols.
 
     A heading's section ends right before the next heading of the same or a higher
-    level. Headings inside fenced code blocks and YAML front matter are ignored.
-    Qualified names join ancestor titles with ``" > "``, e.g. ``"Usage > Install"``.
+    level. Qualified names join ancestor titles with ``" > "``, e.g.
+    ``"Usage > Install"``.
+    """
+    symbols: list[Symbol] = []
+    stack: list[Heading] = []
+    for index, heading in enumerate(headings):
+        while stack and stack[-1].level >= heading.level:
+            stack.pop()
+        end = next(
+            (h.line - 1 for h in headings[index + 1 :] if h.level <= heading.level),
+            total_lines,
+        )
+        qualified = QUALIFIED_SEPARATOR.join([*(h.title for h in stack), heading.title])
+        symbols.append(
+            Symbol(
+                name=heading.title,
+                qualified_name=qualified,
+                kind=f"h{heading.level}",
+                start_line=heading.line,
+                end_line=end,
+                depth=len(stack),
+                signature=f"{'#' * heading.level} {heading.title}",
+            )
+        )
+        stack.append(heading)
+    return symbols
+
+
+class RegexMarkdownOutlineProvider:
+    """Lists ATX headings (``#`` ... ``######``) using line patterns.
+
+    Headings inside fenced code blocks and YAML front matter are ignored. Setext
+    headings and HTML blocks are not understood; see the tree-sitter provider.
     """
 
     language = "markdown"
@@ -34,34 +73,11 @@ class MarkdownOutlineProvider:
     def outline(self, text: str) -> list[Symbol]:
         """Return the document's headings as symbols."""
         lines = split_lines(text)
-        headings = _scan_headings(lines)
-        symbols: list[Symbol] = []
-        stack: list[_Heading] = []
-        for index, heading in enumerate(headings):
-            while stack and stack[-1].level >= heading.level:
-                stack.pop()
-            end = next(
-                (h.line - 1 for h in headings[index + 1 :] if h.level <= heading.level),
-                len(lines),
-            )
-            qualified = QUALIFIED_SEPARATOR.join([*(h.title for h in stack), heading.title])
-            symbols.append(
-                Symbol(
-                    name=heading.title,
-                    qualified_name=qualified,
-                    kind=f"h{heading.level}",
-                    start_line=heading.line,
-                    end_line=end,
-                    depth=len(stack),
-                    signature=f"{'#' * heading.level} {heading.title}",
-                )
-            )
-            stack.append(heading)
-        return symbols
+        return symbols_from_headings(_scan_headings(lines), len(lines))
 
 
-def _scan_headings(lines: list[str]) -> list[_Heading]:
-    headings: list[_Heading] = []
+def _scan_headings(lines: list[str]) -> list[Heading]:
+    headings: list[Heading] = []
     fence: str | None = None
     start = _front_matter_length(lines)
     for number, line in enumerate(lines[start:], start=start + 1):
@@ -79,7 +95,7 @@ def _scan_headings(lines: list[str]) -> list[_Heading]:
             continue
         heading = _ATX.match(line)
         if heading and (title := (heading.group(2) or "").strip()):
-            headings.append(_Heading(len(heading.group(1)), title, number))
+            headings.append(Heading(len(heading.group(1)), title, number))
     return headings
 
 

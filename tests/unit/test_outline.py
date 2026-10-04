@@ -6,8 +6,10 @@ from conftest import ContextFactory, write
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.models import Symbol
 from mcp_file_system.core.outline import OutlineRegistry, default_registry
-from mcp_file_system.core.outline.markdown import MarkdownOutlineProvider
+from mcp_file_system.core.outline.base import OutlineProvider
+from mcp_file_system.core.outline.markdown import RegexMarkdownOutlineProvider
 from mcp_file_system.core.outline.python import PythonOutlineProvider
+from mcp_file_system.core.outline.treesitter import TreeSitterMarkdownOutlineProvider
 from mcp_file_system.errors import (
     FileTooLargeError,
     InvalidArgumentError,
@@ -132,9 +134,20 @@ Text.
 """
 
 
-class TestMarkdownProvider:
-    def test_headings_sections_and_qualified_names(self) -> None:
-        symbols = MarkdownOutlineProvider().outline(MD)
+MARKDOWN_PROVIDERS = [
+    pytest.param(RegexMarkdownOutlineProvider, id="regex"),
+    pytest.param(TreeSitterMarkdownOutlineProvider, id="tree-sitter"),
+]
+
+
+@pytest.mark.parametrize("provider_class", MARKDOWN_PROVIDERS)
+class TestMarkdownProviders:
+    """Behavior both Markdown providers must share."""
+
+    def test_headings_sections_and_qualified_names(
+        self, provider_class: type[OutlineProvider]
+    ) -> None:
+        symbols = provider_class().outline(MD)
         assert [(s.qualified_name, s.start_line, s.end_line, s.depth) for s in symbols] == [
             ("Guide", 4, 21, 0),
             ("Guide > Install", 8, 17, 1),
@@ -145,12 +158,46 @@ class TestMarkdownProvider:
         assert symbols[2].signature == "### From source"
         assert symbols[2].kind == "h3"
 
-    def test_unterminated_front_matter_is_content(self) -> None:
-        symbols = MarkdownOutlineProvider().outline("---\n# Title\n")
+    def test_unterminated_front_matter_is_content(
+        self, provider_class: type[OutlineProvider]
+    ) -> None:
+        symbols = provider_class().outline("---\n# Title\n")
         assert [s.name for s in symbols] == ["Title"]
 
-    def test_empty_document(self) -> None:
-        assert MarkdownOutlineProvider().outline("") == []
+    def test_empty_document(self, provider_class: type[OutlineProvider]) -> None:
+        assert provider_class().outline("") == []
+
+    def test_crlf_line_numbers(self, provider_class: type[OutlineProvider]) -> None:
+        symbols = provider_class().outline("# A\r\ntext\r\n## B\r\nmore\r\n")
+        assert [(s.name, s.start_line, s.end_line) for s in symbols] == [
+            ("A", 1, 4),
+            ("B", 3, 4),
+        ]
+
+
+class TestTreeSitterMarkdown:
+    """Cases only the grammar-based provider gets right."""
+
+    def test_setext_headings(self) -> None:
+        text = "Title\n=====\n\nIntro.\n\nPart\n----\nBody.\n"
+        symbols = TreeSitterMarkdownOutlineProvider().outline(text)
+        assert [(s.qualified_name, s.kind, s.start_line, s.end_line) for s in symbols] == [
+            ("Title", "h1", 1, 8),
+            ("Title > Part", "h2", 6, 8),
+        ]
+
+    def test_html_blocks_and_indented_code_are_not_headings(self) -> None:
+        text = "# Real\n<div>\n# inside html\n</div>\n\n    # indented code\n"
+        assert [s.name for s in TreeSitterMarkdownOutlineProvider().outline(text)] == ["Real"]
+
+    def test_headings_in_quotes_and_lists_are_not_sections(self) -> None:
+        text = "# Top\n> # quoted\n\n- # in list\n"
+        assert [s.name for s in TreeSitterMarkdownOutlineProvider().outline(text)] == ["Top"]
+
+    def test_closing_hashes_and_inline_markup(self) -> None:
+        text = "## Use `grep` here ##\n"
+        symbols = TreeSitterMarkdownOutlineProvider().outline(text)
+        assert symbols[0].name == "Use `grep` here"
 
 
 class TestRegistry:

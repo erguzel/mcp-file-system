@@ -111,7 +111,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
 
     @registry.tool(READ_ONLY)
     def outline(path: PathArg) -> Annotated[CallToolResult, OutlineResult]:
-        """Classes, functions or Markdown headings of a file, with line spans."""
+        """Structure of a code, Markdown, JSON, TOML or YAML file, with line spans."""
         return to_call_result(outliner.outline(path))
 
     @registry.tool(READ_ONLY)
