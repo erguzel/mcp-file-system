@@ -130,6 +130,15 @@ def test_symlink_inside_root_resolves_to_target(guard: PathGuard, root: Path) ->
     assert resolved.display == "real.txt"
 
 
+def test_outside_symlink_into_root_resolves_to_its_target(
+    guard: PathGuard, root: Path, outside: Path
+) -> None:
+    # Only the target matters for confinement; the link itself may live anywhere.
+    write(root / "data.txt", "x")
+    symlink_or_skip(outside / "link.txt", root / "data.txt")
+    assert guard.resolve(str(outside / "link.txt")).path == root / "data.txt"
+
+
 def test_symlink_pointing_at_secret_is_denied(guard: PathGuard, root: Path) -> None:
     write(root / ".env", "TOKEN=1")
     symlink_or_skip(root / "notes.txt", root / ".env")
@@ -177,6 +186,34 @@ def test_deny_list_is_case_insensitive(guard: PathGuard, root: Path, variant: st
     write(root / variant, "secret")
     with pytest.raises(AccessDeniedError):
         guard.resolve(variant)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [".env", "sub/.env", ".env.local", "server.pem", ".git", ".git/config", ".ssh/id_rsa"],
+)
+def test_no_existence_oracle_for_denied_paths(guard: PathGuard, root: Path, relative: str) -> None:
+    # A denied path must answer the same whether or not it exists; otherwise "not found"
+    # vs "denied" reveals, for example, whether a project has a .env file.
+    with pytest.raises(AccessDeniedError) as missing:
+        guard.resolve(relative)
+    if relative == ".git":
+        (root / ".git").mkdir()
+    else:
+        write(root / relative, "secret")
+    with pytest.raises(AccessDeniedError) as existing:
+        guard.resolve(relative)
+    assert str(missing.value) == str(existing.value)
+
+
+def test_denied_path_below_missing_directory(guard: PathGuard) -> None:
+    with pytest.raises(AccessDeniedError):
+        guard.resolve("does/not/exist/.env")
+
+
+def test_missing_allowed_path_is_still_not_found(guard: PathGuard) -> None:
+    with pytest.raises(NotFoundError):
+        guard.resolve("does/not/exist/readme.md")
 
 
 def test_denied_directory_itself_is_blocked(guard: PathGuard, root: Path) -> None:

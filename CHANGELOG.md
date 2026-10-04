@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
   duration, result size, truncation, error type). File contents are never logged, and
   the file must be outside the roots.
 
+### Security
+
+- Denied paths inside the roots no longer reveal whether they exist: a missing `.env`
+  now reports "denied by policy" like an existing one, instead of "No such file".
+
 ### Changed
 
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
