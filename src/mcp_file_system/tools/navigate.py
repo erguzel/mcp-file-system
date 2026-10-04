@@ -2,7 +2,6 @@
 
 from typing import Annotated
 
-from mcp.server import MCPServer
 from mcp.types import CallToolResult
 from pydantic import Field
 
@@ -13,22 +12,31 @@ from mcp_file_system.tools._common import (
     READ_ONLY,
     DirArg,
     IncludeHiddenArg,
+    ToolRegistry,
     to_call_result,
-    translate_errors,
+    unset_int,
 )
 
+GlobArg = Annotated[
+    str,
+    Field(
+        description="Gitignore-style glob: '*.py' matches at any depth, "
+        "'src/**/test_*.py' is anchored to path."
+    ),
+]
+DepthArg = Annotated[
+    int, Field(ge=1, le=10, description="Levels to descend (1 = direct children).")
+]
 
-def register(server: MCPServer, ctx: AppContext) -> None:
+
+def register(registry: ToolRegistry, ctx: AppContext) -> None:
     """Register the navigation tools."""
     finder = ctx.finder
 
-    @server.tool(annotations=READ_ONLY)
-    @translate_errors
+    @registry.tool(READ_ONLY)
     def list_directory(
         path: DirArg = ".",
-        depth: Annotated[
-            int, Field(ge=1, le=10, description="Levels to descend (1 = direct children).")
-        ] = 1,
+        depth: DepthArg = 1,
         include_hidden: IncludeHiddenArg = False,
     ) -> Annotated[CallToolResult, DirectoryListing]:
         """List a directory as an indented tree with file sizes.
@@ -40,22 +48,19 @@ def register(server: MCPServer, ctx: AppContext) -> None:
             finder.list_directory(path, depth=depth, include_hidden=include_hidden)
         )
 
-    @server.tool(annotations=READ_ONLY)
-    @translate_errors
+    @registry.tool(READ_ONLY)
     def find_files(
-        glob: Annotated[
-            str,
-            Field(
-                description="Gitignore-style glob: '*.py' matches at any depth, "
-                "'src/**/test_*.py' is anchored to path."
-            ),
-        ],
+        glob: GlobArg,
         path: DirArg = ".",
         kind: Annotated[
             EntryKind, Field(description="Return 'file's, 'directory's or 'any'.")
         ] = "file",
-        max_depth: Annotated[int | None, Field(ge=1, description="Limit search depth.")] = None,
-        max_results: Annotated[int | None, Field(ge=1, description="Limit result count.")] = None,
+        max_depth: Annotated[
+            int, Field(ge=0, description="Limit search depth (0 = unlimited).")
+        ] = 0,
+        max_results: Annotated[
+            int, Field(ge=0, description="Limit result count (0 = server limit).")
+        ] = 0,
         include_hidden: IncludeHiddenArg = False,
     ) -> Annotated[CallToolResult, FileList]:
         """Find files or directories by name pattern, like `find -name`."""
@@ -64,8 +69,8 @@ def register(server: MCPServer, ctx: AppContext) -> None:
                 glob,
                 path,
                 kind=kind,
-                max_depth=max_depth,
+                max_depth=unset_int(max_depth),
                 include_hidden=include_hidden,
-                max_results=max_results,
+                max_results=unset_int(max_results),
             )
         )

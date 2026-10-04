@@ -2,7 +2,6 @@
 
 from typing import Annotated
 
-from mcp.server import MCPServer
 from mcp.types import CallToolResult
 from pydantic import Field
 
@@ -13,28 +12,29 @@ from mcp_file_system.tools._common import (
     READ_ONLY,
     DirArg,
     IncludeHiddenArg,
+    ToolRegistry,
     to_call_result,
-    translate_errors,
+    unset_str,
 )
 
-ContextArg = Annotated[int, Field(ge=0, le=MAX_CONTEXT_LINES)]
+DEFAULT_MAX_MATCHES = 100
 
 
-def register(server: MCPServer, ctx: AppContext) -> None:
+def register(registry: ToolRegistry, ctx: AppContext) -> None:
     """Register the search tool."""
     searcher = ctx.searcher
 
-    @server.tool(annotations=READ_ONLY)
-    @translate_errors
+    @registry.tool(READ_ONLY)
     def grep(
         pattern: Annotated[str, Field(description="Regular expression (Python syntax).")],
         path: DirArg = ".",
         glob: Annotated[
-            str | None,
+            str,
             Field(
-                description="Only search files matching this glob, e.g. '*.py' or 'src/**/*.ts'."
+                description="Only search files matching this glob, e.g. '*.py' or "
+                "'src/**/*.ts'. Empty: all files."
             ),
-        ] = None,
+        ] = "",
         fixed_string: Annotated[bool, Field(description="Treat pattern as literal text.")] = False,
         ignore_case: Annotated[bool, Field(description="Case-insensitive matching.")] = False,
         context_before: Annotated[
@@ -54,9 +54,8 @@ def register(server: MCPServer, ctx: AppContext) -> None:
             ),
         ] = "content",
         max_matches: Annotated[
-            int | None,
-            Field(ge=1, description="Maximum hits (or files, in the other modes). Default 100."),
-        ] = None,
+            int, Field(ge=1, description="Maximum hits (or files, in the other modes).")
+        ] = DEFAULT_MAX_MATCHES,
         include_hidden: IncludeHiddenArg = False,
     ) -> Annotated[CallToolResult, GrepResult]:
         """Search file contents with a regular expression, like `grep -rn`.
@@ -70,7 +69,7 @@ def register(server: MCPServer, ctx: AppContext) -> None:
             searcher.grep(
                 pattern,
                 path,
-                glob=glob,
+                glob=unset_str(glob),
                 fixed_string=fixed_string,
                 ignore_case=ignore_case,
                 context_before=context_before,

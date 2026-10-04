@@ -63,6 +63,15 @@ def human_size(size: int) -> str:
     raise AssertionError("unreachable")  # pragma: no cover
 
 
+def human_count(value: int) -> str:
+    """Format a count compactly, e.g. ``960`` -> ``"960"``, ``12400`` -> ``"12.4k"``."""
+    if value < 1000:
+        return str(value)
+    if value < 1_000_000:
+        return f"{value / 1000:.1f}k"
+    return f"{value / 1_000_000:.1f}M"
+
+
 def truncate_text(text: str, max_chars: int, hint: str) -> tuple[str, bool]:
     """Cut ``text`` at a line boundary to fit ``max_chars``; append ``hint`` if cut."""
     if len(text) <= max_chars:

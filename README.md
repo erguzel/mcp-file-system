@@ -39,8 +39,9 @@ uvx --from "git+https://github.com/erguzel/mcp-file-system.git" mcp-file-system 
 The server speaks MCP over stdio:
 
 ```bash
-mcp-file-system --root /path/to/project               # read-only
-mcp-file-system --root /path/to/project --allow-write # enable editing tools
+mcp-file-system --root /path/to/project                  # read-only
+mcp-file-system --root /path/to/project --allow-write    # enable editing tools
+mcp-file-system --root /path/to/project --profile lite   # small local models
 ```
 
 Without `--root`, the current working directory is the root. Repeat `--root` to allow
@@ -68,11 +69,34 @@ claude mcp add files -- uvx --from "git+https://github.com/erguzel/mcp-file-syst
 }
 ```
 
+### Profiles: `full` and `lite`
+
+Every tool definition (name, description and parameter schema) is sent to the model with
+every request. Large models handle the full set easily. Small local models (roughly
+7–14B, e.g. in LM Studio) tool-call more reliably and keep more context free with less.
+
+| | `full` (default) | `lite` |
+|---|---|---|
+| Tools | all 8 (+3 editing) | 7 (+3 editing): no `read_between` |
+| Parameters | all | essential only; hidden ones keep their defaults |
+| Output schemas | published | omitted (results still carry structured content) |
+| Tool listing size* | ~23.6k characters | ~6.6k characters |
+
+\* With editing enabled, measured on version 0.1.x.
+
+`lite` is narrow but complete: it still covers navigating, searching, sizing up, reading
+parts of files and editing, so a small model never needs detours. Its `grep` searches
+an invalid regular expression as literal text instead of failing, its `replace_in_file`
+requires a unique literal match, and its `write_file` only creates new files.
+
+Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
+`--[no-]output-schema` to override the output-schema default.
+
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| `file_info` | Size, line count, encoding, newline style, binary flag and **etag** of a file (or entry count of a directory). |
+| `file_info` | Size, approximate token count, line count, encoding, newline style, binary flag and **etag** of a file (or entry count of a directory). |
 | `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). Continues via `next_start`. |
 | `read_between` | Lines from the Nth match of `start_pattern` to the next `end_pattern`, like `sed -n '/a/,/b/p'`. |
 | `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and three output modes. |
@@ -117,6 +141,9 @@ CLI flags take precedence. Complex values in the environment are JSON.
 | `max_pattern_length` | | 1000 | Longest accepted regex. |
 | `search_timeout_s` | `--search-timeout` | 10 | Wall-clock budget per search or regex operation. |
 | `log_level` | `--log-level` | `WARNING` | Logs always go to stderr. |
+| `profile` | `--profile` | `full` | Tool set: `full` or `lite` (see [Profiles](#profiles-full-and-lite)). |
+| `tools` | `--tools NAME,...` | all | Only expose these tools of the profile (`MCP_FS_TOOLS=grep,read_lines`). |
+| `output_schema` | `--[no-]output-schema` | by profile | Publish output schemas (on for `full`, off for `lite`). |
 
 ## Security model
 

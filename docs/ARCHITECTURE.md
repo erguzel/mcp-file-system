@@ -28,7 +28,8 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, Python/Markdown providers, `Outliner` service. |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
-| `tools/*` | One module per tool group, each exposing `register(server, ctx)`. |
+| `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
+| `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting and error translation. |
 
 ## Conventions
 
@@ -43,6 +44,12 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
   says so and tells the agent how to continue.
 - **Etags** are `"{mtime_ns:x}-{size:x}"`, which needs only a `stat` call. Readers return
   them; editors require them back.
+- **Small-model-friendly schemas:** tool parameters never use `X | None = None` (it
+  becomes an `anyOf` schema). "Unset" is an empty string or `0`, mapped back to `None`
+  by `unset_str` / `unset_int` before calling the service.
+- **Profiles:** `full` exposes everything; `lite` is a narrow but complete subset with
+  essential parameters and short descriptions (`tools/lite.py`). Both call the same
+  services, so behavior is identical for the same arguments.
 
 ## Extension points
 
@@ -50,12 +57,14 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 
 1. Implement the behavior in a `core` service (or extend one) and return a
    `core.models.ToolResult` subclass with a `render()` method.
-2. Create `tools/<group>.py` with `register(server, ctx)`. In it, define a sync function
-   decorated with `@server.tool(annotations=...)` and `@translate_errors`. Its return type
-   is `Annotated[CallToolResult, YourResult]` and its body returns
-   `to_call_result(...)`. Describe parameters with `Annotated[..., Field(description=...)]`;
-   the docstring becomes the tool description.
-3. Add `register` to `READ_ONLY_TOOLSETS` or `WRITE_TOOLSETS` in `tools/__init__.py`.
+2. Create `tools/<group>.py` with `register(registry, ctx)`. In it, define a sync function
+   decorated with `@registry.tool(READ_ONLY)` (or `WRITES`). Its return type is
+   `Annotated[CallToolResult, YourResult]` and its body returns `to_call_result(...)`.
+   Describe parameters with `Annotated[..., Field(description=...)]`; the docstring
+   becomes the tool description. Use concrete defaults, not `None`.
+3. Add `register` to the `full` entry of `READ_TOOLSETS` or `WRITE_TOOLSETS` in
+   `tools/__init__.py`. Add a `lite` variant only if the tool is essential for small
+   models (keep `lite` small).
 
 Sync tools run in a worker thread (the SDK uses `anyio.to_thread`), so blocking file
 I/O never stalls the event loop.

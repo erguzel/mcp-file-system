@@ -2,16 +2,18 @@
 
 Settings are read from (highest precedence first) explicit keyword arguments (the CLI
 passes its flags this way), then ``MCP_FS_*`` environment variables, then defaults.
-Complex values in the environment are JSON, e.g. ``MCP_FS_ROOTS='["/srv/a", "/srv/b"]'``.
+Complex values in the environment are JSON, e.g. ``MCP_FS_ROOTS='["/srv/a", "/srv/b"]'``;
+``MCP_FS_TOOLS`` also accepts a comma-separated list.
 """
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+Profile = Literal["full", "lite"]
 
 MIB = 1024 * 1024
 
@@ -101,6 +103,19 @@ class Settings(BaseSettings):
         default=10.0, gt=0, description="Wall-clock budget for one search or regex operation."
     )
     log_level: LogLevel = Field(default="WARNING", description="Log level (logs go to stderr).")
+    profile: Profile = Field(
+        default="full",
+        description="Tool set: 'full' (every tool and parameter) or 'lite' (a small, complete "
+        "core with essential parameters, for small local models).",
+    )
+    tools: Annotated[tuple[str, ...], NoDecode] = Field(
+        default=(),
+        description="Allowlist of tool names within the profile; empty means all of them.",
+    )
+    output_schema: bool | None = Field(
+        default=None,
+        description="Publish output schemas. Default: on for 'full', off for 'lite'.",
+    )
 
     @field_validator("roots")
     @classmethod
@@ -116,6 +131,20 @@ class Settings(BaseSettings):
             if real not in resolved:
                 resolved.append(real)
         return tuple(resolved)
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def _split_tools(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return tuple(name.strip() for name in value.split(",") if name.strip())
+        return value
+
+    @property
+    def emit_output_schema(self) -> bool:
+        """Whether tools publish output schemas (explicit setting, else the profile default)."""
+        if self.output_schema is not None:
+            return self.output_schema
+        return self.profile == "full"
 
     @property
     def primary_root(self) -> Path:

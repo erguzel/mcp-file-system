@@ -100,8 +100,7 @@ A change is finished only when **all** of these are true:
 2. Register it in a `tools/` module:
 
 ```python
-@server.tool(annotations=READ_ONLY)
-@translate_errors
+@registry.tool(READ_ONLY)  # WRITES for tools that modify files
 def my_tool(
     path: PathArg,
     limit: Annotated[int, Field(ge=1, description="Maximum items to return.")] = 50,
@@ -113,10 +112,13 @@ def my_tool(
     return to_call_result(ctx.my_service.do_it(path, limit))
 ```
 
-3. Add the module's `register` to `READ_ONLY_TOOLSETS` or `WRITE_TOOLSETS` in
-   `tools/__init__.py`. Write tools go only in `WRITE_TOOLSETS`.
-4. Prefer concrete defaults over `X | None = None` for new parameters (nullable schemas
-   confuse small models; see `ROADMAP.md` item 1).
+3. Add the module's `register(registry, ctx)` to the `"full"` entry of `READ_TOOLSETS`
+   or `WRITE_TOOLSETS` in `tools/__init__.py`. Write tools go only in `WRITE_TOOLSETS`.
+4. **Never** use `X | None = None` for tool parameters (it becomes an `anyOf` schema that
+   small models handle poorly). Use `""` or `0` for "unset" and convert with
+   `unset_str` / `unset_int` from `tools/_common.py`. A test enforces this.
+5. Do **not** add the tool to the `lite` profile (`tools/lite.py`) unless the human asks;
+   `lite` must stay small.
 
 ## Test conventions
 

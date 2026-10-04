@@ -76,3 +76,39 @@ def test_settings_are_immutable_and_strict(root: Path) -> None:
         settings.allow_write = True  # type: ignore[misc]
     with pytest.raises(ValidationError):
         Settings(roots=(root,), unknown_option=1)  # type: ignore[call-arg]
+
+
+def test_tools_accept_comma_separated_environment_value(
+    monkeypatch: pytest.MonkeyPatch, root: Path
+) -> None:
+    monkeypatch.setenv("MCP_FS_TOOLS", "grep, read_lines,,outline")
+    assert Settings(roots=(root,)).tools == ("grep", "read_lines", "outline")
+
+
+def test_tools_accept_json_list_and_sequences(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    assert Settings.model_validate({"roots": (root,), "tools": ["grep"]}).tools == ("grep",)
+    monkeypatch.setenv("MCP_FS_PROFILE", "lite")
+    assert Settings(roots=(root,)).profile == "lite"
+
+
+@pytest.mark.parametrize(
+    ("profile", "output_schema", "expected"),
+    [
+        ("full", None, True),
+        ("lite", None, False),
+        ("full", False, False),
+        ("lite", True, True),
+    ],
+)
+def test_output_schema_defaults_follow_the_profile(
+    root: Path, profile: str, output_schema: bool | None, expected: bool
+) -> None:
+    settings = Settings.model_validate(
+        {"roots": (root,), "profile": profile, "output_schema": output_schema}
+    )
+    assert settings.emit_output_schema is expected
+
+
+def test_unknown_profile_is_rejected(root: Path) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate({"roots": (root,), "profile": "tiny"})

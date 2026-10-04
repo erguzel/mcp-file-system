@@ -10,7 +10,7 @@ from typing import Any, get_args
 from pydantic import ValidationError
 
 from mcp_file_system import __version__
-from mcp_file_system.config import LogLevel, Settings
+from mcp_file_system.config import LogLevel, Profile, Settings
 from mcp_file_system.server import create_server
 
 EXIT_CONFIG_ERROR = 2
@@ -53,6 +53,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Hide .gitignore'd paths from walks and searches (default: on).",
     )
+    parser.add_argument(
+        "--profile",
+        choices=get_args(Profile),
+        help="Tool set: 'full' (default) or 'lite' (small core for small local models).",
+    )
+    parser.add_argument(
+        "--tools",
+        metavar="NAME[,NAME...]",
+        help="Only expose these tools of the profile (comma-separated).",
+    )
+    parser.add_argument(
+        "--output-schema",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Publish tool output schemas (default: on for full, off for lite).",
+    )
     limits = parser.add_argument_group("limits")
     limits.add_argument("--max-file-bytes", type=int, metavar="N")
     limits.add_argument("--max-read-lines", type=int, metavar="N")
@@ -77,6 +93,9 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         "max_results",
         "search_timeout_s",
         "log_level",
+        "profile",
+        "tools",
+        "output_schema",
     )
     overrides: dict[str, Any] = {
         name: getattr(args, name) for name in names if getattr(args, name) is not None
@@ -103,7 +122,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         stream=sys.stderr,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    server = create_server(settings)
+    try:
+        server = create_server(settings)
+    except ValueError as exc:  # e.g. an unknown name in --tools
+        sys.stderr.write(f"mcp-file-system: invalid configuration\n{exc}\n")
+        return EXIT_CONFIG_ERROR
     try:
         server.run("stdio")
     except KeyboardInterrupt:

@@ -2,32 +2,36 @@
 
 from typing import Annotated
 
-from mcp.server import MCPServer
 from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.models import FileInfo, LinesResult
-from mcp_file_system.tools._common import READ_ONLY, PathArg, to_call_result, translate_errors
+from mcp_file_system.tools._common import (
+    READ_ONLY,
+    PathArg,
+    ToolRegistry,
+    to_call_result,
+    unset_int,
+    unset_str,
+)
 
 
-def register(server: MCPServer, ctx: AppContext) -> None:
+def register(registry: ToolRegistry, ctx: AppContext) -> None:
     """Register the reading tools."""
     reader = ctx.reader
 
-    @server.tool(annotations=READ_ONLY)
-    @translate_errors
+    @registry.tool(READ_ONLY)
     def file_info(path: PathArg) -> Annotated[CallToolResult, FileInfo]:
         """Get metadata for a file or directory without reading its content.
 
-        Returns size, line count, encoding, newline style, binary flag and the etag
-        (required by edit tools). Call this first on unfamiliar files to decide how
-        much to read.
+        Returns size, approximate token count, line count, encoding, newline style,
+        binary flag and the etag (required by edit tools). Call this first on
+        unfamiliar files to decide how much to read.
         """
         return to_call_result(reader.info(path))
 
-    @server.tool(annotations=READ_ONLY)
-    @translate_errors
+    @registry.tool(READ_ONLY)
     def read_lines(
         path: PathArg,
         start: Annotated[
@@ -35,11 +39,9 @@ def register(server: MCPServer, ctx: AppContext) -> None:
             Field(description="First line, 1-based. Negative counts from the end (-50 = tail)."),
         ] = 1,
         end: Annotated[
-            int | None,
-            Field(
-                description="Last line, inclusive; negative counts from the end. Omit to read on."
-            ),
-        ] = None,
+            int,
+            Field(description="Last line, inclusive; negative counts from the end (-1 = last)."),
+        ] = -1,
     ) -> Annotated[CallToolResult, LinesResult]:
         """Read a numbered range of lines from a text file.
 
@@ -49,15 +51,17 @@ def register(server: MCPServer, ctx: AppContext) -> None:
         """
         return to_call_result(reader.read_lines(path, start, end))
 
-    @server.tool(annotations=READ_ONLY)
-    @translate_errors
+    @registry.tool(READ_ONLY)
     def read_between(
         path: PathArg,
         start_pattern: Annotated[str, Field(description="Regex for the section's first line.")],
         end_pattern: Annotated[
-            str | None,
-            Field(description="Regex for the section's last line, searched after the start."),
-        ] = None,
+            str,
+            Field(
+                description="Regex for the section's last line, searched after the start. "
+                "Empty: read on from the start line."
+            ),
+        ] = "",
         occurrence: Annotated[
             int, Field(ge=1, description="Use the Nth line that matches start_pattern.")
         ] = 1,
@@ -67,8 +71,8 @@ def register(server: MCPServer, ctx: AppContext) -> None:
         fixed_string: Annotated[bool, Field(description="Treat patterns as literal text.")] = False,
         ignore_case: Annotated[bool, Field(description="Case-insensitive matching.")] = False,
         max_lines: Annotated[
-            int | None, Field(ge=1, description="Stop after this many lines.")
-        ] = None,
+            int, Field(ge=0, description="Stop after this many lines (0 = server limit).")
+        ] = 0,
     ) -> Annotated[CallToolResult, LinesResult]:
         """Read the block of lines between two patterns, like `sed -n '/start/,/end/p'`.
 
@@ -79,11 +83,11 @@ def register(server: MCPServer, ctx: AppContext) -> None:
             reader.read_between(
                 path,
                 start_pattern,
-                end_pattern,
+                unset_str(end_pattern),
                 occurrence=occurrence,
                 inclusive=inclusive,
                 fixed_string=fixed_string,
                 ignore_case=ignore_case,
-                max_lines=max_lines,
+                max_lines=unset_int(max_lines),
             )
         )
