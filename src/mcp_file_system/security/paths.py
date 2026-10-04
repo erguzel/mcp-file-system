@@ -120,10 +120,15 @@ class PathGuard:
         try:
             real = candidate.resolve(strict=must_exist)
         except FileNotFoundError:
-            # Report confinement before existence: otherwise "not found" vs "outside"
-            # would reveal which paths exist outside the roots.
-            if self._containing_root(self._resolve_loosely(candidate, raw)) is None:
+            # Report confinement and policy before existence: otherwise "not found" vs
+            # "outside"/"denied" would reveal which paths exist outside the roots, or
+            # whether a denied file (e.g. .env) exists inside them.
+            loose = self._resolve_loosely(candidate, raw)
+            loose_root = self._containing_root(loose)
+            if loose_root is None:
                 raise self._outside_error(raw) from None
+            # A missing path could become a file or a directory: deny if either is denied.
+            self._enforce_policy(raw, candidate, loose, loose_root, is_dir=None)
             raise NotFoundError(f"No such file or directory: {raw}") from None
         except (OSError, RuntimeError):
             # Symlink loops, permission errors on a component, invalid names, ...
@@ -137,16 +142,7 @@ class PathGuard:
             is_dir = real.is_dir()
         except (OSError, ValueError):
             raise AccessDeniedError(f"Cannot resolve path: {raw}") from None
-        if self._policy.is_denied(_relative_posix(real, root), is_dir=is_dir):
-            raise AccessDeniedError(f"Access to this path is denied by policy: {raw}")
-        # Also honor the path as requested, so a symlink named like a secret stays blocked.
-        lexical = Path(os.path.normpath(candidate))
-        lexical_root = self._containing_root(lexical)
-        if lexical_root is not None and self._policy.is_denied(
-            _relative_posix(lexical, lexical_root), is_dir=is_dir
-        ):
-            raise AccessDeniedError(f"Access to this path is denied by policy: {raw}")
-
+        self._enforce_policy(raw, candidate, real, root, is_dir=is_dir)
         return ResolvedPath(path=real, root=root, display=self.display(real))
 
     def resolve_file(self, raw: str) -> ResolvedPath:
@@ -176,6 +172,31 @@ class PathGuard:
         if _is_within(path, self.primary_root):
             return _relative_posix(path, self.primary_root)
         return os.fspath(path)
+
+    def _enforce_policy(
+        self, raw: str, candidate: Path, real: Path, root: Path, *, is_dir: bool | None
+    ) -> None:
+        """Raise :class:`AccessDeniedError` if the resolved or the requested path is denied.
+
+        Args:
+            raw: The path as supplied, for the error message.
+            candidate: The absolute path as requested (before resolving symlinks).
+            real: The resolved path.
+            root: The root containing ``real``.
+            is_dir: Whether the path is a directory; ``None`` if unknown (missing path),
+                in which case both interpretations are checked.
+        """
+        kinds = (False, True) if is_dir is None else (is_dir,)
+        targets = [(real, root)]
+        # Also honor the path as requested, so a symlink named like a secret stays blocked.
+        lexical = Path(os.path.normpath(candidate))
+        lexical_root = self._containing_root(lexical)
+        if lexical_root is not None:
+            targets.append((lexical, lexical_root))
+        for path, base in targets:
+            relative = _relative_posix(path, base)
+            if any(self._policy.is_denied(relative, is_dir=kind) for kind in kinds):
+                raise AccessDeniedError(f"Access to this path is denied by policy: {raw}")
 
     def _outside_error(self, raw: str) -> PathOutsideRootError:
         return PathOutsideRootError(
