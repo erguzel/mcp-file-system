@@ -37,8 +37,13 @@ SYNTAX = st.sampled_from(
 )
 SYNTAX_TEXT = st.lists(st.one_of(SYNTAX, st.text(max_size=5)), max_size=60).map("".join)
 
+# Only valid JSON: json.dumps would write inf/nan as the non-standard Infinity/NaN.
 JSON_VALUES = st.recursive(
-    st.none() | st.booleans() | st.integers() | st.floats(allow_nan=False) | st.text(max_size=8),
+    st.none()
+    | st.booleans()
+    | st.integers()
+    | st.floats(allow_nan=False, allow_infinity=False)
+    | st.text(max_size=8),
     lambda children: (
         st.lists(children, max_size=5) | st.dictionaries(st.text(max_size=6), children, max_size=5)
     ),
