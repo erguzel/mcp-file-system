@@ -25,13 +25,14 @@ class ShellOutlineProvider(TreeSitterOutlineProvider):
     language = "shell"
     extensions = frozenset({".sh", ".bash", ".zsh", ".ksh"})
     interpreters = frozenset({"sh", "bash", "zsh", "ksh", "dash"})
+    masks_wide_chars = True
 
     def _grammar(self) -> object:
         return tree_sitter_bash.language()
 
     def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         symbols: list[Symbol] = []
-        _collect(root, 0, symbols)
+        _collect(root, source, 0, symbols)
         return symbols
 
     def fold_ranges(self, text: str) -> list[tuple[int, int]]:
@@ -40,12 +41,12 @@ class ShellOutlineProvider(TreeSitterOutlineProvider):
         return block_folds(root, frozenset({"function_definition"}))
 
 
-def _collect(node: Node, depth: int, out: list[Symbol]) -> None:
+def _collect(node: Node, source: bytes, depth: int, out: list[Symbol]) -> None:
     for child in node.named_children:
         if child.type == "function_definition":
             name_node = child.child_by_field_name("name")
             if name_node is not None:
-                name = node_text(name_node)
+                name = node_text(name_node, source)
                 out.append(
                     Symbol(
                         name=name,
@@ -57,6 +58,6 @@ def _collect(node: Node, depth: int, out: list[Symbol]) -> None:
                         signature=f"{name}()",
                     )
                 )
-            _collect(child, depth + 1, out)
+            _collect(child, source, depth + 1, out)
         else:
-            _collect(child, depth, out)
+            _collect(child, source, depth, out)

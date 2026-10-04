@@ -51,6 +51,11 @@ All notable changes to this project are documented here. The format follows
 
 - Denied paths inside the roots no longer reveal whether they exist: a missing `.env`
   now reports "denied by policy" like an existing one, instead of "No such file".
+- Outlining a Markdown or shell file can no longer crash the server on Linux. The
+  tree-sitter-markdown and tree-sitter-bash scanners pass characters above U+00FF to
+  `isdigit()`, which reads outside glibc's lookup table (e.g. `1` or `{` followed by an
+  emoji). These grammars now parse a copy in which such characters are replaced with
+  ASCII of the same byte length; symbol names still come from the original text.
 
 ### Changed
 
