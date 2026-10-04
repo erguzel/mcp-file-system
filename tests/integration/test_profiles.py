@@ -35,8 +35,8 @@ LITE_PARAMETERS = {
     "find_files": {"glob", "path"},
     "grep": {"pattern", "path", "glob", "ignore_case", "context", "output_mode"},
     "outline": {"path"},
-    "read_symbol": {"path", "name"},
-    "read_lines": {"path", "start", "end"},
+    "read_symbol": {"path", "name", "if_changed_since"},
+    "read_lines": {"path", "start", "end", "if_changed_since"},
     "replace_in_file": {"path", "pattern", "replacement"},
     "edit_lines": {"path", "start", "end", "new_text", "expected_etag"},
     "write_file": {"path", "content"},
@@ -238,8 +238,13 @@ class TestSentinelDefaults:
         write(root / "f.txt", numbered(5))
         default = await call(full, "read_lines", path="f.txt")
         explicit = await call(full, "read_lines", path="f.txt", end=-1)
-        assert default.structured_content == explicit.structured_content
         assert default.structured_content is not None
+        assert explicit.structured_content is not None
+        # The second read only differs by the session note ("already returned").
+        assert {**default.structured_content, "note": None} == {
+            **explicit.structured_content,
+            "note": None,
+        }
         assert default.structured_content["end_line"] == 5
 
     async def test_read_between_unset_end_pattern_and_max_lines(

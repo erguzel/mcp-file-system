@@ -7,7 +7,13 @@ from pydantic import Field
 
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.models import LinesResult, OutlineResult
-from mcp_file_system.tools._common import READ_ONLY, PathArg, ToolRegistry, to_call_result
+from mcp_file_system.tools._common import (
+    READ_ONLY,
+    IfChangedSinceArg,
+    PathArg,
+    ToolRegistry,
+    to_call_result,
+)
 
 SymbolNameArg = Annotated[
     str,
@@ -34,6 +40,8 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         return to_call_result(outliner.outline(path))
 
     @registry.tool(READ_ONLY)
-    def read_symbol(path: PathArg, name: SymbolNameArg) -> Annotated[CallToolResult, LinesResult]:
-        """Read the full source of one class, function, method or Markdown section."""
-        return to_call_result(outliner.read_symbol(path, name))
+    def read_symbol(
+        path: PathArg, name: SymbolNameArg, if_changed_since: IfChangedSinceArg = ""
+    ) -> Annotated[CallToolResult, LinesResult]:
+        """Read the full source of one class, function, method, section or config key."""
+        return to_call_result(outliner.read_symbol(path, name, if_changed_since=if_changed_since))

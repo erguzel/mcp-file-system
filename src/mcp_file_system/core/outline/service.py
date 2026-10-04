@@ -1,5 +1,7 @@
 """Application service behind the ``outline`` and ``read_symbol`` tools."""
 
+from collections.abc import Iterable
+
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag
 from mcp_file_system.core.models import LinesResult, OutlineResult, Symbol
@@ -7,7 +9,14 @@ from mcp_file_system.core.outline.base import OutlineProvider
 from mcp_file_system.core.outline.registry import OutlineRegistry
 from mcp_file_system.core.render import number_lines
 from mcp_file_system.core.textio import check_size, read_text, require_text, split_lines
-from mcp_file_system.errors import InvalidArgumentError, ParseError, SymbolNotFoundError
+from mcp_file_system.core.tracking import (
+    UNCHANGED,
+    ReadTracker,
+    join_notes,
+    track_result,
+    unchanged_result,
+)
+from mcp_file_system.errors import FsError, InvalidArgumentError, ParseError, SymbolNotFoundError
 from mcp_file_system.security.paths import PathGuard, ResolvedPath
 
 MAX_SYMBOLS = 2000
@@ -17,10 +26,17 @@ _MAX_LISTED_CANDIDATES = 15
 class Outliner:
     """Builds file outlines and reads individual symbols by name."""
 
-    def __init__(self, guard: PathGuard, registry: OutlineRegistry, settings: Settings) -> None:
+    def __init__(
+        self,
+        guard: PathGuard,
+        registry: OutlineRegistry,
+        settings: Settings,
+        tracker: ReadTracker | None = None,
+    ) -> None:
         self._guard = guard
         self._registry = registry
         self._settings = settings
+        self._tracker = tracker or ReadTracker()
 
     def outline(self, path: str) -> OutlineResult:
         """Return the structural skeleton of a supported file."""
@@ -33,11 +49,13 @@ class Outliner:
             truncated=len(symbols) > MAX_SYMBOLS,
         )
 
-    def read_symbol(self, path: str, name: str) -> LinesResult:
+    def read_symbol(self, path: str, name: str, *, if_changed_since: str = "") -> LinesResult:
         """Return the source lines of one symbol.
 
         ``name`` is matched against qualified names first (``Class.method``,
-        ``Usage > Install``), then against plain names if that is unambiguous.
+        ``Usage > Install``), then against plain names if that is unambiguous. With
+        ``if_changed_since=<etag>``, an unchanged symbol already returned in this
+        session yields a content-free "unchanged" result.
         """
         if not name.strip():
             raise InvalidArgumentError("name must not be empty.")
@@ -62,6 +80,18 @@ class Outliner:
         start = min(s.start_line for s in matches)
         end = max(s.end_line for s in matches)
         window_end = min(end, start + self._settings.max_read_lines - 1)
+        unchanged = unchanged_result(
+            self._tracker,
+            resolved.path,
+            display=resolved.display,
+            etag=etag,
+            if_changed_since=if_changed_since,
+            start=start,
+            end=window_end,
+            total=len(lines),
+        )
+        if unchanged is not None:
+            return unchanged.model_copy(update={"note": join_notes(_describe(matches), UNCHANGED)})
         content, first, last = number_lines(
             ((n, lines[n - 1]) for n in range(start, window_end + 1)),
             width=len(str(len(lines))),
@@ -71,8 +101,7 @@ class Outliner:
         first = first or start
         last = last or start
         truncated = last < end
-        label = _describe(matches)
-        return LinesResult(
+        result = LinesResult(
             path=resolved.display,
             start_line=first,
             end_line=last,
@@ -81,8 +110,28 @@ class Outliner:
             content=content,
             truncated=truncated,
             next_start=last + 1 if truncated else None,
-            note=label,
+            note=_describe(matches),
         )
+        return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
+
+    def enclosing_symbols(self, path: str, lines: Iterable[int]) -> dict[int, str]:
+        """Map line numbers to the qualified name of their innermost enclosing symbol.
+
+        Best effort for search results: files without an outline provider, too large,
+        binary or unparsable files simply yield no entries.
+        """
+        wanted = sorted(set(lines))
+        try:
+            _, _, _, symbols, _ = self._analyze(path)
+        except (FsError, OSError):
+            return {}
+        found: dict[int, str] = {}
+        for line in wanted:
+            containing = [s for s in symbols if s.start_line <= line <= s.end_line]
+            if containing:
+                innermost = max(containing, key=lambda s: (s.depth, -(s.end_line - s.start_line)))
+                found[line] = innermost.qualified_name
+        return found
 
     def _analyze(
         self, path: str

@@ -30,7 +30,11 @@ def build_instructions(settings: Settings) -> str:
             "'files_with_matches' first) to locate; file_info or outline to size up a file; "
             f"{read_tools} to read the relevant part."
         ),
-        "Every read returns an etag identifying the file version.",
+        (
+            "Every read returns an etag identifying the file version. To re-check lines "
+            "you already have, pass that etag as if_changed_since instead of re-reading. "
+            "grep hits show their enclosing symbol in [brackets]; read it with read_symbol."
+        ),
     ]
     if settings.allow_write:
         preview = "" if lite else "; use dry_run=true to preview a diff"
