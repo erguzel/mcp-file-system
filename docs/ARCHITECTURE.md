@@ -25,7 +25,8 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.reader.FileReader` | `file_info`, `read_lines`, `read_between`. |
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
-| `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, Python/Markdown providers, `Outliner` service. |
+| `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, `Outliner` service; Python provider (`ast`), regex Markdown fallback. |
+| `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (`TreeSitterOutlineProvider` base). |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
@@ -84,6 +85,13 @@ registry = default_registry()
 registry.register(MyTomlOutlineProvider())
 server = create_server(context=AppContext.from_settings(settings, outline_registry=registry))
 ```
+
+For a language with a tree-sitter grammar, subclass `TreeSitterOutlineProvider`
+(`core/outline/treesitter/_base.py`): implement `_grammar()` and `_extract(root)`. The
+base class normalizes line endings and creates a fresh `Parser` per call, because
+parsers are not thread-safe and tools run in worker threads. Add the provider to
+`tests/unit/test_outline_fuzz.py`: tree-sitter is a C extension, so a bug there crashes
+the server process instead of raising, and only such tests catch it before users do.
 
 ### Add a search backend
 

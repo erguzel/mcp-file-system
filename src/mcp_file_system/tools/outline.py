@@ -12,8 +12,9 @@ from mcp_file_system.tools._common import READ_ONLY, PathArg, ToolRegistry, to_c
 SymbolNameArg = Annotated[
     str,
     Field(
-        description="Symbol name as shown by outline, e.g. 'MyClass.method' or a "
-        "heading like 'Usage > Install'. A plain name works if it is unique."
+        description="Symbol name as shown by outline, e.g. 'MyClass.method', a heading "
+        "like 'Usage > Install', or a key path like 'tool.ruff.lint'. A plain name works "
+        "if it is unique."
     ),
 ]
 
@@ -24,10 +25,11 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
 
     @registry.tool(READ_ONLY)
     def outline(path: PathArg) -> Annotated[CallToolResult, OutlineResult]:
-        """Show a file's structure (classes, functions, methods, or Markdown headings).
+        """Show a file's structure: code symbols, Markdown headings, or config keys.
 
         Each entry has its line span, so you can read just what you need with
-        read_symbol or read_lines. Supports Python and Markdown files.
+        read_symbol or read_lines. Supports Python, Markdown, JSON, TOML and YAML; for
+        config files, scalar values are shown inline (e.g. `version = "1.2"`).
         """
         return to_call_result(outliner.outline(path))
 
