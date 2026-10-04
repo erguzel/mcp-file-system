@@ -6,6 +6,7 @@ from tree_sitter import Node
 from mcp_file_system.core.models import Symbol
 from mcp_file_system.core.outline.treesitter._base import (
     TreeSitterOutlineProvider,
+    block_folds,
     end_line,
     node_text,
     start_line,
@@ -32,6 +33,11 @@ class ShellOutlineProvider(TreeSitterOutlineProvider):
         symbols: list[Symbol] = []
         _collect(root, 0, symbols)
         return symbols
+
+    def fold_ranges(self, text: str) -> list[tuple[int, int]]:
+        """Function bodies to fold in a skeleton view."""
+        root, _ = self._parse(text)
+        return block_folds(root, frozenset({"function_definition"}))
 
 
 def _collect(node: Node, depth: int, out: list[Symbol]) -> None:

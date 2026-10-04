@@ -29,6 +29,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base); `code.py` holds the optional `[code]` languages (JS/TS, Go, Java). |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
+| `core.skeleton` | Language-independent skeleton rendering from fold ranges reported by providers (`fold_ranges`). |
 | `core.tracking.ReadTracker` | Session memory of which lines of which file version were returned; powers "already returned" notes and `if_changed_since`. One per server process (one stdio session); a multi-session transport must key it by session. |
 | `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
@@ -86,6 +87,10 @@ registry = default_registry()
 registry.register(MyTomlOutlineProvider())
 server = create_server(context=AppContext.from_settings(settings, outline_registry=registry))
 ```
+
+Code providers can add `fold_ranges(text)` (1-based inclusive ranges, usually function
+bodies) to support `read_skeleton`; tree-sitter providers get it from `block_folds()` by
+listing their function node types.
 
 Providers may also declare `filenames` (lower-case globs such as `"dockerfile.*"`) and
 `interpreters` (e.g. `frozenset({"bash", "sh"})`). The registry matches by suffix first,

@@ -25,15 +25,32 @@ class PythonOutlineProvider:
 
     def outline(self, text: str) -> list[Symbol]:
         """Parse ``text`` and return its definitions in source order."""
-        try:
-            tree = ast.parse(text)
-        except SyntaxError as exc:
-            raise ParseError(f"syntax error at line {exc.lineno}: {exc.msg}") from None
-        except ValueError as exc:  # e.g. NUL bytes in a Latin-1 decoded file
-            raise ParseError(str(exc)) from None
+        tree = _parse(text)
         symbols: list[Symbol] = []
         self._visit(tree.body, prefix="", depth=0, in_class=False, out=symbols)
         return symbols
+
+    def fold_ranges(self, text: str) -> list[tuple[int, int]]:
+        """Function bodies to fold in a skeleton view; docstrings stay visible.
+
+        One-line functions (``def f(): return 1``) are not folded. Nested functions lie
+        inside an outer fold, which the skeleton builder keeps.
+        """
+        folds: list[tuple[int, int]] = []
+        for node in ast.walk(_parse(text)):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            body = node.body
+            if _is_docstring(body[0]):
+                if len(body) == 1:
+                    continue
+                start = _statement_start(body[1])
+            else:
+                start = _statement_start(body[0])
+            if start <= node.lineno:  # the body shares the "def" line
+                continue
+            folds.append((start, node.end_lineno or start))
+        return folds
 
     def _visit(
         self,
@@ -79,6 +96,29 @@ class PythonOutlineProvider:
             depth=depth,
             signature=_signature(node),
         )
+
+
+def _parse(text: str) -> ast.Module:
+    try:
+        return ast.parse(text)
+    except SyntaxError as exc:
+        raise ParseError(f"syntax error at line {exc.lineno}: {exc.msg}") from None
+    except ValueError as exc:  # e.g. NUL bytes in a Latin-1 decoded file
+        raise ParseError(str(exc)) from None
+
+
+def _is_docstring(statement: ast.stmt) -> bool:
+    return (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Constant)
+        and isinstance(statement.value.value, str)
+    )
+
+
+def _statement_start(statement: ast.stmt) -> int:
+    """First line of a statement, including decorators of a nested definition."""
+    decorators: list[ast.expr] = getattr(statement, "decorator_list", [])
+    return min([statement.lineno, *(d.lineno for d in decorators)])
 
 
 def _signature(node: _Definition) -> str:

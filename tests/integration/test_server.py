@@ -22,6 +22,7 @@ READ_TOOLS = {
     "find_files",
     "outline",
     "read_symbol",
+    "read_skeleton",
 }
 WRITE_TOOLS = {"replace_in_file", "edit_lines", "write_file"}
 

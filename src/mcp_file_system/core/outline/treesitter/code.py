@@ -17,6 +17,7 @@ from tree_sitter import Node
 from mcp_file_system.core.models import Symbol
 from mcp_file_system.core.outline.treesitter._base import (
     TreeSitterOutlineProvider,
+    block_folds,
     end_line,
     node_text,
     start_line,
@@ -31,9 +32,16 @@ class CodeOutlineProvider(TreeSitterOutlineProvider):
 
     module: str
     function = "language"
+    function_types: frozenset[str] = frozenset()
+    """Node types whose ``body`` is folded in skeleton views."""
 
     def _grammar(self) -> object:
         return getattr(importlib.import_module(self.module), self.function)()
+
+    def fold_ranges(self, text: str) -> list[tuple[int, int]]:
+        """Function and method bodies to fold in a skeleton view."""
+        root, _ = self._parse(text)
+        return block_folds(root, self.function_types)
 
     def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         out: list[Symbol] = []
@@ -110,6 +118,17 @@ class JavaScriptOutlineProvider(CodeOutlineProvider):
     language = "javascript"
     extensions = frozenset({".js", ".mjs", ".cjs", ".jsx"})
     module = "tree_sitter_javascript"
+    function_types = frozenset(
+        {
+            "function_declaration",
+            "generator_function_declaration",
+            "method_definition",
+            "function_expression",
+            "arrow_function",
+            "generator_function",
+            "function",
+        }
+    )
 
     def _visit(self, node: Node, prefix: str, depth: int, source: bytes, out: list[Symbol]) -> None:
         for child in node.named_children:
@@ -234,6 +253,7 @@ class GoOutlineProvider(CodeOutlineProvider):
     language = "go"
     extensions = frozenset({".go"})
     module = "tree_sitter_go"
+    function_types = frozenset({"function_declaration", "method_declaration", "func_literal"})
 
     def _visit(self, node: Node, prefix: str, depth: int, source: bytes, out: list[Symbol]) -> None:
         for child in node.named_children:
@@ -319,6 +339,9 @@ class JavaOutlineProvider(CodeOutlineProvider):
     language = "java"
     extensions = frozenset({".java"})
     module = "tree_sitter_java"
+    function_types = frozenset(
+        {"method_declaration", "constructor_declaration", "lambda_expression"}
+    )
 
     def _visit(self, node: Node, prefix: str, depth: int, source: bytes, out: list[Symbol]) -> None:
         for child in node.named_children:

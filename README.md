@@ -90,10 +90,10 @@ every request. Large models handle the full set easily. Small local models (roug
 
 | | `full` (default) | `lite` |
 |---|---|---|
-| Tools | all 8 (+3 editing) | 7 (+3 editing): no `read_between` |
+| Tools | all 9 (+3 editing) | 7 (+3 editing): no `read_between`, `read_skeleton` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
-| Tool listing size* | ~25k characters | ~7.1k characters |
+| Tool listing size* | ~27k characters | ~7.1k characters |
 
 \* With editing enabled, measured on version 0.1.x.
 
@@ -116,6 +116,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `list_directory` | Indented tree with sizes, depth-limited. |
 | `find_files` | Gitignore-style glob search for files or directories. |
 | `outline` | Code symbols with signatures (Python; JS/TS, Go, Java with `[code]`), shell functions, Dockerfile stages and instructions, Markdown headings (incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. `Dockerfile`/`Containerfile` are recognized by name and extensionless scripts by their shebang. |
+| `read_skeleton` | A code file with function bodies folded (imports, signatures, docstrings and class structure stay); each fold shows its line range for `read_lines`. Python, shell, and JS/TS, Go, Java with `[code]`. |
 | `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. Accepts `if_changed_since` like `read_lines`. |
 | `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1). |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |

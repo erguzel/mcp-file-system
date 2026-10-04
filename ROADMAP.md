@@ -120,17 +120,19 @@ symbols.
 
 ## 5. Skeleton view
 
-- [ ] **Status:** not started
+- [x] **Status:** done
 
 **What:** `read_skeleton(path)` returns the file with function and method bodies folded
-to `...`, keeping imports, signatures, docstrings and class structure, like a header
-file. Python first (via `ast`); other languages as their outline providers arrive.
+to one `<start>-<end> ...` row each, keeping imports, signatures, docstrings and class
+structure, like a header file. Python (via `ast`) and shell, plus JS/TS, Go and Java with
+the `[code]` extra. Providers report fold ranges; rendering is language-independent.
 
-**Why:** an outline is only a list. A skeleton shows how a module is used (its API) at a
-fraction of the tokens of reading it.
+**Why:** an outline is only a list. A skeleton shows how a module is used (its API) with
+far fewer tokens than reading it: 49–63% smaller on this repository's modules, which are
+docstring-heavy (docstrings stay visible); more on code with long bodies.
 
-**Done when:** the skeleton of every module in this repository parses as valid Python;
-nested classes, decorators and async functions are tested.
+**Done when:** the skeleton of every module in this repository parses as valid Python
+(tested); nested classes, decorators and async functions are tested.
 
 ## 6. Structured data preview
 
