@@ -281,6 +281,35 @@ class OutlineResult(ToolResult):
         return "\n".join(rows)
 
 
+class SkeletonResult(ToolResult):
+    """A source file with function bodies folded; kept lines keep their numbers."""
+
+    path: str
+    language: str
+    total_lines: int
+    shown_lines: int = Field(description="Source lines shown verbatim.")
+    folded_lines: int = Field(description="Lines hidden inside folds.")
+    etag: str
+    content: str = Field(
+        description="'<number>\\t<text>' rows; folds appear as '<start>-<end>\\t...'."
+    )
+    truncated: bool = False
+    next_start: int | None = Field(default=None, description="First line not shown.")
+
+    def render(self) -> str:  # noqa: D102
+        header = (
+            f"==> {self.path} ({self.language} skeleton: {self.shown_lines} of "
+            f"{self.total_lines} lines shown, {self.folded_lines} folded; etag {self.etag}) <=="
+        )
+        parts = [header, self.content] if self.content else [header]
+        if self.truncated and self.next_start is not None:
+            parts.append(
+                f"[Truncated at line {self.next_start}. Use outline, or read_lines for a range.]"
+            )
+        parts.append("[Open a folded range with read_lines(start, end) or read_symbol.]")
+        return "\n".join(parts)
+
+
 class EditResult(ToolResult):
     """Outcome of an edit tool."""
 

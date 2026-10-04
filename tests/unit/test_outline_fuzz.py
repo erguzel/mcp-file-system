@@ -24,6 +24,7 @@ from mcp_file_system.core.outline.treesitter import (
     TreeSitterMarkdownOutlineProvider,
     YamlOutlineProvider,
 )
+from mcp_file_system.core.skeleton import normalize_folds
 from mcp_file_system.core.textio import split_lines
 
 
@@ -99,6 +100,11 @@ def assert_well_formed(symbols: list[Symbol], text: str) -> None:
 @given(text=st.one_of(st.text(max_size=300), SYNTAX_TEXT))
 def test_arbitrary_text_never_crashes(provider: OutlineProvider, text: str) -> None:
     assert_well_formed(provider.outline(text), text)
+    fold_ranges = getattr(provider, "fold_ranges", None)
+    if fold_ranges is not None:
+        total = max(1, len(split_lines(text)))
+        for start, end in normalize_folds(fold_ranges(text), total):
+            assert 1 <= start <= end <= total
 
 
 @FUZZ

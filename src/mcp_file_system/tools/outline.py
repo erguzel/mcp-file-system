@@ -1,4 +1,4 @@
-"""Structure tools: outline, read_symbol."""
+"""Structure tools: outline, read_symbol, read_skeleton."""
 
 from typing import Annotated
 
@@ -6,7 +6,7 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
-from mcp_file_system.core.models import LinesResult, OutlineResult
+from mcp_file_system.core.models import LinesResult, OutlineResult, SkeletonResult
 from mcp_file_system.tools._common import (
     READ_ONLY,
     IfChangedSinceArg,
@@ -38,6 +38,16 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         config files, scalar values are shown inline (e.g. `version = "1.2"`).
         """
         return to_call_result(outliner.outline(path))
+
+    @registry.tool(READ_ONLY)
+    def read_skeleton(path: PathArg) -> Annotated[CallToolResult, SkeletonResult]:
+        """Show a code file with function bodies folded, like a header file.
+
+        Imports, signatures, docstrings and class structure stay; each folded body is
+        one row labelled with its line range, ready for read_lines or read_symbol.
+        Supports Python and shell, plus JS/TS, Go and Java with the [code] extra.
+        """
+        return to_call_result(outliner.skeleton(path))
 
     @registry.tool(READ_ONLY)
     def read_symbol(

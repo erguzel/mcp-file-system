@@ -57,13 +57,42 @@ class TreeSitterOutlineProvider(ABC):
         Tree-sitter recovers from syntax errors, so malformed input yields a best-effort
         outline instead of an error.
         """
+        root, source = self._parse(text)
+        return self._extract(root, source)
+
+    def _parse(self, text: str) -> tuple[Node, bytes]:
+        """Parse ``text``; return the root node and the original (unprepared) source."""
         # Tree-sitter counts rows at "\n" only; normalize so rows match our line numbers.
         source = _LINE_BREAK.sub("\n", text).encode("utf-8", errors="replace")
         prepared = self._prepare(source)
         if len(prepared) != len(source):  # pragma: no cover - programming error guard
             raise ValueError("_prepare must preserve byte offsets")
         tree = Parser(self._language).parse(prepared)
-        return self._extract(tree.root_node, source)
+        return tree.root_node, source
+
+
+BLOCK_BODIES = frozenset({"statement_block", "block", "constructor_body", "compound_statement"})
+
+
+def block_folds(root: Node, function_types: frozenset[str]) -> list[tuple[int, int]]:
+    """Interior lines of multi-line ``{ ... }`` bodies of the given function node types.
+
+    The lines holding the opening and closing brace stay visible. Bodies nested inside
+    a folded body are not visited.
+    """
+    folds: list[tuple[int, int]] = []
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if node.type in function_types:
+            body = node.child_by_field_name("body")
+            if body is not None and body.type in BLOCK_BODIES:
+                first_row, last_row = body.start_point.row, body.end_point.row
+                if last_row - first_row >= 2:
+                    folds.append((first_row + 2, last_row))  # 1-based interior lines
+                    continue
+        stack.extend(node.named_children)
+    return folds
 
 
 def start_line(node: Node) -> int:

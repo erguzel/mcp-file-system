@@ -4,10 +4,11 @@ from collections.abc import Iterable
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag
-from mcp_file_system.core.models import LinesResult, OutlineResult, Symbol
+from mcp_file_system.core.models import LinesResult, OutlineResult, SkeletonResult, Symbol
 from mcp_file_system.core.outline.base import OutlineProvider
 from mcp_file_system.core.outline.registry import OutlineRegistry
 from mcp_file_system.core.render import number_lines
+from mcp_file_system.core.skeleton import render_skeleton
 from mcp_file_system.core.textio import check_size, read_text, require_text, split_lines
 from mcp_file_system.core.tracking import (
     UNCHANGED,
@@ -114,6 +115,41 @@ class Outliner:
         )
         return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
 
+    def skeleton(self, path: str) -> SkeletonResult:
+        """Return the file with function bodies folded (code files only)."""
+        resolved, provider, text, etag = self._load(path)
+        fold_ranges = getattr(provider, "fold_ranges", None)
+        if fold_ranges is None:
+            raise InvalidArgumentError(
+                f"No skeleton view for {provider.language} files like {resolved.display!r}; "
+                "use outline, which lists their structure with line spans."
+            )
+        try:
+            folds = fold_ranges(text)
+        except ParseError as exc:
+            raise ParseError(
+                f"Cannot parse {resolved.display} as {provider.language}: {exc}. "
+                "Use read_lines or grep instead."
+            ) from None
+        lines = split_lines(text)
+        content, shown, folded, next_start = render_skeleton(
+            lines,
+            folds,
+            max_line_chars=self._settings.max_line_chars,
+            max_chars=self._settings.max_output_chars,
+        )
+        return SkeletonResult(
+            path=resolved.display,
+            language=provider.language,
+            total_lines=len(lines),
+            shown_lines=shown,
+            folded_lines=folded,
+            etag=etag,
+            content=content,
+            truncated=next_start is not None,
+            next_start=next_start,
+        )
+
     def enclosing_symbols(self, path: str, lines: Iterable[int]) -> dict[int, str]:
         """Map line numbers to the qualified name of their innermost enclosing symbol.
 
@@ -133,9 +169,8 @@ class Outliner:
                 found[line] = innermost.qualified_name
         return found
 
-    def _analyze(
-        self, path: str
-    ) -> tuple[ResolvedPath, OutlineProvider, list[str], list[Symbol], str]:
+    def _load(self, path: str) -> tuple[ResolvedPath, OutlineProvider, str, str]:
+        """Resolve, select the provider, check size and decode: (path, provider, text, etag)."""
         resolved = self._guard.resolve_file(path)
         provider = self._registry.for_path(resolved.path) or self._registry.for_shebang(
             _first_line(resolved)
@@ -156,7 +191,12 @@ class Outliner:
         stat = resolved.path.stat()
         check_size(resolved, stat.st_size, self._settings.max_file_bytes)
         fmt = require_text(resolved)
-        text = read_text(resolved.path, fmt)
+        return resolved, provider, read_text(resolved.path, fmt), compute_etag(stat)
+
+    def _analyze(
+        self, path: str
+    ) -> tuple[ResolvedPath, OutlineProvider, list[str], list[Symbol], str]:
+        resolved, provider, text, etag = self._load(path)
         try:
             symbols = provider.outline(text)
         except ParseError as exc:
@@ -164,7 +204,7 @@ class Outliner:
                 f"Cannot parse {resolved.display} as {provider.language}: {exc}. "
                 "Use read_lines or grep instead."
             ) from None
-        return resolved, provider, split_lines(text), symbols, compute_etag(stat)
+        return resolved, provider, split_lines(text), symbols, etag
 
 
 def _first_line(resolved: ResolvedPath) -> str:

@@ -10,6 +10,10 @@ class OutlineProvider(Protocol):
 
     To add a language, implement this protocol and register an instance with
     :class:`~mcp_file_system.core.outline.registry.OutlineRegistry`.
+
+    Optional members, detected with ``getattr``: ``filenames`` and ``interpreters``
+    (see the registry), and ``fold_ranges(text) -> list[tuple[int, int]]``, the 1-based
+    inclusive line ranges (function bodies) folded by ``read_skeleton``.
     """
 
     @property
