@@ -9,7 +9,7 @@ uv run pre-commit install  # run ruff and mypy on every commit
 
 ## Checks
 
-All of these run in CI on Linux, macOS and Windows with Python 3.12–3.14:
+All of these run in CI on Linux (Python 3.12–3.14) and Windows (3.12 and 3.14); macOS runs on manual dispatch:
 
 ```bash
 uv run ruff check .
