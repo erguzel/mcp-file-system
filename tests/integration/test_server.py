@@ -23,6 +23,7 @@ READ_TOOLS = {
     "outline",
     "read_symbol",
     "read_skeleton",
+    "peek",
 }
 WRITE_TOOLS = {"replace_in_file", "edit_lines", "write_file"}
 
@@ -66,6 +67,13 @@ async def test_write_enabled_server_lists_write_tools(writer: Client) -> None:
     assert edit.annotations is not None
     assert edit.annotations.destructive_hint is True
     assert "expected_etag" in edit.input_schema["required"]
+
+
+async def test_peek_returns_shape_without_values(client: Client, root: Path) -> None:
+    write(root / "d.json", '{"secret": "hunter2", "n": [1, 2]}')
+    out = text_of(await call(client, "peek", path="d.json"))
+    assert "n: array[2] of int" in out
+    assert "hunter2" not in out
 
 
 async def test_parameter_descriptions_reach_the_schema(client: Client) -> None:

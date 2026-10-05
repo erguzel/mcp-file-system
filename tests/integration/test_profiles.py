@@ -26,8 +26,9 @@ FULL_READ = {
     "outline",
     "read_symbol",
     "read_skeleton",
+    "peek",
 }
-LITE_READ = FULL_READ - {"read_between", "read_skeleton"}
+LITE_READ = FULL_READ - {"read_between", "read_skeleton", "peek"}
 WRITE = {"replace_in_file", "edit_lines", "write_file"}
 
 LITE_PARAMETERS = {
