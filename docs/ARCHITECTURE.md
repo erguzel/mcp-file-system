@@ -27,6 +27,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
 | `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, `Outliner` service; Python (`ast`) and Dockerfile (pure Python) providers, regex Markdown fallback. |
 | `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base); `code.py` holds the optional `[code]` languages (JS/TS, Go, Java). |
+| `core.peek` | `Peeker` service behind `peek`: shape summaries per format (`tabular`, `structured`, `text` modules) chosen by file name or suffix; streamed formats have fixed scan budgets. |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `core.skeleton` | Language-independent skeleton rendering from fold ranges reported by providers (`fold_ranges`). |

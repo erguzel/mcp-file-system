@@ -310,6 +310,25 @@ class SkeletonResult(ToolResult):
         return "\n".join(parts)
 
 
+class PeekResult(ToolResult):
+    """The shape of a data file: structure and statistics, not content."""
+
+    path: str
+    kind: str = Field(description="csv, json, toml, log, markdown or manifest.")
+    size_bytes: int
+    total_lines: int
+    etag: str
+    summary: str = Field(description="Format-specific shape summary, one fact per row.")
+    truncated: bool = False
+
+    def render(self) -> str:  # noqa: D102
+        header = (
+            f"==> {self.path} ({self.kind}, {human_size(self.size_bytes)}, "
+            f"{self.total_lines} lines; etag {self.etag}) <=="
+        )
+        return f"{header}\n{self.summary}\n[Shape only. Use read_lines or grep for content.]"
+
+
 class EditResult(ToolResult):
     """Outcome of an edit tool."""
 

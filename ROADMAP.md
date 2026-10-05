@@ -136,7 +136,9 @@ docstring-heavy (docstrings stay visible); more on code with long bodies.
 
 ## 6. Structured data preview
 
-- [ ] **Status:** not started
+- [x] **Status:** done. CSV/TSV, JSON, TOML, logs, manifests and Markdown. JSON and TOML
+  are limited by `max_file_bytes`; CSV and logs are streamed (first 50,000 rows / 200,000
+  lines scanned; the last log timestamp is read from the file's tail).
 
 **What:** `peek(path)` returns the *shape* of a file instead of its content, through
 per-format providers (same registry pattern as outlines):

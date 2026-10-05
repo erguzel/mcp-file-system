@@ -17,13 +17,13 @@ from mcp.server import MCPServer
 
 from mcp_file_system.config import Profile
 from mcp_file_system.context import AppContext
-from mcp_file_system.tools import edit, lite, navigate, outline, read, search
+from mcp_file_system.tools import edit, lite, navigate, outline, peek, read, search
 from mcp_file_system.tools._common import ToolRegistry
 
 Registrar = Callable[[ToolRegistry, AppContext], None]
 
 READ_TOOLSETS: dict[Profile, tuple[Registrar, ...]] = {
-    "full": (read.register, search.register, navigate.register, outline.register),
+    "full": (read.register, search.register, navigate.register, outline.register, peek.register),
     "lite": (lite.register,),
 }
 WRITE_TOOLSETS: dict[Profile, tuple[Registrar, ...]] = {
