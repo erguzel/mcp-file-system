@@ -329,6 +329,47 @@ class PeekResult(ToolResult):
         return f"{header}\n{self.summary}\n[Shape only. Use read_lines or grep for content.]"
 
 
+class QueryResult(ToolResult):
+    """One value of a JSON, YAML or TOML file, shown to a limited depth."""
+
+    path: str
+    key_path: str = Field(description="Canonical key path of the value ('' for the document).")
+    language: str = Field(description="json, yaml or toml.")
+    kind: Literal["object", "array", "value"]
+    size: int = Field(description="Keys or elements of the value (0 for scalars).")
+    start_line: int = Field(default=0, description="First line of the value (0 if unknown).")
+    end_line: int = Field(default=0, description="Last line of the value (0 if unknown).")
+    total_lines: int
+    etag: str
+    content: str = Field(description="'<key>: <value>' rows; deeper containers collapsed.")
+    truncated: bool = False
+    first_collapsed: str | None = Field(
+        default=None, description="Key path of the first collapsed container, to query next."
+    )
+    note: str | None = None
+
+    def render(self) -> str:  # noqa: D102
+        facts = [f"{self.language} {self.kind}"]
+        if self.kind != "value":
+            unit = "key" if self.kind == "object" else "item"
+            facts[0] += f", {self.size} {unit}{'' if self.size == 1 else 's'}"
+        if self.start_line:
+            facts.append(f"lines {self.start_line}-{self.end_line} of {self.total_lines}")
+        facts.append(f"etag {self.etag}")
+        target = f" :: {self.key_path}" if self.key_path else ""
+        parts = [f"==> {self.path}{target} ({'; '.join(facts)}) <==", self.content]
+        if self.note:
+            parts.append(f"[{self.note}]")
+        if self.truncated:
+            parts.append("[Truncated: output limit. Query a deeper key path or lower depth.]")
+        if self.first_collapsed is not None:
+            parts.append(
+                f"[Collapsed values: query one by key path, e.g. {self.first_collapsed!r}, "
+                "or raise depth.]"
+            )
+        return "\n".join(parts)
+
+
 class EditResult(ToolResult):
     """Outcome of an edit tool."""
 
