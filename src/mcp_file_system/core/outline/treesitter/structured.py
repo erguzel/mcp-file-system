@@ -35,7 +35,7 @@ def _describe(kind: str, count: int, text: str) -> str:
     return clip_value(text)
 
 
-def _unquote(text: str) -> str:
+def unquote(text: str) -> str:
     """Decode a quoted key: JSON-style escapes for "...", literal for '...'."""
     if len(text) >= 2 and text[0] == text[-1] == "'":
         return text[1:-1].replace("''", "'")  # YAML single quotes double the quote
@@ -80,7 +80,7 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
                 key, value = pair.child_by_field_name("key"), pair.child_by_field_name("value")
                 if pair.type != "pair" or key is None or value is None:
                     continue
-                name = _unquote(node_text(key))
+                name = unquote(node_text(key))
                 child_path = join_key(path, name)
                 out.add(
                     path=child_path,
@@ -226,7 +226,7 @@ def _toml_key_parts(key: Node) -> list[str]:
             parts.extend(_toml_key_parts(child))
         return parts
     text = node_text(key)
-    return [_unquote(text) if key.type == "quoted_key" else text]
+    return [unquote(text) if key.type == "quoted_key" else text]
 
 
 def _toml_kind(value: Node) -> str:
@@ -308,7 +308,7 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
     ) -> None:
         if depth >= MAX_DEPTH:
             return
-        content = _yaml_content(node)
+        content = yaml_content(node)
         if content is None:
             return
         if content.type in _YAML_MAPPINGS:
@@ -317,7 +317,7 @@ class YamlOutlineProvider(TreeSitterOutlineProvider):
                 if pair.type not in _YAML_PAIRS or key is None:
                     continue
                 value = pair.child_by_field_name("value")
-                name = _yaml_key(key, source)
+                name = yaml_key(key, source)
                 child_path = join_key(path, name)
                 described = _yaml_describe(value, source)
                 out.add(
@@ -391,7 +391,7 @@ def mask_templates(source: bytes) -> bytes:
     return bytes(masked)
 
 
-def _yaml_content(node: Node | None) -> Node | None:
+def yaml_content(node: Node | None) -> Node | None:
     """Unwrap block/flow nodes (skipping anchors and tags) to the actual content node."""
     while node is not None and node.type in {"block_node", "flow_node"}:
         node = next((c for c in node.named_children if c.type not in {"anchor", "tag"}), None)
@@ -399,7 +399,7 @@ def _yaml_content(node: Node | None) -> Node | None:
 
 
 def _yaml_kind(value: Node | None) -> str:
-    content = _yaml_content(value)
+    content = yaml_content(value)
     if content is None:
         return "value"
     if content.type in _YAML_MAPPINGS:
@@ -410,19 +410,28 @@ def _yaml_kind(value: Node | None) -> str:
 
 
 def _yaml_describe(value: Node | None, source: bytes) -> str:
-    content = _yaml_content(value)
+    content = yaml_content(value)
     if content is None:
         return ""
     entries = [c for c in content.named_children if c.type != "comment"]
     return _describe(_yaml_kind(value), len(entries), node_text(content, source))
 
 
-def _yaml_key(key: Node, source: bytes) -> str:
-    content = _yaml_content(key)
+def yaml_key(key: Node, source: bytes) -> str:
+    """The text of a mapping key, with quoted keys decoded (``"a.b"`` -> ``a.b``)."""
+    content = yaml_content(key)
     text = node_text(content, source) if content is not None else node_text(key, source)
     if content is not None and content.type in {"double_quote_scalar", "single_quote_scalar"}:
-        return _unquote(text)
+        return unquote(text)
     return text
 
 
-__all__ = ["JsonOutlineProvider", "TomlOutlineProvider", "YamlOutlineProvider"]
+__all__ = [
+    "JsonOutlineProvider",
+    "TomlOutlineProvider",
+    "YamlOutlineProvider",
+    "mask_templates",
+    "unquote",
+    "yaml_content",
+    "yaml_key",
+]
