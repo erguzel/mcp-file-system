@@ -45,7 +45,7 @@ class TestMaskWideChars:
 @pytest.mark.parametrize("text", CRASHERS)
 def test_parser_never_sees_wide_chars(factory: type[TreeSitterOutlineProvider], text: str) -> None:
     provider = factory()
-    root, source = provider._parse(text)
+    root, source = provider.parse(text)
     assert max((root.text or b"").decode(), default="\x00") <= "\xff"
     assert source == text.encode()  # extractors still read the original text
     provider.outline(text)

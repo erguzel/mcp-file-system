@@ -37,7 +37,7 @@ class ShellOutlineProvider(TreeSitterOutlineProvider):
 
     def fold_ranges(self, text: str) -> list[tuple[int, int]]:
         """Function bodies to fold in a skeleton view."""
-        root, _ = self._parse(text)
+        root, _ = self.parse(text)
         return block_folds(root, frozenset({"function_definition"}))
 
 

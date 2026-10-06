@@ -67,10 +67,10 @@ class TreeSitterOutlineProvider(ABC):
         Tree-sitter recovers from syntax errors, so malformed input yields a best-effort
         outline instead of an error.
         """
-        root, source = self._parse(text)
+        root, source = self.parse(text)
         return self._extract(root, source)
 
-    def _parse(self, text: str) -> tuple[Node, bytes]:
+    def parse(self, text: str) -> tuple[Node, bytes]:
         """Parse ``text``; return the root node and the original (unprepared) source."""
         # Tree-sitter counts rows at "\n" only; normalize so rows match our line numbers.
         source = _LINE_BREAK.sub("\n", text).encode("utf-8", errors="replace")
