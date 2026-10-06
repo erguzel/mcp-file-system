@@ -9,22 +9,16 @@ Security is the core feature, not an add-on.
 
 ## Hard rules (read these first)
 
-1. **Never** commit, push, tag, merge, rebase, or rewrite git history unless the human
-   explicitly asks for it in the current conversation.
-2. Write all code, comments, docstrings, documentation, and commit messages in **English**.
-3. Every path that comes from a tool call **must** go through `PathGuard`
+1. Every path that comes from a tool call **must** go through `PathGuard`
    (`guard.resolve`, `guard.resolve_file`, `guard.resolve_dir`) before any filesystem
    access. Never call `open()`, `Path.read_*`, `os.scandir`, etc. on raw input.
-4. Do **not** weaken the security controls: root confinement, the deny list, regex time
+2. Do **not** weaken the security controls: root confinement, the deny list, regex time
    budgets, size and output limits, or read-only by default. Any change under
    `src/mcp_file_system/security/` needs a new test in `tests/security/`.
-5. Keep `src/mcp_file_system/core/` and `src/mcp_file_system/security/` free of `mcp`
+3. Keep `src/mcp_file_system/core/` and `src/mcp_file_system/security/` free of `mcp`
    imports. Only `tools/`, `server.py`, and `cli.py` may import `mcp`.
-6. Do **not** add or upgrade dependencies without asking the human first.
-7. Implement `ROADMAP.md` items **in order**, one item per change. Do not start an item
+4. Implement `ROADMAP.md` items **in order**, one item per change. Do not start an item
    that is not next unless the human asks.
-8. If a rule here conflicts with a direct instruction from the human, follow the human
-   and mention the conflict.
 
 ## Commands
 
@@ -54,7 +48,7 @@ A change is finished only when **all** of these are true:
 - [ ] The one-line check above passes with no errors.
 - [ ] New behavior has tests; bug fixes have a test that fails without the fix.
 - [ ] Public functions and classes have Google-style docstrings.
-- [ ] `CHANGELOG.md` has an entry under `## [Unreleased]`.
+- [ ] User-visible changes have a `CHANGELOG.md` entry under `## [Unreleased]`.
 - [ ] If a `ROADMAP.md` item was completed, its status checkbox is ticked.
 - [ ] User-visible changes (tools, flags, settings) are documented in `README.md`.
 
@@ -134,7 +128,7 @@ def my_tool(
   `__init__.py` files).
 - No network access in tests.
 
-## Commits (only when asked)
+## Commits
 
 - Format: [Conventional Commits](https://www.conventionalcommits.org/), e.g.
   `feat(outline): add TOML provider`, `fix(security): ...`, `docs: ...`.
@@ -143,11 +137,9 @@ def my_tool(
 
 ## When to stop and ask the human
 
-- A new dependency, or a change to an existing dependency's version range.
 - Any trade-off that relaxes a security control, even temporarily.
 - Renaming or removing a tool, a tool parameter, a CLI flag, or a setting (breaking change).
-- Anything destructive outside the repository, or touching git history.
-- The task is ambiguous and a wrong guess would waste significant work.
+- Anything destructive outside the repository.
 
 ## If this server's own tools are available to you
 
