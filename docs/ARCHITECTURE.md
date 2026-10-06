@@ -111,6 +111,14 @@ parsers are not thread-safe and tools run in worker threads. Add the provider to
 `tests/unit/test_outline_fuzz.py`: tree-sitter is a C extension, so a bug there crashes
 the server process instead of raising, and only such tests catch it before users do.
 
+Before adding a grammar, grep its external scanner (`src/scanner.c`) for `<ctype.h>`
+classifiers such as `isdigit()` or `isalpha()` applied to the lookahead character. If
+there are any, set `masks_wide_chars = True` on the provider. glibc implements these
+classifiers as a table lookup defined only for -128..255, so a wider code point reads
+outside the table: the crash happens only on Linux and only intermittently, so tests on
+macOS or a lucky CI run will not show it. The Markdown and Bash providers set the flag
+for this reason.
+
 ### Add a search backend
 
 Implement `SearchBackend.search(files, request, deadline) -> GrepResult`. Backends get
