@@ -8,6 +8,7 @@ from mcp_file_system.core.editor import FileEditor
 from mcp_file_system.core.finder import FileFinder, Walker
 from mcp_file_system.core.outline import Outliner, OutlineRegistry, default_registry
 from mcp_file_system.core.peek import Peeker
+from mcp_file_system.core.query import DataQuery
 from mcp_file_system.core.reader import FileReader
 from mcp_file_system.core.search import PythonSearchBackend, SearchBackend, Searcher
 from mcp_file_system.core.tracking import ReadTracker
@@ -26,6 +27,7 @@ class AppContext:
     outliner: Outliner
     editor: FileEditor
     peeker: Peeker
+    data_query: DataQuery
     audit: AuditLog | None = None
 
     @classmethod
@@ -57,6 +59,7 @@ class AppContext:
             outliner=outliner,
             editor=FileEditor(guard, settings),
             peeker=Peeker(guard, settings),
+            data_query=DataQuery(guard, settings),
             audit=(
                 AuditLog(settings.audit_log, profile=settings.profile)
                 if settings.audit_log is not None

@@ -159,7 +159,9 @@ and output).
 
 ## 7. Path queries for structured files
 
-- [ ] **Status:** not started
+- [x] **Status:** done. Tree-sitter views for JSON/JSONC and YAML (line spans, Helm
+  templates, multi-document streams), `tomllib` for TOML. YAML aliases and merge keys
+  are shown as written, not resolved.
 
 **What:** `query(path, "dependencies.react")` or `query(path, "paths./users.get")` for
 JSON, TOML and YAML. It returns only that subtree, bounded by depth and size.
