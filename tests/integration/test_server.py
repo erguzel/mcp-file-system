@@ -25,6 +25,7 @@ READ_TOOLS = {
     "read_skeleton",
     "peek",
     "query",
+    "log_summary",
 }
 WRITE_TOOLS = {"replace_in_file", "edit_lines", "write_file"}
 
@@ -137,6 +138,7 @@ async def test_every_read_tool_works(client: Client, root: Path) -> None:
     write(root / "src" / "mod.py", "class A:\n    def run(self):\n        return 1\n")
     write(root / "README.md", "# Title\n## Part\ntext\n")
     write(root / "ci.yml", "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n")
+    write(root / "app.log", "retry 1 of 3\nretry 2 of 3\n")
     calls: list[tuple[str, dict[str, Any], str]] = [
         ("file_info", {"path": "src/mod.py"}, "lines: 3"),
         ("read_between", {"path": "README.md", "start_pattern": "## Part"}, "## Part"),
@@ -146,6 +148,8 @@ async def test_every_read_tool_works(client: Client, root: Path) -> None:
         ("outline", {"path": "src/mod.py"}, "def run(self)"),
         ("read_symbol", {"path": "src/mod.py", "name": "A.run"}, "return 1"),
         ("query", {"path": "ci.yml", "key_path": "jobs.test.steps[0]"}, 'uses: "actions/'),
+        ("log_summary", {"path": "app.log"}, "[x2] retry <N> of <N>"),
+        ("grep", {"pattern": "retry", "output_mode": "collapsed"}, "[x2] retry <N> of <N>"),
     ]
     for name, arguments, expected in calls:
         result = await call(client, name, **arguments)

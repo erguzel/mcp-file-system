@@ -154,6 +154,53 @@ class GrepGroup(TemplateGroup):
         return f"[x{self.count}] {self.template}\n  {where}"
 
 
+class LogSummaryResult(ToolResult):
+    """A log file reduced to its most frequent line templates."""
+
+    path: str
+    total_lines: int
+    etag: str
+    scanned_from: int
+    scanned_to: int = Field(description="Last line counted; below total_lines if time ran out.")
+    groups: list[TemplateGroup] = Field(
+        default_factory=list, description="Templates by descending count."
+    )
+    template_count: int = Field(description="Distinct templates found, shown or not.")
+    ungrouped: int = Field(default=0, description="Lines beyond the template limit.")
+    next_start: int | None = Field(
+        default=None, description="Where to continue when the time budget ran out."
+    )
+    truncated: bool = False
+    note: str = Field(default="", description="Why fewer templates are shown than found.")
+
+    def render(self) -> str:  # noqa: D102
+        header = (
+            f"==> {self.path} (lines {self.scanned_from}-{self.scanned_to} of "
+            f"{self.total_lines}: {self.template_count} template(s); etag {self.etag}) <=="
+        )
+        parts = [header]
+        for group in self.groups:
+            if group.count == 1:
+                where = f"line {group.first_line}"
+            else:
+                where = f"lines {group.first_line}..{group.last_line}"
+            parts.append(f"[x{group.count}] {group.template}\n  {where}")
+        if len(self.groups) < self.template_count:
+            parts.append(
+                f"[Top {len(self.groups)} of {self.template_count} templates: {self.note}.]"
+            )
+        if self.ungrouped:
+            parts.append(f"[{self.ungrouped} more line(s) beyond the template limit.]")
+        if self.next_start is not None:
+            hint = f"log_summary(path={self.path!r}, start={self.next_start})"
+            parts.append(
+                f"[Time budget used up: counts cover lines {self.scanned_from}-"
+                f"{self.scanned_to} only. Continue with {hint}]"
+            )
+        parts.append("[Read an example with read_lines(start=<line>).]")
+        return "\n".join(parts)
+
+
 class GrepResult(ToolResult):
     """Search results across one or more files."""
 

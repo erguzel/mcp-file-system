@@ -174,10 +174,12 @@ containing dots, and output limits.
 
 ## 8. Collapse repeated lines
 
-- [ ] **Status:** not started
+- [x] **Status:** done. Shipped as `output_mode="collapsed"` instead of a
+  `collapse_similar` flag: no extra parameter, no meaningless combination with the other
+  modes, and the `lite` grep keeps its three modes.
 
 **What**
-- `grep(..., collapse_similar=true)`: group hits whose text differs only in numbers, hex
+- `grep(..., output_mode="collapsed")`: group hits whose text differs only in numbers, hex
   values, UUIDs, IPs or timestamps, e.g. `[x532] Connection timeout after <N>ms to <IP>`.
 - `log_summary(path)`: the most frequent line templates with counts and first/last
   occurrence.

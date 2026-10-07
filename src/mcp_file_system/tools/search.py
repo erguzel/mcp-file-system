@@ -1,4 +1,4 @@
-"""Search tool: grep."""
+"""Search tools: grep, log_summary."""
 
 from typing import Annotated
 
@@ -6,23 +6,26 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
-from mcp_file_system.core.models import GrepMode, GrepResult
+from mcp_file_system.core.models import GrepMode, GrepResult, LogSummaryResult
 from mcp_file_system.core.search import MAX_CONTEXT_LINES
 from mcp_file_system.tools._common import (
     READ_ONLY,
     DirArg,
     IncludeHiddenArg,
+    PathArg,
     ToolRegistry,
     to_call_result,
     unset_str,
 )
 
 DEFAULT_MAX_MATCHES = 100
+DEFAULT_LOG_TEMPLATES = 20
 
 
 def register(registry: ToolRegistry, ctx: AppContext) -> None:
-    """Register the search tool."""
+    """Register the search tools."""
     searcher = ctx.searcher
+    log_summarizer = ctx.log_summarizer
 
     @registry.tool(READ_ONLY)
     def grep(
@@ -83,3 +86,22 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
                 include_hidden=include_hidden,
             )
         )
+
+    @registry.tool(READ_ONLY)
+    def log_summary(
+        path: PathArg,
+        limit: Annotated[
+            int, Field(ge=1, description="Maximum templates to return.")
+        ] = DEFAULT_LOG_TEMPLATES,
+        start: Annotated[
+            int,
+            Field(ge=1, description="First line to scan; continue a partial summary here."),
+        ] = 1,
+    ) -> Annotated[CallToolResult, LogSummaryResult]:
+        """Summarize a log file as its most frequent line templates with counts.
+
+        Numbers, hex values, UUIDs, IPs and timestamps are masked, so thousands of
+        similar lines become one row with first and last line numbers. Use it before
+        reading a large log; then read an example with read_lines or grep for one template.
+        """
+        return to_call_result(log_summarizer.summarize(path, limit=limit, start=start))

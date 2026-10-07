@@ -6,6 +6,7 @@ from mcp_file_system.audit import AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.editor import FileEditor
 from mcp_file_system.core.finder import FileFinder, Walker
+from mcp_file_system.core.logsummary import LogSummarizer
 from mcp_file_system.core.outline import Outliner, OutlineRegistry, default_registry
 from mcp_file_system.core.peek import Peeker
 from mcp_file_system.core.query import DataQuery
@@ -24,6 +25,7 @@ class AppContext:
     reader: FileReader
     finder: FileFinder
     searcher: Searcher
+    log_summarizer: LogSummarizer
     outliner: Outliner
     editor: FileEditor
     peeker: Peeker
@@ -56,6 +58,7 @@ class AppContext:
             searcher=Searcher(
                 finder, search_backend or PythonSearchBackend(), settings, symbols=outliner
             ),
+            log_summarizer=LogSummarizer(guard, settings),
             outliner=outliner,
             editor=FileEditor(guard, settings),
             peeker=Peeker(guard, settings),
