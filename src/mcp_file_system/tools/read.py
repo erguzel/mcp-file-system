@@ -7,6 +7,7 @@ from pydantic import Field
 
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.models import FileInfo, LinesResult
+from mcp_file_system.core.reader import DEFAULT_RADIUS
 from mcp_file_system.tools._common import (
     READ_ONLY,
     IfChangedSinceArg,
@@ -43,17 +44,36 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             int,
             Field(description="Last line, inclusive; negative counts from the end (-1 = last)."),
         ] = -1,
+        around: Annotated[
+            int,
+            Field(
+                ge=0,
+                description="Line to center on, e.g. from an error message or grep hit. "
+                "Use instead of start/end. 0: use start/end.",
+            ),
+        ] = 0,
+        radius: Annotated[
+            int, Field(ge=0, description="Lines before and after `around` (0 = only that line).")
+        ] = DEFAULT_RADIUS,
         if_changed_since: IfChangedSinceArg = "",
     ) -> Annotated[CallToolResult, LinesResult]:
         """Read a numbered range of lines from a text file.
 
         Prefer this over reading whole files: locate the region with grep, outline or
-        read_between first, then read only the lines you need. Output is capped; if
-        truncated, continue from `next_start`. To re-check lines you already have, pass
-        their etag as if_changed_since instead of reading them again.
+        read_between first, then read only the lines you need. For a line number from a
+        stack trace or grep hit, pass around=N instead of computing start/end. Output is
+        capped; if truncated, continue from `next_start`. To re-check lines you already
+        have, pass their etag as if_changed_since instead of reading them again.
         """
         return to_call_result(
-            reader.read_lines(path, start, end, if_changed_since=if_changed_since)
+            reader.read_lines(
+                path,
+                start,
+                end,
+                around=unset_int(around),
+                radius=radius,
+                if_changed_since=if_changed_since,
+            )
         )
 
     @registry.tool(READ_ONLY)
