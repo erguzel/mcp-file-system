@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `read_lines(around=N, radius=R)` (full profile): reads the lines around one line
+  number, e.g. from a stack trace or grep hit, without computing `start`/`end`. The
+  window is clamped to the file; `radius` defaults to 10 and is shrunk (with a note) when
+  the window would exceed `max_read_lines`. Combining `around` with `start`/`end` is an
+  error.
 - `log_summary` tool (full profile): the most frequent line templates of a log file
   (masked as in `grep`'s collapsed mode) with counts and first/last line numbers. The
   file is streamed within `search_timeout_s`; when the budget runs out, the summary

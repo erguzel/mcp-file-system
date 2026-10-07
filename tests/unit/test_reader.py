@@ -148,6 +148,75 @@ class TestReadLines:
         assert ctx.reader.read_lines("f.txt").etag == compute_etag(path.stat())
 
 
+class TestReadAround:
+    @pytest.mark.parametrize(
+        ("around", "radius", "window"),
+        [
+            (50, 3, (47, 53)),  # middle
+            (2, 5, (1, 7)),  # near the start
+            (99, 5, (94, 100)),  # near the end
+            (1, 0, (1, 1)),  # first line only
+            (100, 0, (100, 100)),  # last line only
+            (40, 0, (40, 40)),
+        ],
+    )
+    def test_window_is_clamped_to_the_file(
+        self, ctx: AppContext, root: Path, around: int, radius: int, window: tuple[int, int]
+    ) -> None:
+        write(root / "f.txt", numbered(100))
+        result = ctx.reader.read_lines("f.txt", around=around, radius=radius)
+        assert (result.start_line, result.end_line) == window
+        assert body(result.content) == [f"line {n}" for n in range(window[0], window[1] + 1)]
+        assert not result.truncated
+        assert result.note is None
+
+    def test_default_radius(self, ctx: AppContext, root: Path) -> None:
+        write(root / "f.txt", numbered(100))
+        result = ctx.reader.read_lines("f.txt", around=50)
+        assert (result.start_line, result.end_line) == (40, 60)
+
+    def test_around_past_end(self, ctx: AppContext, root: Path) -> None:
+        write(root / "f.txt", numbered(10))
+        with pytest.raises(InvalidArgumentError, match=r"around=11 is past the end.*10 lines"):
+            ctx.reader.read_lines("f.txt", around=11)
+
+    @pytest.mark.parametrize(
+        ("start", "end", "around", "radius"),
+        [(5, None, 3, 1), (1, 8, 3, 1), (1, None, 0, 1), (1, None, 3, -1)],
+    )
+    def test_invalid_arguments(
+        self, ctx: AppContext, root: Path, start: int, end: int | None, around: int, radius: int
+    ) -> None:
+        write(root / "f.txt", numbered(10))
+        with pytest.raises(InvalidArgumentError):
+            ctx.reader.read_lines("f.txt", start, end, around=around, radius=radius)
+
+    def test_tool_default_end_counts_as_unset(self, ctx: AppContext, root: Path) -> None:
+        write(root / "f.txt", numbered(10))
+        result = ctx.reader.read_lines("f.txt", 1, -1, around=5, radius=1)
+        assert (result.start_line, result.end_line) == (4, 6)
+
+    def test_radius_shrinks_to_the_line_cap(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "f.txt", numbered(100))
+        ctx = make_ctx(max_read_lines=5)
+        result = ctx.reader.read_lines("f.txt", around=50, radius=10)
+        assert (result.start_line, result.end_line) == (48, 52)
+        assert not result.truncated
+        assert result.note == "radius reduced from 10 to 2 to fit max_read_lines."
+
+    def test_empty_file(self, ctx: AppContext, root: Path) -> None:
+        write(root / "empty.txt", "")
+        assert ctx.reader.read_lines("empty.txt", around=1).note == "File is empty."
+
+    def test_if_changed_since(self, ctx: AppContext, root: Path) -> None:
+        write(root / "f.txt", numbered(30))
+        first = ctx.reader.read_lines("f.txt", around=10, radius=2)
+        again = ctx.reader.read_lines("f.txt", around=10, radius=2, if_changed_since=first.etag)
+        assert again.unchanged
+        assert (again.start_line, again.end_line) == (8, 12)
+        assert again.content == ""
+
+
 CONFIG = """\
 [core]
 name = a

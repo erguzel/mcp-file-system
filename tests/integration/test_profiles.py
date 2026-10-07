@@ -263,6 +263,23 @@ class TestSentinelDefaults:
         }
         assert default.structured_content["end_line"] == 5
 
+    async def test_read_lines_around(self, full: Client, root: Path) -> None:
+        write(root / "f.txt", numbered(30))
+        unset = await call(full, "read_lines", path="f.txt", start=3, end=4, around=0)
+        centered = await call(full, "read_lines", path="f.txt", around=20, radius=2)
+        both = await call(full, "read_lines", path="f.txt", start=3, around=20)
+        assert unset.structured_content is not None
+        assert centered.structured_content is not None
+        assert (unset.structured_content["start_line"], unset.structured_content["end_line"]) == (
+            3,
+            4,
+        )
+        assert "18\tline 18" in text_of(centered)
+        assert "22\tline 22" in text_of(centered)
+        assert "line 23" not in text_of(centered)
+        assert both.is_error
+        assert "either around" in text_of(both)
+
     async def test_read_between_unset_end_pattern_and_max_lines(
         self, full: Client, root: Path
     ) -> None:

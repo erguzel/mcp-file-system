@@ -18,6 +18,9 @@ from mcp_file_system.security.regex import Deadline, SafePattern, compile_patter
 BYTES_PER_TOKEN = 4
 """Common rule of thumb for English text and code with current tokenizers."""
 
+DEFAULT_RADIUS = 10
+"""Lines shown before and after the ``around`` line of ``read_lines``."""
+
 
 def estimate_tokens(size_bytes: int) -> int:
     """Rough number of tokens needed to read ``size_bytes`` of text."""
@@ -71,7 +74,14 @@ class FileReader:
         )
 
     def read_lines(
-        self, path: str, start: int = 1, end: int | None = None, *, if_changed_since: str = ""
+        self,
+        path: str,
+        start: int = 1,
+        end: int | None = None,
+        *,
+        around: int | None = None,
+        radius: int = DEFAULT_RADIUS,
+        if_changed_since: str = "",
     ) -> LinesResult:
         """Return numbered lines ``start..end`` (1-based, inclusive).
 
@@ -79,9 +89,15 @@ class FileReader:
         twenty lines. Output is capped by ``max_read_lines`` and ``max_output_chars``;
         when capped, ``next_start`` tells the caller where to continue.
 
+        ``around=N`` replaces ``start``/``end`` with the window ``N-radius..N+radius``,
+        clamped to the file, because line numbers from stack traces and grep hits are
+        easier to pass on than a computed range.
+
         With ``if_changed_since=<etag>``, an unchanged file whose requested lines were
         already returned in this session yields a content-free "unchanged" result.
         """
+        if around is not None:
+            _check_around(around, radius, start, end)
         if start == 0:
             raise InvalidArgumentError(
                 "start is 1-based: use 1 for the first line or a negative number to count "
@@ -97,15 +113,21 @@ class FileReader:
         if total == 0:
             return self._empty(resolved, etag, "File is empty.")
 
-        first = start if start > 0 else max(1, total + start + 1)
-        if first > total:
-            raise InvalidArgumentError(
-                f"start={start} is past the end of {resolved.display} ({total} lines)."
+        note = None
+        if around is not None:
+            first, last, note = _around_window(
+                around, radius, total, self._settings.max_read_lines, resolved.display
             )
-        last = total if end is None else (end if end > 0 else total + end + 1)
-        if last < first:
-            raise InvalidArgumentError(f"end ({end}) resolves to before start ({start}).")
-        last = min(last, total)
+        else:
+            first = start if start > 0 else max(1, total + start + 1)
+            if first > total:
+                raise InvalidArgumentError(
+                    f"start={start} is past the end of {resolved.display} ({total} lines)."
+                )
+            last = total if end is None else (end if end > 0 else total + end + 1)
+            if last < first:
+                raise InvalidArgumentError(f"end ({end}) resolves to before start ({start}).")
+            last = min(last, total)
         window_last = min(last, first + self._settings.max_read_lines - 1)
         unchanged = unchanged_result(
             self._tracker,
@@ -122,7 +144,7 @@ class FileReader:
 
         with open_lines(resolved.path, fmt) as lines:
             selected = enumerate(islice(lines, first - 1, window_last), start=first)
-            result = self._build(resolved, etag, total, selected, requested_last=last)
+            result = self._build(resolved, etag, total, selected, requested_last=last, note=note)
         return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
 
     def read_between(
@@ -235,6 +257,37 @@ class FileReader:
             content="",
             note=note,
         )
+
+
+def _check_around(around: int, radius: int, start: int, end: int | None) -> None:
+    """Reject ``around`` arguments that cannot describe a window."""
+    if start != 1 or end not in (None, -1):
+        raise InvalidArgumentError(
+            "Pass either around (with radius) or start/end, not both. Use around for a "
+            "line from an error message or grep hit."
+        )
+    if around < 1:
+        raise InvalidArgumentError("around is a 1-based line number (1 is the first line).")
+    if radius < 0:
+        raise InvalidArgumentError("radius must be >= 0.")
+
+
+def _around_window(
+    around: int, radius: int, total: int, max_lines: int, display: str
+) -> tuple[int, int, str | None]:
+    """Resolve ``around``/``radius`` to a ``(first, last, note)`` window inside the file.
+
+    A radius whose window exceeds ``max_lines`` is shrunk on both sides, so the window
+    stays centered and the ``around`` line is never cut off by the line cap.
+    """
+    if around > total:
+        raise InvalidArgumentError(f"around={around} is past the end of {display} ({total} lines).")
+    note = None
+    max_radius = (max_lines - 1) // 2
+    if radius > max_radius:
+        note = f"radius reduced from {radius} to {max_radius} to fit max_read_lines."
+        radius = max_radius
+    return max(1, around - radius), min(total, around + radius), note
 
 
 def _find_occurrence(
