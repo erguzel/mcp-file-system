@@ -6,7 +6,7 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
-from mcp_file_system.core.models import GrepResult, OutputMode
+from mcp_file_system.core.models import GrepMode, GrepResult
 from mcp_file_system.core.search import MAX_CONTEXT_LINES
 from mcp_file_system.tools._common import (
     READ_ONLY,
@@ -47,14 +47,16 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             bool, Field(description="Return only the matched text, one hit per match.")
         ] = False,
         output_mode: Annotated[
-            OutputMode,
+            GrepMode,
             Field(
                 description="'content': matching lines; 'files_with_matches': paths only; "
-                "'count': matches per file."
+                "'count': matches per file; 'collapsed': matching lines grouped into "
+                "templates with counts (numbers, hex, UUIDs, IPs, timestamps masked)."
             ),
         ] = "content",
         max_matches: Annotated[
-            int, Field(ge=1, description="Maximum hits (or files, in the other modes).")
+            int,
+            Field(ge=1, description="Maximum hits (files or templates, in the other modes)."),
         ] = DEFAULT_MAX_MATCHES,
         include_hidden: IncludeHiddenArg = False,
     ) -> Annotated[CallToolResult, GrepResult]:
@@ -63,7 +65,8 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         Searches a single file or a directory recursively (skipping binary,
         .gitignore'd and policy-denied files). Results show `path`, then
         `line:text` for hits and `line-text` for context. Use output_mode
-        'files_with_matches' or 'count' to survey before reading content.
+        'files_with_matches' or 'count' to survey before reading content, and
+        'collapsed' to see what thousands of similar (log) lines say in a few rows.
         """
         return to_call_result(
             searcher.grep(

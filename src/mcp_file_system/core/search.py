@@ -15,8 +15,9 @@ import regex
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.finder import FileFinder
-from mcp_file_system.core.models import FileCount, GrepHit, GrepResult, OutputMode
+from mcp_file_system.core.models import FileCount, GrepGroup, GrepHit, GrepMode, GrepResult
 from mcp_file_system.core.render import clip_line
+from mcp_file_system.core.templates import TemplateTally
 from mcp_file_system.core.textio import detect_format, open_lines
 from mcp_file_system.errors import InvalidArgumentError, PatternTimeoutError
 from mcp_file_system.security.paths import ResolvedPath
@@ -34,7 +35,7 @@ class SearchRequest:
     """Everything a backend needs to know about one search."""
 
     pattern: SafePattern
-    mode: OutputMode = "content"
+    mode: GrepMode = "content"
     context_before: int = 0
     context_after: int = 0
     only_matching: bool = False
@@ -84,6 +85,7 @@ class _Tally:
     skipped: int = 0
     chars: int = 0
     stop_reason: str | None = None
+    templates: TemplateTally = field(default_factory=TemplateTally)
 
 
 class PythonSearchBackend:
@@ -116,7 +118,7 @@ class PythonSearchBackend:
                 tally.stop_reason = BUDGET_EXHAUSTED_SLOW_PATTERN
             if tally.stop_reason:
                 break
-        return GrepResult(
+        result = GrepResult(
             pattern=request.pattern.source,
             mode=request.mode,
             hits=[hit.freeze() for hit in tally.hits],
@@ -126,6 +128,9 @@ class PythonSearchBackend:
             truncated=tally.stop_reason is not None,
             note=tally.stop_reason,
         )
+        if request.mode == "collapsed":
+            return _with_groups(result, tally.templates, request)
+        return result
 
     def _scan(
         self,
@@ -137,6 +142,8 @@ class PythonSearchBackend:
     ) -> None:
         if request.mode == "content":
             self._collect_hits(display, lines, request, deadline, tally)
+        elif request.mode == "collapsed":
+            self._collect_templates(display, lines, request, deadline, tally)
         else:
             self._count_matches(display, lines, request, deadline, tally)
 
@@ -204,6 +211,63 @@ class PythonSearchBackend:
             if request.context_before:
                 before.append(clip_line(line, width))
 
+    @staticmethod
+    def _collect_templates(
+        display: str,
+        lines: Iterable[str],
+        request: SearchRequest,
+        deadline: Deadline,
+        tally: _Tally,
+    ) -> None:
+        """Count every matching line by template; max_matches only limits groups shown."""
+        width = request.max_line_chars
+        for number, line in enumerate(lines, start=1):
+            if deadline.expired:
+                tally.stop_reason = BUDGET_EXHAUSTED
+                return
+            for match in _matches(request, line):
+                text = match.group() if request.only_matching else line
+                tally.templates.add(text[:width], display, number)
+
+
+def _with_groups(
+    result: GrepResult, templates: TemplateTally, request: SearchRequest
+) -> GrepResult:
+    """Attach the most frequent templates, bounded by max_matches and the output budget."""
+    groups: list[GrepGroup] = []
+    chars = 0
+    notes = [f"{result.note}; counts cover only the lines scanned"] if result.note else []
+    cut = False
+    for template, stats in templates.most_common():
+        if len(groups) >= request.max_matches:
+            notes.append(f"showing the top {len(groups)}; raise max_matches for more")
+            cut = True
+            break
+        group = GrepGroup(
+            template=template,
+            count=stats.count,
+            files=stats.files,
+            first_path=stats.first_path,
+            first_line=stats.first_line,
+            last_path=stats.last_path,
+            last_line=stats.last_line,
+        )
+        chars += len(template) + len(stats.first_path) + len(stats.last_path) + 40
+        if groups and chars > request.max_output_chars:
+            notes.append(f"output size budget reached after {len(groups)} template(s)")
+            cut = True
+            break
+        groups.append(group)
+    return result.model_copy(
+        update={
+            "groups": groups,
+            "template_count": len(templates),
+            "ungrouped": templates.other,
+            "note": "; ".join(notes) or None,
+            "truncated": result.truncated or cut,
+        }
+    )
+
 
 def _matches(request: SearchRequest, line: str) -> list[regex.Match[str]]:
     """All matches with only_matching, otherwise at most the first one."""
@@ -250,7 +314,7 @@ class Searcher:
         context_before: int = 0,
         context_after: int = 0,
         only_matching: bool = False,
-        mode: OutputMode = "content",
+        mode: GrepMode = "content",
         max_matches: int | None = None,
         include_hidden: bool = False,
     ) -> GrepResult:
@@ -260,6 +324,11 @@ class Searcher:
                 raise InvalidArgumentError(f"{name} must be between 0 and {MAX_CONTEXT_LINES}.")
         if max_matches is not None and max_matches < 1:
             raise InvalidArgumentError("max_matches must be >= 1.")
+        if mode == "collapsed" and (context_before or context_after):
+            raise InvalidArgumentError(
+                "Context lines are not available with output_mode='collapsed'. Read an "
+                "example with read_lines, or use output_mode='content'."
+            )
         deadline = Deadline(self._settings.search_timeout_s)
         compiled = compile_pattern(
             pattern,

@@ -4,6 +4,7 @@ import pytest
 
 from conftest import ContextFactory, write
 from mcp_file_system.context import AppContext
+from mcp_file_system.core.models import GrepGroup, GrepResult
 from mcp_file_system.core.search import PythonSearchBackend, SearchRequest
 from mcp_file_system.errors import InvalidArgumentError, InvalidPatternError
 from mcp_file_system.security import Deadline, compile_pattern
@@ -195,3 +196,107 @@ def test_backend_skips_vanished_files(ctx: AppContext, project: Path) -> None:
     request = SearchRequest(pattern=compile_pattern("alpha", deadline=deadline, max_length=10))
     result = PythonSearchBackend().search(files, request, deadline)
     assert result.files_skipped == 2  # the vanished file and the binary image
+
+
+LOG = """\
+2026-10-06T12:00:01Z ERROR timeout after 312ms to 10.0.0.4
+2026-10-06T12:00:02Z INFO ok
+2026-10-06T12:00:03Z ERROR timeout after 98ms to 10.0.0.7
+2026-10-06T12:00:04Z ERROR disk full on /dev/sda1
+2026-10-06T12:00:05Z ERROR timeout after 7ms to 10.0.0.9
+"""
+
+
+def test_collapsed_mode_groups_similar_lines(ctx: AppContext, root: Path) -> None:
+    write(root / "a.log", LOG)
+    write(root / "b.log", "2026-10-07T08:00:00Z ERROR timeout after 1ms to 10.1.1.1\n")
+    result = ctx.searcher.grep("ERROR", mode="collapsed")
+    assert [(g.template, g.count, g.files) for g in result.groups] == [
+        ("<TS> ERROR timeout after <N>ms to <IP>", 4, 2),
+        ("<TS> ERROR disk full on /dev/sda1", 1, 1),
+    ]
+    top = result.groups[0]
+    assert (top.first_path, top.first_line, top.last_path, top.last_line) == (
+        "a.log",
+        1,
+        "b.log",
+        1,
+    )
+    assert result.hits == []
+    assert not result.truncated
+    rendered = result.render()
+    assert (
+        "[x4] <TS> ERROR timeout after <N>ms to <IP>\n  first a.log:1, last b.log:1 (2 files)"
+        in (rendered)
+    )
+    assert "[x1] <TS> ERROR disk full on /dev/sda1\n  at a.log:4" in rendered
+    assert "[5 matching line(s) in 2 template(s); scanned 2 file(s)]" in rendered
+
+
+def test_collapsed_mode_with_only_matching_groups_the_matches(ctx: AppContext, root: Path) -> None:
+    write(root / "a.log", LOG)
+    result = ctx.searcher.grep(r"after \d+ms", mode="collapsed", only_matching=True)
+    assert [(g.template, g.count) for g in result.groups] == [("after <N>ms", 3)]
+
+
+def test_collapsed_mode_counts_beyond_max_matches(ctx: AppContext, root: Path) -> None:
+    write(root / "a.log", LOG)
+    result = ctx.searcher.grep("ERROR", mode="collapsed", max_matches=1)
+    assert [(g.count, g.template) for g in result.groups] == [
+        (3, "<TS> ERROR timeout after <N>ms to <IP>")
+    ]
+    assert result.template_count == 2
+    assert result.truncated
+    rendered = result.render()
+    assert "(the most frequent of 2)" in rendered
+    assert "raise max_matches" in rendered
+
+
+def test_collapsed_mode_respects_output_budget(make_ctx: ContextFactory, root: Path) -> None:
+    write(root / "a.log", "".join(f"{'x' * 600} {chr(97 + i % 26) * (i + 1)}\n" for i in range(40)))
+    result = make_ctx(max_output_chars=5000).searcher.grep("x", mode="collapsed")
+    assert 1 <= len(result.groups) < 40
+    assert result.truncated
+    assert "output size budget" in result.render()
+
+
+def test_collapsed_render_reports_lines_beyond_the_template_limit() -> None:
+    group = GrepGroup(
+        template="a <N>",
+        count=3,
+        files=1,
+        first_path="x.log",
+        first_line=1,
+        last_path="x.log",
+        last_line=9,
+    )
+    result = GrepResult(
+        pattern="a", mode="collapsed", groups=[group], template_count=1, ungrouped=2
+    )
+    assert "[3 matching line(s) in 1 template(s), 2 more line(s) beyond the template limit" in (
+        result.render()
+    )
+
+
+def test_collapsed_mode_counts_are_partial_when_time_runs_out(ctx: AppContext, root: Path) -> None:
+    write(root / "a.log", LOG)
+    deadline = Deadline(4.0, clock=ExpiringClock())
+    request = SearchRequest(
+        pattern=compile_pattern("ERROR", deadline=deadline, max_length=10), mode="collapsed"
+    )
+    result = PythonSearchBackend().search(list(ctx.finder.iter_files(".")), request, deadline)
+    assert result.truncated
+    assert sum(g.count for g in result.groups) < 4
+    assert result.note is not None
+    assert "counts cover only the lines scanned" in result.note
+
+
+def test_collapsed_mode_rejects_context(ctx: AppContext, root: Path) -> None:
+    write(root / "a.log", LOG)
+    with pytest.raises(InvalidArgumentError, match="collapsed"):
+        ctx.searcher.grep("ERROR", mode="collapsed", context_after=1)
+
+
+def test_collapsed_mode_without_matches(ctx: AppContext, root: Path) -> None:
+    write(root / "a.log", LOG)
+    assert "No matches" in ctx.searcher.grep("nothing", mode="collapsed").render()
