@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `log_summary` tool (full profile): the most frequent line templates of a log file
+  (masked as in `grep`'s collapsed mode) with counts and first/last line numbers. The
+  file is streamed within `search_timeout_s`; when the budget runs out, the summary
+  covers the lines scanned and names the `start` line to continue from. Output honors
+  `max_results`, `max_line_chars` and `max_output_chars`; at most 10,000 distinct
+  templates are kept.
 - `grep(output_mode="collapsed")` (full profile): matching lines that differ only in
   numbers, hex values, UUIDs, IPv4/IPv6 addresses or timestamps are grouped into
   templates such as `[x532] <TS> ERROR timeout after <N>ms to <IP>`, with their count,

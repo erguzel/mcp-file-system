@@ -90,10 +90,10 @@ every request. Large models handle the full set easily. Small local models (roug
 
 | | `full` (default) | `lite` |
 |---|---|---|
-| Tools | all 11 (+3 editing) | 7 (+3 editing): no `read_between`, `read_skeleton`, `peek`, `query` |
+| Tools | all 12 (+3 editing) | 7 (+3 editing): no `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
-| Tool listing size* | ~27k characters | ~7.1k characters |
+| Tool listing size* | ~35k characters | ~7.1k characters |
 
 \* With editing enabled, measured on version 0.1.x.
 
@@ -118,6 +118,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `outline` | Code symbols with signatures (Python; JS/TS, Go, Java with `[code]`), shell functions, Dockerfile stages and instructions, Markdown headings (incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. `Dockerfile`/`Containerfile` are recognized by name and extensionless scripts by their shebang. |
 | `read_skeleton` | A code file with function bodies folded (imports, signatures, docstrings and class structure stay); each fold shows its line range for `read_lines`. Python, shell, and JS/TS, Go, Java with `[code]`. |
 | `peek` | The *shape* of a data file instead of its content: CSV/TSV columns, guessed types, row count and 3 sample rows; JSON/TOML key trees with types and array lengths (`items: array[1532] of {id: int, name: str}`); log time span and level counts; name, version and dependencies of `pyproject.toml`, `package.json`, `Cargo.toml`; Markdown front matter and heading counts. |
+| `log_summary` | A log file as its most frequent line templates: numbers, hex values, UUIDs, IPs and timestamps are masked, so thousands of similar lines become one row such as `[x532] <TS> ERROR timeout after <N>ms to <IP>` with first and last line numbers. Streams the file within the search time budget; a partial summary names the `start` line to continue from. |
 | `query` | One value of a JSON (incl. comments), YAML (incl. multi-document and Helm templates) or TOML file by key path, e.g. `dependencies.react`, `jobs.test.steps[0]`, `"app.kubernetes.io/name"`, `[1].kind`. Nested values are shown to `depth` levels (default 2), deeper ones collapse to `{3 keys}` / `[40 items]`; every row uses the key-path syntax, so the agent can drill down. Works on minified files such as `package-lock.json`. YAML aliases are shown as written, not resolved. |
 | `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. Accepts `if_changed_since` like `read_lines`. |
 | `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1). |

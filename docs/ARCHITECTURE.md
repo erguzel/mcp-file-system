@@ -25,6 +25,8 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.reader.FileReader` | `file_info`, `read_lines`, `read_between`. |
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
+| `core.templates` | `mask_line` (fixed masks for timestamps, UUIDs, IPs, hex values, numbers) and the bounded `TemplateTally`; shared by grep's `collapsed` mode and `log_summary`. |
+| `core.logsummary.LogSummarizer` | `log_summary`: streams one file into a `TemplateTally` within the search time budget, with a `start` line to continue. |
 | `core.outline` | `OutlineProvider` protocol, `OutlineRegistry`, `Outliner` service; Python (`ast`) and Dockerfile (pure Python) providers, regex Markdown fallback. |
 | `core.outline.treesitter` | Tree-sitter providers: Markdown, JSON, TOML, YAML (Helm templates masked), shell (`TreeSitterOutlineProvider` base); `code.py` holds the optional `[code]` languages (JS/TS, Go, Java). |
 | `core.peek` | `Peeker` service behind `peek`: shape summaries per format (`tabular`, `structured`, `text` modules) chosen by file name or suffix; streamed formats have fixed scan budgets. |

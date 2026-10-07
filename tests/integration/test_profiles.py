@@ -28,8 +28,9 @@ FULL_READ = {
     "read_skeleton",
     "peek",
     "query",
+    "log_summary",
 }
-LITE_READ = FULL_READ - {"read_between", "read_skeleton", "peek", "query"}
+LITE_READ = FULL_READ - {"read_between", "read_skeleton", "peek", "query", "log_summary"}
 WRITE = {"replace_in_file", "edit_lines", "write_file"}
 
 LITE_PARAMETERS = {
