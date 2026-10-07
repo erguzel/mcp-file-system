@@ -90,7 +90,7 @@ every request. Large models handle the full set easily. Small local models (roug
 
 | | `full` (default) | `lite` |
 |---|---|---|
-| Tools | all 12 (+3 editing) | 7 (+3 editing): no `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
+| Tools | all 13 (+3 editing) | 7 (+3 editing): no `read_ranges`, `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
 | Tool listing size* | ~35k characters | ~7.1k characters |
@@ -111,6 +111,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 |---|---|
 | `file_info` | Size, approximate token count, line count, encoding, newline style, binary flag and **etag** of a file (or entry count of a directory). |
 | `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). `around=N` (full profile) reads `N-radius..N+radius` instead (`radius` defaults to 10), for line numbers from stack traces or grep hits. Continues via `next_start`. `if_changed_since=<etag>` returns a one-line "unchanged" answer instead of lines you already have. |
+| `read_ranges` | Several `(path, start, end)` ranges, from one or more files, in one call (at most 20). The ranges share one output budget (`max_read_lines`, `max_output_chars`), spent in order; ranges cut by the budget are listed with a ready-made `read_ranges` call to continue. A failing range is reported without stopping the others. |
 | `read_between` | Lines from the Nth match of `start_pattern` to the next `end_pattern`, like `sed -n '/a/,/b/p'`. |
 | `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and four output modes. Hits show their enclosing symbol (`[Parser.parse]`, `[jobs.test.steps[0]]`), ready for `read_symbol`. `output_mode="collapsed"` (full profile) groups matching lines that differ only in numbers, hex values, UUIDs, IPs or timestamps into templates with counts and first/last location, e.g. `[x532] <TS> ERROR timeout after <N>ms to <IP>`. |
 | `list_directory` | Indented tree with sizes, depth-limited. |

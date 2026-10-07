@@ -19,6 +19,7 @@ pytestmark = pytest.mark.anyio
 FULL_READ = {
     "file_info",
     "read_lines",
+    "read_ranges",
     "read_between",
     "grep",
     "list_directory",
@@ -30,7 +31,14 @@ FULL_READ = {
     "query",
     "log_summary",
 }
-LITE_READ = FULL_READ - {"read_between", "read_skeleton", "peek", "query", "log_summary"}
+LITE_READ = FULL_READ - {
+    "read_between",
+    "read_ranges",
+    "read_skeleton",
+    "peek",
+    "query",
+    "log_summary",
+}
 WRITE = {"replace_in_file", "edit_lines", "write_file"}
 
 LITE_PARAMETERS = {
@@ -166,8 +174,11 @@ def test_instructions_follow_the_profile(make_settings: SettingsFactory) -> None
     full_text = build_instructions(make_settings(allow_write=True))
     assert "read_between" not in lite_text
     assert "dry_run" not in lite_text
+    assert "read_ranges" not in lite_text
+    assert "around" not in lite_text
     assert "read_between" in full_text
     assert "dry_run" in full_text
+    assert "read_ranges" in full_text
 
 
 class TestLiteBehavior:
@@ -279,6 +290,17 @@ class TestSentinelDefaults:
         assert "line 23" not in text_of(centered)
         assert both.is_error
         assert "either around" in text_of(both)
+
+    async def test_read_ranges(self, full: Client, root: Path) -> None:
+        write(root / "a.txt", numbered(10))
+        write(root / "b.txt", numbered(3, "row"))
+        ranges = [{"path": "a.txt", "start": 4, "end": 5}, {"path": "b.txt", "start": -1}]
+        result = await call(full, "read_ranges", ranges=ranges)
+        assert not result.is_error, text_of(result)
+        assert "4\tline 4" in text_of(result)
+        assert "3\trow 3" in text_of(result)
+        too_many = await call(full, "read_ranges", ranges=[{"path": "a.txt"}] * 21)
+        assert too_many.is_error
 
     async def test_read_between_unset_end_pattern_and_max_lines(
         self, full: Client, root: Path

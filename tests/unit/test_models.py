@@ -3,13 +3,16 @@
 from datetime import UTC, datetime
 
 from mcp_file_system.core.models import (
+    BatchLinesResult,
     DirectoryListing,
     DirEntry,
     EditResult,
     FileCount,
     GrepHit,
     GrepResult,
+    LineRange,
     LinesResult,
+    RangeError,
 )
 
 
@@ -24,6 +27,32 @@ def test_lines_result_note_and_empty() -> None:
         note="File is empty.",
     )
     assert result.render() == "==> a.txt (no lines of 0, etag 1-0) <==\n[File is empty.]"
+
+
+def test_batch_lines_result_render() -> None:
+    read = LinesResult(
+        path="a.txt",
+        start_line=1,
+        end_line=1,
+        total_lines=9,
+        etag="1-0",
+        content="1\tx",
+        truncated=True,
+        next_start=2,
+        note="fyi",
+    )
+    result = BatchLinesResult(
+        reads=[read],
+        errors=[RangeError(path="b.txt", start=1, end=-1, message="Not found.")],
+        cut=[LineRange(path="a.txt", start=2, end=5), LineRange(path="c.txt")],
+    )
+    assert result.render() == (
+        "==> a.txt (lines 1-1 of 9, etag 1-0) <==\n1\tx\n[fyi]\n"
+        "[b.txt lines 1..-1: Not found.]\n"
+        "[Output budget reached; 2 range(s) not fully returned. Continue with read_ranges("
+        'ranges=[{"path": "a.txt", "start": 2, "end": 5}, {"path": "c.txt", "start": 1, '
+        '"end": -1}])]'
+    )
 
 
 def test_grep_result_notes_without_truncation() -> None:

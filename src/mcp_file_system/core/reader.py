@@ -1,17 +1,23 @@
 """Partial reading: file metadata, line ranges and pattern-delimited sections."""
 
 import os
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from datetime import UTC, datetime
 from itertools import islice
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag
-from mcp_file_system.core.models import FileInfo, LinesResult
+from mcp_file_system.core.models import (
+    BatchLinesResult,
+    FileInfo,
+    LineRange,
+    LinesResult,
+    RangeError,
+)
 from mcp_file_system.core.render import number_lines
 from mcp_file_system.core.textio import count_lines, detect_format, open_lines, require_text
 from mcp_file_system.core.tracking import ReadTracker, track_result, unchanged_result
-from mcp_file_system.errors import InvalidArgumentError, NoMatchError, PathTypeError
+from mcp_file_system.errors import FsError, InvalidArgumentError, NoMatchError, PathTypeError
 from mcp_file_system.security.paths import PathGuard, ResolvedPath
 from mcp_file_system.security.regex import Deadline, SafePattern, compile_pattern
 
@@ -20,6 +26,9 @@ BYTES_PER_TOKEN = 4
 
 DEFAULT_RADIUS = 10
 """Lines shown before and after the ``around`` line of ``read_lines``."""
+
+MAX_BATCH_RANGES = 20
+"""Most ranges per ``read_ranges`` call; each one resolves and opens a file."""
 
 
 def estimate_tokens(size_bytes: int) -> int:
@@ -180,6 +189,52 @@ class FileReader:
                 note=note,
             )
         return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
+
+    def read_ranges(self, ranges: Sequence[LineRange]) -> BatchLinesResult:
+        """Read several line ranges, from one or more files, within one shared budget.
+
+        Ranges are read in the given order and together spend ``max_read_lines`` and
+        ``max_output_chars``. A range cut by the budget, and every range after it, is
+        listed in ``cut`` with the lines still to read. A range that fails (missing
+        file, denied path, invalid range) is reported in ``errors`` and does not stop
+        the others.
+        """
+        if len(ranges) > MAX_BATCH_RANGES:
+            raise InvalidArgumentError(
+                f"At most {MAX_BATCH_RANGES} ranges per call; split them across calls."
+            )
+        lines_left = self._settings.max_read_lines
+        chars_left = self._settings.max_output_chars
+        reads: list[LinesResult] = []
+        errors: list[RangeError] = []
+        cut: list[LineRange] = []
+        for spec in ranges:
+            if lines_left <= 0 or chars_left <= 0:
+                cut.append(spec)
+                continue
+            try:
+                result = self._read_lines(
+                    spec.path,
+                    spec.start,
+                    spec.end,
+                    around=None,
+                    radius=DEFAULT_RADIUS,
+                    if_changed_since="",
+                    max_lines=lines_left,
+                    max_chars=chars_left,
+                )
+            except FsError as exc:
+                errors.append(RangeError(**spec.model_dump(), message=str(exc)))
+                continue
+            reads.append(result)
+            if result.end_line:
+                lines_left -= result.end_line - result.start_line + 1
+                chars_left -= len(result.content) + 1
+            if result.next_start is not None:
+                total = result.total_lines
+                end = spec.end if spec.end > 0 else total + spec.end + 1
+                cut.append(LineRange(path=spec.path, start=result.next_start, end=min(end, total)))
+        return BatchLinesResult(reads=reads, errors=errors, cut=cut)
 
     def read_between(
         self,
