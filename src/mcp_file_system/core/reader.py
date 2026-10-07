@@ -96,6 +96,34 @@ class FileReader:
         With ``if_changed_since=<etag>``, an unchanged file whose requested lines were
         already returned in this session yields a content-free "unchanged" result.
         """
+        return self._read_lines(
+            path,
+            start,
+            end,
+            around=around,
+            radius=radius,
+            if_changed_since=if_changed_since,
+            max_lines=self._settings.max_read_lines,
+            max_chars=self._settings.max_output_chars,
+        )
+
+    def _read_lines(
+        self,
+        path: str,
+        start: int,
+        end: int | None,
+        *,
+        around: int | None,
+        radius: int,
+        if_changed_since: str,
+        max_lines: int,
+        max_chars: int,
+    ) -> LinesResult:
+        """Implement :meth:`read_lines` within an explicit line and character budget.
+
+        The budget is a parameter so that batch reads can share one budget across
+        several ranges.
+        """
         if around is not None:
             _check_around(around, radius, start, end)
         if start == 0:
@@ -115,9 +143,7 @@ class FileReader:
 
         note = None
         if around is not None:
-            first, last, note = _around_window(
-                around, radius, total, self._settings.max_read_lines, resolved.display
-            )
+            first, last, note = _around_window(around, radius, total, max_lines, resolved.display)
         else:
             first = start if start > 0 else max(1, total + start + 1)
             if first > total:
@@ -128,7 +154,7 @@ class FileReader:
             if last < first:
                 raise InvalidArgumentError(f"end ({end}) resolves to before start ({start}).")
             last = min(last, total)
-        window_last = min(last, first + self._settings.max_read_lines - 1)
+        window_last = min(last, first + max_lines - 1)
         unchanged = unchanged_result(
             self._tracker,
             resolved.path,
@@ -144,7 +170,15 @@ class FileReader:
 
         with open_lines(resolved.path, fmt) as lines:
             selected = enumerate(islice(lines, first - 1, window_last), start=first)
-            result = self._build(resolved, etag, total, selected, requested_last=last, note=note)
+            result = self._build(
+                resolved,
+                etag,
+                total,
+                selected,
+                requested_last=last,
+                max_chars=max_chars,
+                note=note,
+            )
         return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
 
     def read_between(
@@ -201,7 +235,15 @@ class FileReader:
         if not block:
             return self._empty(resolved, etag, "The block between the patterns is empty.", total)
         requested_last = block[-1][0] + 1 if cut else block[-1][0]
-        result = self._build(resolved, etag, total, block, requested_last=requested_last, note=note)
+        result = self._build(
+            resolved,
+            etag,
+            total,
+            block,
+            requested_last=requested_last,
+            max_chars=self._settings.max_output_chars,
+            note=note,
+        )
         return track_result(self._tracker, resolved.path, result)
 
     def _compile(
@@ -223,13 +265,14 @@ class FileReader:
         lines: Iterable[tuple[int, str]],
         *,
         requested_last: int,
+        max_chars: int,
         note: str | None = None,
     ) -> LinesResult:
         content, first, last = number_lines(
             lines,
             width=len(str(total)),
             max_line_chars=self._settings.max_line_chars,
-            max_chars=self._settings.max_output_chars,
+            max_chars=max_chars,
         )
         if first is None or last is None:
             return self._empty(resolved, etag, note or "No lines selected.", total)
