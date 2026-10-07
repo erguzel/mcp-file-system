@@ -22,7 +22,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `security.AccessPolicy` | Case-insensitive, gitignore-style deny list. |
 | `security.regex` | `compile_pattern` / `SafePattern`: regexes evaluated against a shared `Deadline`. |
 | `core.textio` | Encoding/newline detection, streaming lines, fast line counting, line splitting. |
-| `core.reader.FileReader` | `file_info`, `read_lines`, `read_between`. |
+| `core.reader.FileReader` | `file_info`, `read_lines`, `read_ranges`, `read_between`. |
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
 | `core.templates` | `mask_line` (fixed masks for timestamps, UUIDs, IPs, hex values, numbers) and the bounded `TemplateTally`; shared by grep's `collapsed` mode and `log_summary`. |

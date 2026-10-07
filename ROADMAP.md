@@ -192,7 +192,8 @@ with millions of lines (time budget respected).
 
 ## 9. Line-focused and batch reads
 
-- [ ] **Status:** not started
+- [x] **Status:** done. Batch reads shipped as `read_ranges` (at most 20 ranges,
+  budget spent in order).
 
 **What**
 - `read_lines(path, around=N, radius=R)`, available in the `full` profile only.

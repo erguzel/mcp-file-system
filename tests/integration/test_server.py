@@ -16,6 +16,7 @@ pytestmark = pytest.mark.anyio
 READ_TOOLS = {
     "file_info",
     "read_lines",
+    "read_ranges",
     "read_between",
     "grep",
     "list_directory",

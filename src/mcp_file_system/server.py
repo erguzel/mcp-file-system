@@ -36,6 +36,11 @@ def build_instructions(settings: Settings) -> str:
             "grep hits show their enclosing symbol in [brackets]; read it with read_symbol."
         ),
     ]
+    if not lite:
+        lines.append(
+            "For a line number from an error message or grep hit, use "
+            "read_lines(around=N); for several known ranges, use read_ranges in one call."
+        )
     if settings.allow_write:
         preview = "" if lite else "; use dry_run=true to preview a diff"
         lines.append(

@@ -6,6 +6,7 @@ that the agent reads. The text view is designed for token efficiency and mirrors
 familiar CLI output (``cat -n``, ``grep -n``, ``tree``, unified diffs).
 """
 
+import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import PurePosixPath
@@ -88,15 +89,72 @@ class LinesResult(ToolResult):
     note: str | None = None
 
     def render(self) -> str:  # noqa: D102
+        parts = [self.render_block()]
+        if self.truncated and self.next_start is not None:
+            hint = f"read_lines(path={self.path!r}, start={self.next_start})"
+            parts.append(f"[Truncated. Continue with {hint}]")
+        return "\n".join(parts)
+
+    def render_block(self) -> str:
+        """Header, content and note, without the continuation hint.
+
+        Batch reads use this and give one continuation for all ranges instead, because
+        the per-read hint does not carry the originally requested end line.
+        """
         span = f"lines {self.start_line}-{self.end_line}" if self.end_line else "no lines"
         parts = [f"==> {self.path} ({span} of {self.total_lines}, etag {self.etag}) <=="]
         if self.content:
             parts.append(self.content)
         if self.note:
             parts.append(f"[{self.note}]")
-        if self.truncated and self.next_start is not None:
-            hint = f"read_lines(path={self.path!r}, start={self.next_start})"
-            parts.append(f"[Truncated. Continue with {hint}]")
+        return "\n".join(parts)
+
+
+class LineRange(BaseModel):
+    """Lines ``start..end`` of one file: an input range of a batch read."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: str = Field(
+        description="Path relative to the primary root, or absolute inside an allowed root."
+    )
+    start: int = Field(default=1, description="First line, 1-based; negative counts from the end.")
+    end: int = Field(
+        default=-1, description="Last line, inclusive; negative counts from the end (-1 = last)."
+    )
+
+
+class RangeError(LineRange):
+    """A batch range that could not be read, with the reason."""
+
+    message: str
+
+
+class BatchLinesResult(ToolResult):
+    """Several line ranges read in one call within one shared output budget."""
+
+    reads: list[LinesResult]
+    errors: list[RangeError] = Field(
+        default_factory=list, description="Ranges that failed; the others were still read."
+    )
+    cut: list[LineRange] = Field(
+        default_factory=list,
+        description="Ranges not (fully) returned because the shared budget ran out. "
+        "Pass them to read_ranges to continue.",
+    )
+
+    def render(self) -> str:  # noqa: D102
+        parts = [read.render_block() for read in self.reads]
+        parts.extend(
+            f"[{error.path} lines {error.start}..{error.end}: {error.message}]"
+            for error in self.errors
+        )
+        if self.cut:
+            ranges = json.dumps([cut.model_dump() for cut in self.cut])
+            parts.append(
+                f"[Output budget reached; {len(self.cut)} range(s) not fully returned. "
+                f"Continue with read_ranges(ranges={ranges})]"
+            )
         return "\n".join(parts)
 
 

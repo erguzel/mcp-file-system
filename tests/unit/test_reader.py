@@ -7,6 +7,9 @@ import pytest
 from conftest import ContextFactory, numbered, write
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.etag import compute_etag
+from mcp_file_system.core.models import LineRange
+from mcp_file_system.core.reader import MAX_BATCH_RANGES
+from mcp_file_system.core.tracking import ALREADY_RETURNED
 from mcp_file_system.errors import (
     BinaryFileError,
     InvalidArgumentError,
@@ -215,6 +218,101 @@ class TestReadAround:
         assert again.unchanged
         assert (again.start_line, again.end_line) == (8, 12)
         assert again.content == ""
+
+
+class TestReadRanges:
+    def test_several_files_in_one_call(self, ctx: AppContext, root: Path) -> None:
+        write(root / "a.txt", numbered(10))
+        write(root / "b.txt", numbered(5, "row"))
+        result = ctx.reader.read_ranges(
+            [LineRange(path="a.txt", start=2, end=3), LineRange(path="b.txt", start=-2)]
+        )
+        assert [(r.path, r.start_line, r.end_line) for r in result.reads] == [
+            ("a.txt", 2, 3),
+            ("b.txt", 4, 5),
+        ]
+        assert body(result.reads[1].content) == ["row 4", "row 5"]
+        assert result.errors == []
+        assert result.cut == []
+        assert "Output budget" not in result.render()
+
+    def test_char_budget_cuts_a_range(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "a.txt", "x" * 400 + "\n")
+        write(root / "b.txt", "".join("y" * 400 + "\n" for _ in range(5)))
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.reader.read_ranges(
+            [LineRange(path="a.txt"), LineRange(path="b.txt", start=1, end=-2)]
+        )
+        assert [(r.start_line, r.end_line) for r in result.reads] == [(1, 1), (1, 1)]
+        # The negative end is resolved, so the continuation stops where the request did.
+        assert result.cut == [LineRange(path="b.txt", start=2, end=4)]
+        rendered = result.render()
+        assert "1 range(s) not fully returned" in rendered
+        assert '{"path": "b.txt", "start": 2, "end": 4}' in rendered
+        assert "read_lines(" not in rendered  # no per-read hint that drops the end line
+
+    def test_line_budget_skips_later_ranges(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "a.txt", numbered(10))
+        write(root / "b.txt", numbered(10))
+        write(root / "c.txt", numbered(10))
+        ctx = make_ctx(max_read_lines=5)
+        result = ctx.reader.read_ranges(
+            [
+                LineRange(path="a.txt", start=1, end=3),
+                LineRange(path="b.txt"),
+                LineRange(path="c.txt", start=-4),
+            ]
+        )
+        assert [(r.path, r.start_line, r.end_line) for r in result.reads] == [
+            ("a.txt", 1, 3),
+            ("b.txt", 1, 2),
+        ]
+        assert result.cut == [
+            LineRange(path="b.txt", start=3, end=10),
+            LineRange(path="c.txt", start=-4, end=-1),  # never read: kept as requested
+        ]
+
+    def test_failing_range_does_not_stop_the_others(
+        self, ctx: AppContext, root: Path, outside: Path
+    ) -> None:
+        write(root / "a.txt", numbered(3))
+        result = ctx.reader.read_ranges(
+            [
+                LineRange(path="missing.txt"),
+                LineRange(path="../outside/secret.txt"),
+                LineRange(path="a.txt", start=9),
+                LineRange(path="a.txt", start=2, end=2),
+            ]
+        )
+        assert [(r.path, r.start_line) for r in result.reads] == [("a.txt", 2)]
+        assert [(e.path, e.start) for e in result.errors] == [
+            ("missing.txt", 1),
+            ("../outside/secret.txt", 1),
+            ("a.txt", 9),
+        ]
+        assert "past the end" in result.errors[2].message
+        rendered = result.render()
+        assert "[missing.txt lines 1..-1: " in rendered
+        assert "top secret" not in rendered
+        assert result.cut == []
+
+    def test_empty_file(self, ctx: AppContext, root: Path) -> None:
+        write(root / "empty.txt", "")
+        result = ctx.reader.read_ranges([LineRange(path="empty.txt")])
+        assert result.reads[0].note == "File is empty."
+        assert result.cut == []
+
+    def test_repeated_range_is_noted(self, ctx: AppContext, root: Path) -> None:
+        write(root / "a.txt", numbered(5))
+        spec = LineRange(path="a.txt", start=1, end=2)
+        result = ctx.reader.read_ranges([spec, spec])
+        assert result.reads[0].note is None
+        assert result.reads[1].note == ALREADY_RETURNED
+
+    def test_too_many_ranges(self, ctx: AppContext, root: Path) -> None:
+        write(root / "a.txt", numbered(5))
+        with pytest.raises(InvalidArgumentError, match="split them across calls"):
+            ctx.reader.read_ranges([LineRange(path="a.txt")] * (MAX_BATCH_RANGES + 1))
 
 
 CONFIG = """\

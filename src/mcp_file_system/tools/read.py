@@ -1,4 +1,4 @@
-"""Reading tools: file_info, read_lines, read_between."""
+"""Reading tools: file_info, read_lines, read_ranges, read_between."""
 
 from typing import Annotated
 
@@ -6,8 +6,8 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
-from mcp_file_system.core.models import FileInfo, LinesResult
-from mcp_file_system.core.reader import DEFAULT_RADIUS
+from mcp_file_system.core.models import BatchLinesResult, FileInfo, LineRange, LinesResult
+from mcp_file_system.core.reader import DEFAULT_RADIUS, MAX_BATCH_RANGES
 from mcp_file_system.tools._common import (
     READ_ONLY,
     IfChangedSinceArg,
@@ -75,6 +75,25 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
                 if_changed_since=if_changed_since,
             )
         )
+
+    @registry.tool(READ_ONLY)
+    def read_ranges(
+        ranges: Annotated[
+            list[LineRange],
+            Field(
+                min_length=1,
+                max_length=MAX_BATCH_RANGES,
+                description="Ranges to read in order, e.g. [{path: 'a.py', start: 10, end: 30}].",
+            ),
+        ],
+    ) -> Annotated[CallToolResult, BatchLinesResult]:
+        """Read several line ranges, from one or more files, in one call.
+
+        Use it when you already know the lines you need, e.g. from several grep hits or
+        stack frames. The ranges share one output budget; if it runs out, the result
+        says which ranges are left and how to continue.
+        """
+        return to_call_result(reader.read_ranges(ranges))
 
     @registry.tool(READ_ONLY)
     def read_between(
