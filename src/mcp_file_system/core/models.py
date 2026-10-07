@@ -16,6 +16,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from mcp_file_system.core.render import human_count, human_size
 
 OutputMode = Literal["content", "files_with_matches", "count"]
+"""Output modes of the ``lite`` profile's grep; kept small on purpose."""
+GrepMode = Literal[OutputMode, "collapsed"]
+"""Output modes of the ``full`` profile's grep."""
 
 
 class ToolResult(BaseModel, ABC):
@@ -121,13 +124,52 @@ class FileCount(BaseModel):
     count: int
 
 
+class TemplateGroup(BaseModel):
+    """Lines that differ only in masked tokens (numbers, hex, UUIDs, IPs, timestamps)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    template: str = Field(description="The line with variable tokens replaced by <N>, <IP>, ...")
+    count: int
+    first_line: int
+    last_line: int
+
+
+class GrepGroup(TemplateGroup):
+    """A template of matching lines, possibly spanning several files."""
+
+    files: int = Field(description="Number of files containing the template.")
+    first_path: str
+    last_path: str
+
+    def render(self) -> str:
+        """Two rows: count and template, then where to read an example."""
+        first = f"{self.first_path}:{self.first_line}"
+        if self.count == 1:
+            where = f"at {first}"
+        else:
+            where = f"first {first}, last {self.last_path}:{self.last_line}"
+            if self.files > 1:
+                where += f" ({self.files} files)"
+        return f"[x{self.count}] {self.template}\n  {where}"
+
+
 class GrepResult(ToolResult):
     """Search results across one or more files."""
 
     pattern: str
-    mode: OutputMode
+    mode: GrepMode
     hits: list[GrepHit] = Field(default_factory=list)
     files: list[FileCount] = Field(default_factory=list)
+    groups: list[GrepGroup] = Field(
+        default_factory=list, description="Collapsed mode: templates by descending count."
+    )
+    template_count: int = Field(
+        default=0, description="Collapsed mode: distinct templates found, shown or not."
+    )
+    ungrouped: int = Field(
+        default=0, description="Collapsed mode: matching lines beyond the template limit."
+    )
     files_scanned: int = 0
     files_skipped: int = Field(default=0, description="Binary or unreadable files.")
     truncated: bool = False
@@ -138,13 +180,21 @@ class GrepResult(ToolResult):
             body = self._render_content()
             matched = len({hit.path for hit in self.hits})
             summary = f"{len(self.hits)} hit(s) in {matched} file(s)"
+        elif self.mode == "collapsed":
+            body = "\n".join(group.render() for group in self.groups)
+            lines = sum(group.count for group in self.groups)
+            summary = f"{lines} matching line(s) in {len(self.groups)} template(s)"
+            if self.template_count > len(self.groups):
+                summary += f" (the most frequent of {self.template_count})"
+            if self.ungrouped:
+                summary += f", {self.ungrouped} more line(s) beyond the template limit"
         elif self.mode == "count":
             body = "\n".join(f"{f.path}:{f.count}" for f in self.files)
             summary = f"{sum(f.count for f in self.files)} hit(s) in {len(self.files)} file(s)"
         else:
             body = "\n".join(f.path for f in self.files)
             summary = f"{len(self.files)} matching file(s)"
-        if not (self.hits or self.files):
+        if not (self.hits or self.files or self.groups):
             body, summary = "", "No matches"
         footer = f"[{summary}; scanned {self.files_scanned} file(s)"
         if self.files_skipped:

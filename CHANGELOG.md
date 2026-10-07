@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `grep(output_mode="collapsed")` (full profile): matching lines that differ only in
+  numbers, hex values, UUIDs, IPv4/IPv6 addresses or timestamps are grouped into
+  templates such as `[x532] <TS> ERROR timeout after <N>ms to <IP>`, with their count,
+  file count and first/last location. Every matching line is counted within the time
+  budget; `max_matches` limits the templates shown. Context lines are rejected in this
+  mode. `lite`'s grep keeps its three modes.
 - `query` tool (full profile): one value of a JSON/JSONC, YAML or TOML file by key path
   (`dependencies.react`, `jobs.test.steps[0]`, `"a.b".c`, `[-1]`, `[1].kind` for YAML
   document 1), shown to `depth` levels with deeper containers collapsed. Missing keys

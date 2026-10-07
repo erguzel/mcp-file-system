@@ -9,7 +9,7 @@ loading whole files into their context window.
   symbol-level reads for Python, Markdown, JSON, TOML, YAML (including Helm templates),
   shell scripts and Dockerfiles, plus JavaScript/TypeScript, Go and Java with the
   `[code]` extra (e.g. read just `tool.ruff.lint` from a `pyproject.toml`).
-- **Search:** recursive grep with context, `count` / `files_with_matches` modes and globs.
+- **Search:** recursive grep with context, `count` / `files_with_matches` / `collapsed` modes and globs.
   It honors `.gitignore` and skips binaries.
 - **Navigation:** depth-limited trees, glob finds, file metadata (lines, encoding, newline
   style).
@@ -112,7 +112,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `file_info` | Size, approximate token count, line count, encoding, newline style, binary flag and **etag** of a file (or entry count of a directory). |
 | `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). Continues via `next_start`. `if_changed_since=<etag>` returns a one-line "unchanged" answer instead of lines you already have. |
 | `read_between` | Lines from the Nth match of `start_pattern` to the next `end_pattern`, like `sed -n '/a/,/b/p'`. |
-| `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and three output modes. Hits show their enclosing symbol (`[Parser.parse]`, `[jobs.test.steps[0]]`), ready for `read_symbol`. |
+| `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and four output modes. Hits show their enclosing symbol (`[Parser.parse]`, `[jobs.test.steps[0]]`), ready for `read_symbol`. `output_mode="collapsed"` (full profile) groups matching lines that differ only in numbers, hex values, UUIDs, IPs or timestamps into templates with counts and first/last location, e.g. `[x532] <TS> ERROR timeout after <N>ms to <IP>`. |
 | `list_directory` | Indented tree with sizes, depth-limited. |
 | `find_files` | Gitignore-style glob search for files or directories. |
 | `outline` | Code symbols with signatures (Python; JS/TS, Go, Java with `[code]`), shell functions, Dockerfile stages and instructions, Markdown headings (incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. `Dockerfile`/`Containerfile` are recognized by name and extensionless scripts by their shebang. |

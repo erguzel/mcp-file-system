@@ -100,6 +100,18 @@ async def test_lite_exposes_only_essential_parameters(make_settings: SettingsFac
         assert set(tool.input_schema["properties"]) == LITE_PARAMETERS[name], name
 
 
+async def test_collapsed_grep_mode_stays_out_of_lite(make_settings: SettingsFactory) -> None:
+    def modes(tools: dict[str, Tool]) -> list[str]:
+        return list(tools["grep"].input_schema["properties"]["output_mode"]["enum"])
+
+    assert modes(await list_tools(make_settings, profile="lite")) == [
+        "content",
+        "files_with_matches",
+        "count",
+    ]
+    assert "collapsed" in modes(await list_tools(make_settings))
+
+
 async def test_lite_listing_is_much_smaller(make_settings: SettingsFactory) -> None:
     def size(tools: dict[str, Tool]) -> int:
         return len(
