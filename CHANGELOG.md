@@ -100,6 +100,13 @@ All notable changes to this project are documented here. The format follows
   lines inside HTML blocks or indented code are no longer mistaken for headings. The
   regex provider remains as a fallback if a grammar cannot be loaded.
 
+### Fixed
+
+- Editing a file with text its encoding cannot store (e.g. `ş` or `€` in a legacy file
+  read as Latin-1, or an unpaired surrogate) no longer fails with a generic tool error
+  and a stack trace on stderr. All editing tools now report which encoding is involved
+  and what to do, and leave the file unchanged.
+
 ### Security
 
 - Denied paths inside the roots no longer reveal whether they exist: a missing `.env`

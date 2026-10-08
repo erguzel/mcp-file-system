@@ -98,6 +98,25 @@ def _utc_stamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
+def _unencodable_message(display: str, encoding: str) -> str:
+    """Explain why new text cannot be written, without quoting it (errors reach the audit log).
+
+    Legacy files are read as Latin-1 when they are not valid UTF-8, so characters such as
+    'ş' or '€' cannot be stored in them. UTF encodings store every character except
+    unpaired surrogates, which can arrive through JSON escapes.
+    """
+    if encoding.startswith("utf"):
+        return (
+            f"The new text contains an unpaired surrogate, which {encoding} cannot store; "
+            f"nothing was changed in {display}. Remove or replace that character."
+        )
+    return (
+        f"{display} is read as {encoding}, and {encoding} cannot store some characters of "
+        "the new text; nothing was changed. Use only characters this encoding supports, or "
+        "convert the file to UTF-8 first."
+    )
+
+
 def _check_count(count: int, expected: int | None, display: str, label: str = "") -> None:
     """Reject a replacement whose match count is zero or differs from ``expected``.
 
@@ -482,7 +501,12 @@ class FileEditor:
         create: bool = False,
     ) -> EditResult:
         diff = self._diff(resolved.display, document.text, new_text, create=create)
-        data = new_text.encode(document.fmt.encoding, errors="surrogateescape")
+        try:
+            data = new_text.encode(document.fmt.encoding, errors="surrogateescape")
+        except UnicodeEncodeError as exc:
+            raise InvalidArgumentError(
+                _unencodable_message(resolved.display, document.fmt.encoding)
+            ) from exc
         check_size(resolved, len(data), self._settings.max_file_bytes)
         if dry_run:
             return EditResult(

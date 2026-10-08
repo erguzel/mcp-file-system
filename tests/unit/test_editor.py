@@ -99,6 +99,24 @@ class TestReplace:
         ctx.editor.replace("a.txt", "café", "bar")
         assert path.read_bytes() == b"bar\n"
 
+    @pytest.mark.parametrize(
+        ("original", "replacement", "message"),
+        [
+            (b"caf\xe9\n", "\u015feker", "latin-1 cannot store"),
+            (b"cafe\n", "\ud800", "unpaired surrogate"),
+        ],
+    )
+    def test_unencodable_text_is_an_actionable_error(
+        self, ctx: AppContext, root: Path, original: bytes, replacement: str, message: str
+    ) -> None:
+        path = write(root / "a.txt", original)
+        with pytest.raises(InvalidArgumentError, match=message) as error:
+            ctx.editor.replace("a.txt", "caf", replacement, dry_run=True)
+        assert replacement not in str(error.value)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            ctx.editor.multi_replace("a.txt", [edit("caf", replacement)])
+        assert path.read_bytes() == original
+
     def test_dry_run_does_not_write(self, ctx: AppContext, root: Path) -> None:
         path = write(root / "a.py", "x = 1\n")
         before = etag(path)
