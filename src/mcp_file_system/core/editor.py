@@ -54,9 +54,12 @@ _LINE_ENDINGS = ("\n", "\r")
 
 @dataclass(frozen=True, slots=True)
 class _Document:
+    """A loaded file: decoded text, format, etag and the exact bytes it was read from."""
+
     text: str
     fmt: TextFormat
     etag: str
+    raw: bytes
 
 
 def normalize_newlines(text: str, newline: str) -> str:
@@ -314,7 +317,7 @@ class FileEditor:
             new_text = normalize_newlines(content, document.fmt.newline)
             return self._commit(resolved, document, new_text, changes=1, dry_run=dry_run)
 
-        empty = _Document(text="", fmt=TextFormat("utf-8", "\n"), etag="")
+        empty = _Document(text="", fmt=TextFormat("utf-8", "\n"), etag="", raw=b"")
         return self._commit(resolved, empty, content, changes=1, dry_run=dry_run, create=True)
 
     def _load(self, resolved: ResolvedPath, expected_etag: str | None) -> _Document:
@@ -327,8 +330,9 @@ class FileEditor:
             )
         check_size(resolved, file_stat.st_size, self._settings.max_file_bytes)
         fmt = require_text(resolved)
-        text = resolved.path.read_bytes().decode(fmt.encoding, errors="surrogateescape")
-        return _Document(text=text, fmt=fmt, etag=etag)
+        raw = resolved.path.read_bytes()
+        text = raw.decode(fmt.encoding, errors="surrogateescape")
+        return _Document(text=text, fmt=fmt, etag=etag, raw=raw)
 
     def _commit(
         self,
