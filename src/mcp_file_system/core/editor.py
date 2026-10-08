@@ -80,6 +80,28 @@ def atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
+def _check_count(count: int, expected: int | None, display: str, label: str = "") -> None:
+    """Reject a replacement whose match count is zero or differs from ``expected``.
+
+    Args:
+        count: Matches found.
+        expected: Required number of matches; ``None`` accepts any positive count.
+        display: The file as shown to the agent.
+        label: Names the edit within a batch (e.g. ``"edit 3 of 5: "``).
+    """
+    if count == 0:
+        raise NoMatchError(
+            f"{label}Pattern not found in {display}. Re-read the target lines; whitespace "
+            "and indentation must match exactly."
+        )
+    if expected is not None and count != expected:
+        raise MatchCountError(
+            f"{label}Pattern matches {count} time(s) in {display}, expected "
+            f"{expected}. Add surrounding context to make it unique, or set "
+            "expected_count to the intended number."
+        )
+
+
 class FileEditor:
     """Implements the opt-in editing tools."""
 
@@ -135,17 +157,7 @@ class FileEditor:
             else:
                 count = text.count(literal)
                 new_text = text.replace(literal, substitute)
-        if count == 0:
-            raise NoMatchError(
-                f"Pattern not found in {resolved.display}. Re-read the target lines; whitespace "
-                "and indentation must match exactly."
-            )
-        if expected_count is not None and count != expected_count:
-            raise MatchCountError(
-                f"Pattern matches {count} time(s) in {resolved.display}, expected "
-                f"{expected_count}. Add surrounding context to make it unique, or set "
-                "expected_count to the intended number."
-            )
+        _check_count(count, expected_count, resolved.display)
         return self._commit(resolved, document, new_text, changes=count, dry_run=dry_run)
 
     def edit_lines(
