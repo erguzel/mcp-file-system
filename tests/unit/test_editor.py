@@ -1,6 +1,7 @@
 import codecs
 import stat
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -8,8 +9,9 @@ import pytest
 from conftest import ContextFactory, write
 from mcp_file_system.context import AppContext
 from mcp_file_system.core import editor as editor_module
-from mcp_file_system.core.editor import MAX_EDITS, atomic_write, normalize_newlines
+from mcp_file_system.core.editor import MAX_EDITS, FileEditor, atomic_write, normalize_newlines
 from mcp_file_system.core.etag import compute_etag
+from mcp_file_system.core.history import EditHistory
 from mcp_file_system.core.models import Replacement
 from mcp_file_system.errors import (
     AccessDeniedError,
@@ -360,6 +362,159 @@ class TestApplyPatch:
             ctx.editor.apply_patch(str(outside / "secret.txt"), self.DIFF, expected_etag="0-0")
         with pytest.raises(InvalidArgumentError, match="larger than max_file_bytes"):
             ctx.editor.apply_patch("f.txt", self.DIFF + " x\n" * 30, expected_etag=etag(path))
+
+
+class TestUndo:
+    @pytest.fixture
+    def writer(self, make_ctx: ContextFactory) -> AppContext:
+        return make_ctx(allow_write=True)
+
+    @pytest.mark.parametrize(
+        "original",
+        [
+            b"x = 1\ny = 2\n",
+            b"x = 1\r\ny = 2\r\n",
+            codecs.BOM_UTF8 + b"x = 1\ny = 2\n",
+            b"x = 1\n\xff\xfe junk\ny = 2\n",
+            "x = 1 é\ny = 2\n".encode("latin-1"),
+        ],
+    )
+    def test_restores_exact_bytes(self, writer: AppContext, root: Path, original: bytes) -> None:
+        path = write(root / "a.py", original)
+        writer.editor.replace("a.py", "1", "100")
+        assert path.read_bytes() != original
+        result = writer.editor.undo_last_edit("a.py")
+        assert path.read_bytes() == original
+        assert result.applied
+        assert result.etag == etag(path)
+        assert result.render().startswith("Restored a.py to the version before the last edit")
+
+    def test_every_edit_tool_is_undoable(self, writer: AppContext, root: Path) -> None:
+        path = write(root / "a.txt", "a\nb\n")
+        steps: list[Callable[[], object]] = [
+            lambda: writer.editor.edit_lines("a.txt", 1, 1, "z", expected_etag=etag(path)),
+            lambda: writer.editor.multi_replace("a.txt", [edit("b", "c")]),
+            lambda: writer.editor.apply_patch(
+                "a.txt", "@@ -1,1 +1,1 @@\n-a\n+q\n", expected_etag=etag(path)
+            ),
+            lambda: writer.editor.write("a.txt", "new\n", overwrite=True, expected_etag=etag(path)),
+        ]
+        for step in steps:
+            step()
+            assert path.read_text() != "a\nb\n"
+            writer.editor.undo_last_edit("a.txt")
+            assert path.read_text() == "a\nb\n"
+
+    def test_only_the_latest_edit_and_only_once(self, writer: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "x = 1\n")
+        writer.editor.replace("a.py", "1", "2")
+        writer.editor.replace("a.py", "2", "3")
+        writer.editor.undo_last_edit("a.py")
+        assert path.read_text() == "x = 2\n"
+        with pytest.raises(InvalidArgumentError, match=r"No edit of a\.py by this server"):
+            writer.editor.undo_last_edit("a.py")
+
+    def test_external_change_is_refused(self, writer: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "x = 1\n")
+        writer.editor.replace("a.py", "1", "2")
+        write(path, "x = 2  # edited by hand\n")
+        with pytest.raises(StaleFileError, match="undo refused"):
+            writer.editor.undo_last_edit("a.py")
+        assert path.read_text() == "x = 2  # edited by hand\n"
+
+    def test_dry_run(self, writer: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "x = 1\n")
+        writer.editor.replace("a.py", "1", "2")
+        result = writer.editor.undo_last_edit("a.py", dry_run=True)
+        assert path.read_text() == "x = 2\n"
+        assert "-x = 2\n+x = 1" in result.diff
+        assert result.render().startswith("Dry run: a.py would be restored")
+        writer.editor.undo_last_edit("a.py")  # the dry run kept the snapshot
+        assert path.read_text() == "x = 1\n"
+
+    def test_dry_runs_are_not_recorded(self, writer: AppContext, root: Path) -> None:
+        write(root / "a.py", "x = 1\n")
+        writer.editor.replace("a.py", "1", "2", dry_run=True)
+        with pytest.raises(InvalidArgumentError, match="No edit"):
+            writer.editor.undo_last_edit("a.py")
+
+    def test_created_file_is_renamed_aside(
+        self, writer: AppContext, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(editor_module, "_utc_stamp", lambda: "20261009T120000Z")
+        write(root / "new.txt.deleted-20261009T120000Z", "older\n")
+        writer.editor.write("new.txt", "fresh\n")
+        preview = writer.editor.undo_last_edit("new.txt", dry_run=True)
+        assert preview.renamed_to == "new.txt.deleted-20261009T120000Z-2"
+        assert (root / "new.txt").exists()
+        result = writer.editor.undo_last_edit("new.txt")
+        assert result.renamed_to == "new.txt.deleted-20261009T120000Z-2"
+        assert not (root / "new.txt").exists()
+        assert (root / "new.txt.deleted-20261009T120000Z-2").read_text() == "fresh\n"
+        assert (root / "new.txt.deleted-20261009T120000Z").read_text() == "older\n"
+        assert "renamed to new.txt.deleted-20261009T120000Z-2" in result.render()
+
+    def test_race_before_rename_removes_placeholder(
+        self, writer: AppContext, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        writer.editor.write("new.txt", "fresh\n")
+
+        def changed(*_args: object) -> None:
+            raise StaleFileError("changed")
+
+        monkeypatch.setattr(editor_module, "ensure_etag", changed)
+        with pytest.raises(StaleFileError):
+            writer.editor.undo_last_edit("new.txt")
+        assert [p.name for p in root.iterdir()] == ["new.txt"]
+
+    def test_no_free_name(
+        self, writer: AppContext, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(editor_module, "_utc_stamp", lambda: "T")
+        monkeypatch.setattr(editor_module, "MAX_RENAME_ATTEMPTS", 1)
+        write(root / "new.txt.deleted-T", "taken\n")
+        writer.editor.write("new.txt", "fresh\n")
+        for dry_run in (True, False):
+            with pytest.raises(AlreadyExistsError, match="free name"):
+                writer.editor.undo_last_edit("new.txt", dry_run=dry_run)
+        assert (root / "new.txt").read_text() == "fresh\n"
+
+    def test_denied_rename_target_changes_nothing(self, writer: AppContext, root: Path) -> None:
+        writer.editor.write(".env.example", "A=\n")
+        for _ in range(2):  # the snapshot survives the refusal
+            with pytest.raises(AccessDeniedError, match="deny list blocks; nothing was changed"):
+                writer.editor.undo_last_edit(".env.example")
+        assert (root / ".env.example").read_text() == "A=\n"
+        assert [p.name for p in root.iterdir()] == [".env.example"]
+
+    def test_too_large_to_keep(self, writer: AppContext, root: Path) -> None:
+        write(root / "a.py", "x = 1\n")
+        history = EditHistory(max_bytes=3)
+        editor = FileEditor(writer.guard, writer.settings, history)
+        editor.replace("a.py", "1", "2")
+        with pytest.raises(InvalidArgumentError, match="too large to keep"):
+            editor.undo_last_edit("a.py")
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"allow_write": False},
+            {"allow_write": True, "profile": "lite"},
+            {"allow_write": True, "tools": ("replace_in_file",)},
+        ],
+    )
+    def test_no_history_without_the_tool(
+        self, make_ctx: ContextFactory, root: Path, overrides: dict[str, object]
+    ) -> None:
+        write(root / "a.py", "x = 1\n")
+        ctx = make_ctx(**overrides)
+        ctx.editor.replace("a.py", "1", "2")
+        with pytest.raises(InvalidArgumentError, match="not enabled"):
+            ctx.editor.undo_last_edit("a.py")
+
+    def test_guards(self, writer: AppContext, root: Path, outside: Path) -> None:
+        with pytest.raises(PathOutsideRootError):
+            writer.editor.undo_last_edit(str(outside / "secret.txt"))
 
 
 class TestWrite:

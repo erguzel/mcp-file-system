@@ -8,7 +8,8 @@ Every edit:
 * preserves the file's encoding, BOM, newline style and permissions, and round-trips
   undecodable bytes unchanged (``surrogateescape``),
 * is written atomically (temporary file in the same directory + :func:`os.replace`),
-* returns a unified diff, and can be previewed with ``dry_run``.
+* returns a unified diff, and can be previewed with ``dry_run``,
+* is recorded for ``undo_last_edit`` when an edit history is configured.
 """
 
 import difflib
@@ -18,11 +19,13 @@ import stat
 import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag, ensure_etag
-from mcp_file_system.core.models import EditResult, PatchResult, Replacement
+from mcp_file_system.core.history import EditHistory
+from mcp_file_system.core.models import EditResult, PatchResult, Replacement, UndoResult
 from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
@@ -33,6 +36,7 @@ from mcp_file_system.core.textio import (
     split_lines_keepends,
 )
 from mcp_file_system.errors import (
+    AccessDeniedError,
     AlreadyExistsError,
     FileTooLargeError,
     InvalidArgumentError,
@@ -48,6 +52,8 @@ from mcp_file_system.security.regex import Deadline, compile_pattern
 NEW_FILE_MODE = 0o644
 MAX_EDITS = 50
 """Most replacements per multi_replace call."""
+MAX_RENAME_ATTEMPTS = 100
+"""Candidate names tried when undo renames a created file."""
 _EOL = re.compile(r"\r\n|\r|\n")
 _LINE_ENDINGS = ("\n", "\r")
 
@@ -87,6 +93,11 @@ def atomic_write(path: Path, data: bytes) -> None:
         raise
 
 
+def _utc_stamp() -> str:
+    """Current UTC time for soft-deleted file names, e.g. ``20261009T120000Z``."""
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
 def _check_count(count: int, expected: int | None, display: str, label: str = "") -> None:
     """Reject a replacement whose match count is zero or differs from ``expected``.
 
@@ -112,9 +123,12 @@ def _check_count(count: int, expected: int | None, display: str, label: str = ""
 class FileEditor:
     """Implements the opt-in editing tools."""
 
-    def __init__(self, guard: PathGuard, settings: Settings) -> None:
+    def __init__(
+        self, guard: PathGuard, settings: Settings, history: EditHistory | None = None
+    ) -> None:
         self._guard = guard
         self._settings = settings
+        self._history = history
 
     def replace(
         self,
@@ -320,6 +334,129 @@ class FileEditor:
         empty = _Document(text="", fmt=TextFormat("utf-8", "\n"), etag="", raw=b"")
         return self._commit(resolved, empty, content, changes=1, dry_run=dry_run, create=True)
 
+    def undo_last_edit(self, path: str, *, dry_run: bool = False) -> UndoResult:
+        """Restore the version before this server's latest edit of ``path``.
+
+        Refused when the file changed since that edit (the etag recorded right after it
+        no longer matches), so undo never discards someone else's work. A file the edit
+        created is renamed to ``<name>.deleted-<UTC time>`` instead of being deleted.
+        One level per file: the snapshot is dropped once undone.
+        """
+        if self._history is None:
+            raise InvalidArgumentError("Undo is not enabled in this server configuration.")
+        resolved = self._guard.resolve_file(path)
+        snapshot = self._history.get(resolved.path)
+        if snapshot is None:
+            raise InvalidArgumentError(
+                f"No edit of {resolved.display} by this server to undo. Undo covers the "
+                "latest edit per file in this server session, one level deep."
+            )
+        if not snapshot.kept:
+            raise InvalidArgumentError(
+                f"The version of {resolved.display} before the last edit was too large to "
+                "keep for undo."
+            )
+        current = compute_etag(resolved.path.stat())
+        if current != snapshot.after_etag:
+            raise StaleFileError(
+                f"{resolved.display} changed since this server's last edit (etag "
+                f"{snapshot.after_etag} != {current}); undo refused. Edit the file directly."
+            )
+        document = self._load(resolved, snapshot.after_etag)
+        if snapshot.before is None:
+            result = self._undo_create(resolved, document, dry_run=dry_run)
+            if result.applied:
+                self._history.discard(resolved.path)
+            return result
+        before = snapshot.before.decode(document.fmt.encoding, errors="surrogateescape")
+        diff = self._diff(resolved.display, document.text, before, create=False)
+        if dry_run:
+            return UndoResult(
+                path=resolved.display,
+                applied=False,
+                dry_run=True,
+                changes=1,
+                etag=document.etag,
+                diff=diff,
+            )
+        ensure_etag(resolved, document.etag)
+        atomic_write(resolved.path, snapshot.before)
+        self._history.discard(resolved.path)
+        return UndoResult(
+            path=resolved.display,
+            applied=True,
+            dry_run=False,
+            changes=1,
+            etag=compute_etag(resolved.path.stat()),
+            diff=diff,
+        )
+
+    def _undo_create(
+        self, resolved: ResolvedPath, document: _Document, *, dry_run: bool
+    ) -> UndoResult:
+        """Undo a file creation by renaming the file aside (soft delete).
+
+        The new name is checked by :class:`PathGuard` like any path, and reserved with an
+        exclusive create before the rename, so an existing file is never overwritten.
+        """
+        diff = self._diff(resolved.display, document.text, "", create=False)
+        target = self._soft_delete_target(resolved, reserve=not dry_run)
+        if dry_run:
+            return UndoResult(
+                path=resolved.display,
+                applied=False,
+                dry_run=True,
+                changes=1,
+                etag=document.etag,
+                diff=diff,
+                renamed_to=target.display,
+            )
+        try:
+            ensure_etag(resolved, document.etag)
+            resolved.path.replace(target.path)
+        except BaseException:
+            target.path.unlink(missing_ok=True)
+            raise
+        return UndoResult(
+            path=resolved.display,
+            applied=True,
+            dry_run=False,
+            changes=1,
+            diff=diff,
+            renamed_to=target.display,
+        )
+
+    def _soft_delete_target(self, resolved: ResolvedPath, *, reserve: bool) -> ResolvedPath:
+        """Pick a free ``<name>.deleted-<stamp>[-N]`` next to the file.
+
+        With ``reserve``, the name is claimed by creating an empty placeholder
+        exclusively, which the rename then replaces.
+        """
+        base = f"{resolved.path.name}.deleted-{_utc_stamp()}"
+        for attempt in range(1, MAX_RENAME_ATTEMPTS + 1):
+            name = base if attempt == 1 else f"{base}-{attempt}"
+            try:
+                target = self._guard.resolve(
+                    os.fspath(resolved.path.with_name(name)), must_exist=False
+                )
+            except AccessDeniedError as exc:
+                raise AccessDeniedError(
+                    f"Undo would rename {resolved.display} to {name}, which the deny list "
+                    "blocks; nothing was changed."
+                ) from exc
+            if not reserve:
+                if not target.path.exists():
+                    return target
+                continue
+            try:
+                os.close(os.open(target.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+            except FileExistsError:
+                continue
+            return target
+        raise AlreadyExistsError(
+            f"Could not find a free name to rename {resolved.display} aside; nothing was changed."
+        )
+
     def _load(self, resolved: ResolvedPath, expected_etag: str | None) -> _Document:
         file_stat = resolved.path.stat()
         etag = compute_etag(file_stat)
@@ -364,12 +501,15 @@ class FileEditor:
         else:
             ensure_etag(resolved, document.etag)  # narrow the read-modify-write race
         atomic_write(resolved.path, data)
+        etag = compute_etag(resolved.path.stat())
+        if self._history is not None:
+            self._history.record(resolved.path, None if create else document.raw, etag)
         return EditResult(
             path=resolved.display,
             applied=True,
             dry_run=False,
             changes=changes,
-            etag=compute_etag(resolved.path.stat()),
+            etag=etag,
             diff=diff,
             created=create,
         )

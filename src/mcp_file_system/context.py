@@ -6,6 +6,7 @@ from mcp_file_system.audit import AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.editor import FileEditor
 from mcp_file_system.core.finder import FileFinder, Walker
+from mcp_file_system.core.history import EditHistory
 from mcp_file_system.core.logsummary import LogSummarizer
 from mcp_file_system.core.outline import Outliner, OutlineRegistry, default_registry
 from mcp_file_system.core.peek import Peeker
@@ -60,7 +61,7 @@ class AppContext:
             ),
             log_summarizer=LogSummarizer(guard, settings),
             outliner=outliner,
-            editor=FileEditor(guard, settings),
+            editor=FileEditor(guard, settings, _edit_history(settings)),
             peeker=Peeker(guard, settings),
             data_query=DataQuery(guard, settings),
             audit=(
@@ -69,3 +70,18 @@ class AppContext:
                 else None
             ),
         )
+
+
+def _edit_history(settings: Settings) -> EditHistory | None:
+    """An undo history, but only where ``undo_last_edit`` is exposed.
+
+    Snapshots hold file contents (up to the history's byte budget), so they are not
+    kept when no tool could ever use them: the lite profile, read-only servers, or a
+    ``tools`` allowlist without ``undo_last_edit``.
+    """
+    exposed = (
+        settings.profile == "full"
+        and settings.allow_write
+        and (not settings.tools or "undo_last_edit" in settings.tools)
+    )
+    return EditHistory() if exposed else None

@@ -210,7 +210,9 @@ continue them.
 
 ## 10. Multi-edit, patch and undo
 
-- [ ] **Status:** not started
+- [x] **Status:** done. Shipped as `multi_replace`, `apply_patch` (offset search, no fuzz)
+  and `undo_last_edit` (one level, in memory; a created file is renamed aside, not
+  deleted).
 
 **What**
 - Apply several literal replacements to one file atomically in one call; all succeed or

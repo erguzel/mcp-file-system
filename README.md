@@ -90,7 +90,7 @@ every request. Large models handle the full set easily. Small local models (roug
 
 | | `full` (default) | `lite` |
 |---|---|---|
-| Tools | all 13 (+5 editing) | 7 (+3 editing): no `multi_replace`, `apply_patch`, `read_ranges`, `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
+| Tools | all 13 (+6 editing) | 7 (+3 editing): no `multi_replace`, `apply_patch`, `undo_last_edit`, `read_ranges`, `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
 | Tool listing size* | ~35k characters | ~7.1k characters |
@@ -127,6 +127,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |
 | `apply_patch`* | Apply a unified diff to one file, all hunks or none (full profile). Requires the file's etag. Context and removed lines must match exactly; a hunk whose line numbers are off is placed at the nearest exact match and its offset reported, while missing or ambiguous context fails the patch and names the hunk. `dry_run=true` lists which hunks would fail and why. Header counts are recomputed from the hunk body; new files go through `write_file`. |
 | `write_file`* | Create a file (with parent directories), or overwrite one when its etag is supplied. |
+| `undo_last_edit`* | Restore the exact bytes from before this server's latest edit of a file (full profile). Refused if the file changed since that edit. One level per file, no redo, kept in memory for the server session only (at most 100 files and 64 MiB). A file the server created is not deleted but renamed to `<name>.deleted-<UTC time>` next to it; in a git project it shows up as untracked, so delete it by hand once it is no longer needed. |
 
 \* Only registered with `--allow-write`.
 
@@ -144,7 +145,8 @@ A typical agent workflow:
 2. `outline(path)` or `file_info(path)` to size up the file.
 3. `read_symbol` / `read_lines` / `read_between` for just the relevant part.
 4. `replace_in_file` or `edit_lines(..., expected_etag=...)`, optionally with
-   `dry_run=true` first.
+   `dry_run=true` first; `multi_replace` or `apply_patch` for several changes at once.
+5. `undo_last_edit(path)` if an edit went wrong.
 
 ## Configuration
 

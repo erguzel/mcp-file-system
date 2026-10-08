@@ -47,6 +47,12 @@ def build_instructions(settings: Settings) -> str:
             "Editing is enabled: prefer replace_in_file (unique match) or edit_lines (with "
             f"the etag of your latest read){preview}."
         )
+        if not lite:
+            lines.append(
+                "For several changes to one file use multi_replace or apply_patch (unified "
+                "diff); both apply all or nothing. undo_last_edit reverts this server's "
+                "latest edit of a file."
+            )
     else:
         lines.append("The server is read-only.")
     return "\n\n".join(lines)
