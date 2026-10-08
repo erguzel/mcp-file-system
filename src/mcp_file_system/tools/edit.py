@@ -1,6 +1,6 @@
 """Editing tools, registered only when writes are enabled.
 
-Tools: replace_in_file, edit_lines, apply_patch, write_file.
+Tools: replace_in_file, multi_replace, edit_lines, apply_patch, write_file.
 """
 
 from typing import Annotated
@@ -9,7 +9,8 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
-from mcp_file_system.core.models import EditResult, PatchResult
+from mcp_file_system.core.editor import MAX_EDITS
+from mcp_file_system.core.models import EditResult, PatchResult, Replacement
 from mcp_file_system.tools._common import (
     WRITES,
     PathArg,
@@ -67,6 +68,35 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
                 expected_count=unset_int(expected_count),
                 expected_etag=unset_str(expected_etag),
                 dry_run=dry_run,
+            )
+        )
+
+    @registry.tool(WRITES)
+    def multi_replace(
+        path: PathArg,
+        edits: Annotated[
+            list[Replacement],
+            Field(
+                min_length=1,
+                max_length=MAX_EDITS,
+                description="Exact-text replacements, applied in order; each one sees the "
+                "result of the previous ones.",
+            ),
+        ],
+        expected_etag: Annotated[
+            str, Field(description="Fail if the file changed since this etag (empty: no check).")
+        ] = "",
+        dry_run: DryRunArg = False,
+    ) -> Annotated[CallToolResult, EditResult]:
+        """Apply several exact text replacements to one file: all or none.
+
+        Each pattern must match exactly expected_count times (default 1) when its turn
+        comes. If any edit fails, the file is left unchanged and the error names the
+        edit. Returns one diff and the new etag.
+        """
+        return to_call_result(
+            editor.multi_replace(
+                path, edits, expected_etag=unset_str(expected_etag), dry_run=dry_run
             )
         )
 

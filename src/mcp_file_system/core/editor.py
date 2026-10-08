@@ -16,12 +16,13 @@ import os
 import re
 import stat
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag, ensure_etag
-from mcp_file_system.core.models import EditResult, PatchResult
+from mcp_file_system.core.models import EditResult, PatchResult, Replacement
 from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
@@ -33,6 +34,7 @@ from mcp_file_system.core.textio import (
 )
 from mcp_file_system.errors import (
     AlreadyExistsError,
+    FileTooLargeError,
     InvalidArgumentError,
     InvalidPatternError,
     MatchCountError,
@@ -44,6 +46,8 @@ from mcp_file_system.security.paths import PathGuard, ResolvedPath
 from mcp_file_system.security.regex import Deadline, compile_pattern
 
 NEW_FILE_MODE = 0o644
+MAX_EDITS = 50
+"""Most replacements per multi_replace call."""
 _EOL = re.compile(r"\r\n|\r|\n")
 _LINE_ENDINGS = ("\n", "\r")
 
@@ -159,6 +163,44 @@ class FileEditor:
                 new_text = text.replace(literal, substitute)
         _check_count(count, expected_count, resolved.display)
         return self._commit(resolved, document, new_text, changes=count, dry_run=dry_run)
+
+    def multi_replace(
+        self,
+        path: str,
+        edits: Sequence[Replacement],
+        *,
+        expected_etag: str | None = None,
+        dry_run: bool = False,
+    ) -> EditResult:
+        """Apply literal replacements in order and write once: all of them or none.
+
+        Each edit works on the result of the previous ones and must match exactly its
+        ``expected_count`` (0 = any positive count). Line terminators in patterns and
+        replacements follow the file's newline style, as in :meth:`replace`. The
+        growing text is checked against ``max_file_bytes`` before every edit, so a
+        chain of expanding edits cannot exhaust memory before the final size check.
+        """
+        if not 1 <= len(edits) <= MAX_EDITS:
+            raise InvalidArgumentError(f"Pass between 1 and {MAX_EDITS} edits.")
+        resolved = self._guard.resolve_file(path)
+        document = self._load(resolved, expected_etag)
+        newline = document.fmt.newline
+        limit = self._settings.max_file_bytes
+        text = document.text
+        changes = 0
+        for number, edit in enumerate(edits, start=1):
+            label = f"edit {number} of {len(edits)}: "
+            literal = normalize_newlines(edit.pattern, newline)
+            substitute = normalize_newlines(edit.replacement, newline)
+            count = text.count(literal)
+            _check_count(count, edit.expected_count or None, resolved.display, label)
+            if len(text) + count * (len(substitute) - len(literal)) > limit:
+                raise FileTooLargeError(
+                    f"{label}the result would exceed max_file_bytes ({limit}); nothing was changed."
+                )
+            text = text.replace(literal, substitute)
+            changes += count
+        return self._commit(resolved, document, text, changes=changes, dry_run=dry_run)
 
     def edit_lines(
         self,

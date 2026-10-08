@@ -40,7 +40,7 @@ LITE_READ = FULL_READ - {
     "log_summary",
 }
 LITE_WRITE = {"replace_in_file", "edit_lines", "write_file"}
-FULL_WRITE = LITE_WRITE | {"apply_patch"}
+FULL_WRITE = LITE_WRITE | {"multi_replace", "apply_patch"}
 
 LITE_PARAMETERS = {
     "file_info": {"path"},

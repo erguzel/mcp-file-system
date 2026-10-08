@@ -8,8 +8,9 @@ import pytest
 from conftest import ContextFactory, write
 from mcp_file_system.context import AppContext
 from mcp_file_system.core import editor as editor_module
-from mcp_file_system.core.editor import atomic_write, normalize_newlines
+from mcp_file_system.core.editor import MAX_EDITS, atomic_write, normalize_newlines
 from mcp_file_system.core.etag import compute_etag
+from mcp_file_system.core.models import Replacement
 from mcp_file_system.errors import (
     AccessDeniedError,
     AlreadyExistsError,
@@ -145,6 +146,68 @@ class TestReplace:
             ctx.editor.replace(".env", "1", "2")
         with pytest.raises(PathOutsideRootError):
             ctx.editor.replace(str(outside / "secret.txt"), "top", "x")
+
+
+def edit(pattern: str, replacement: str, expected_count: int = 1) -> Replacement:
+    return Replacement(pattern=pattern, replacement=replacement, expected_count=expected_count)
+
+
+class TestMultiReplace:
+    def test_edits_apply_in_order(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "x = a\ny = b\n")
+        result = ctx.editor.multi_replace("a.py", [edit("a", "b"), edit("b", "c", 2)])
+        assert path.read_text() == "x = c\ny = c\n"
+        assert result.changes == 3
+        assert result.etag == etag(path)
+        assert "+x = c" in result.diff
+
+    def test_failing_edit_leaves_file_unchanged(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "x = 1\ny = 2\n")
+        before = etag(path)
+        edits = [edit("1", "10"), edit("missing", "z"), edit("2", "20")]
+        with pytest.raises(NoMatchError, match=r"^edit 2 of 3: Pattern not found in a\.py"):
+            ctx.editor.multi_replace("a.py", edits)
+        assert path.read_text() == "x = 1\ny = 2\n"
+        assert etag(path) == before
+
+    def test_count_mismatch_names_the_edit(self, ctx: AppContext, root: Path) -> None:
+        write(root / "a.py", "a a\n")
+        with pytest.raises(MatchCountError, match=r"^edit 1 of 1: Pattern matches 2 time"):
+            ctx.editor.multi_replace("a.py", [edit("a", "b")])
+
+    def test_zero_expected_count_means_any(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "a a a\n")
+        ctx.editor.multi_replace("a.py", [edit("a", "b", 0)])
+        assert path.read_text() == "b b b\n"
+
+    def test_newlines_follow_file_style(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.txt", "one\r\ntwo\r\n")
+        ctx.editor.multi_replace("a.txt", [edit("one\ntwo", "1\n2")])
+        assert path.read_bytes() == b"1\r\n2\r\n"
+
+    def test_growth_is_checked_before_each_edit(self, make_ctx: ContextFactory, root: Path) -> None:
+        path = write(root / "a.txt", "a\n")
+        grow = edit("a", "a" * 10, 0)
+        with pytest.raises(FileTooLargeError, match=r"^edit 2 of 3: the result would exceed"):
+            make_ctx(max_file_bytes=100).editor.multi_replace("a.txt", [grow, grow, grow])
+        assert path.read_text() == "a\n"
+
+    def test_dry_run_and_etag(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.py", "x = 1\n")
+        result = ctx.editor.multi_replace(
+            "a.py", [edit("1", "2")], expected_etag=etag(path), dry_run=True
+        )
+        assert not result.applied
+        assert path.read_text() == "x = 1\n"
+        with pytest.raises(StaleFileError):
+            ctx.editor.multi_replace("a.py", [edit("1", "2")], expected_etag="0-0")
+
+    def test_edit_count_limits(self, ctx: AppContext, root: Path) -> None:
+        write(root / "a.py", "x\n")
+        with pytest.raises(InvalidArgumentError, match="between 1 and"):
+            ctx.editor.multi_replace("a.py", [])
+        with pytest.raises(InvalidArgumentError, match="between 1 and"):
+            ctx.editor.multi_replace("a.py", [edit("x", "x")] * (MAX_EDITS + 1))
 
 
 class TestEditLines:
