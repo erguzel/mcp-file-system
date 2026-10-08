@@ -544,3 +544,40 @@ class EditResult(ToolResult):
         else:
             head = f"Applied {self.changes} change(s) to {self.path} (new etag {self.etag})"
         return f"{head}\n{self.diff}" if self.diff else f"{head}\n[No textual changes]"
+
+
+class HunkReport(BaseModel):
+    """Where one patch hunk applies, or why it does not."""
+
+    model_config = ConfigDict(frozen=True)
+
+    index: int = Field(description="1-based position of the hunk in the patch.")
+    header: str = Field(description="Hunk header with recomputed counts.")
+    applied: bool = Field(description="Whether the hunk found its place in the file.")
+    line: int = Field(description="First line of the file the hunk replaces (0 if not applied).")
+    offset: int = Field(description="Distance from the line named in the header.")
+    reason: str = Field(default="", description="Why the hunk does not apply.")
+
+
+class PatchResult(EditResult):
+    """Outcome of apply_patch, with one report per hunk."""
+
+    hunks: list[HunkReport]
+
+    def render(self) -> str:  # noqa: D102
+        failed = [hunk for hunk in self.hunks if not hunk.applied]
+        if failed:
+            head = (
+                f"Dry run: {len(failed)} of {len(self.hunks)} hunk(s) would fail on {self.path}; "
+                "nothing would be applied."
+            )
+            rows = [head]
+            rows.extend(f"[hunk {h.index} {h.header}: {h.reason}]" for h in failed)
+            return "\n".join(rows)
+        rows = [super().render()]
+        rows.extend(
+            f"[hunk {h.index} applied at line {h.line} (offset {h.offset:+d})]"
+            for h in self.hunks
+            if h.offset
+        )
+        return "\n".join(rows)

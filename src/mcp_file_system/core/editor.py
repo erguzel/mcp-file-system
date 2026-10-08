@@ -21,7 +21,8 @@ from pathlib import Path
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag, ensure_etag
-from mcp_file_system.core.models import EditResult
+from mcp_file_system.core.models import EditResult, PatchResult
+from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
     TextFormat,
@@ -191,6 +192,46 @@ class FileEditor:
         return self._commit(
             resolved, document, updated, changes=max(removed, added), dry_run=dry_run
         )
+
+    def apply_patch(
+        self, path: str, diff: str, *, expected_etag: str, dry_run: bool = False
+    ) -> PatchResult:
+        """Apply a unified diff for one file, all hunks or none.
+
+        Hunks are placed as described in :mod:`~mcp_file_system.core.patch`. If any hunk
+        fails, a dry run returns the per-hunk report and a real run raises without
+        writing, naming every failed hunk.
+        """
+        if len(diff) > self._settings.max_file_bytes:
+            raise InvalidArgumentError(
+                f"The patch is larger than max_file_bytes ({self._settings.max_file_bytes})."
+            )
+        hunks = parse_patch(diff)
+        resolved = self._guard.resolve_file(path)
+        document = self._load(resolved, expected_etag)
+        outcome = apply_hunks(split_lines_keepends(document.text), hunks, document.fmt.newline)
+        if outcome.text is None:
+            if dry_run:
+                return PatchResult(
+                    path=resolved.display,
+                    applied=False,
+                    dry_run=True,
+                    changes=0,
+                    etag=document.etag,
+                    diff="",
+                    hunks=outcome.reports,
+                )
+            failures = "; ".join(
+                f"hunk {report.index} ({report.header}): {report.reason}"
+                for report in outcome.reports
+                if not report.applied
+            )
+            raise NoMatchError(
+                f"Patch not applied to {resolved.display}; nothing was changed. {failures}. "
+                "Re-read the target lines and fix those hunks, or check with dry_run=true."
+            )
+        result = self._commit(resolved, document, outcome.text, changes=len(hunks), dry_run=dry_run)
+        return PatchResult(**result.model_dump(), hunks=outcome.reports)
 
     def write(
         self,

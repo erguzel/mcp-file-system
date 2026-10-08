@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from conftest import SettingsFactory, symlink_or_skip, write
 from mcp_file_system import cli
 from mcp_file_system.context import AppContext
+from mcp_file_system.core.etag import compute_etag
 from mcp_file_system.server import create_server
 
 SENSITIVE_LINE = "api_token = 'do-not-log-me'"
@@ -88,6 +89,36 @@ async def test_calls_are_recorded_without_file_contents(
     assert log[3]["error"]["type"] == "PathOutsideRootError"
     # The secret value appears in tool results, but never in the log.
     assert "do-not-log-me" not in log_path.read_text()
+
+
+@pytest.mark.anyio
+async def test_patches_are_recorded_without_content(
+    make_settings: SettingsFactory, root: Path, tmp_path: Path
+) -> None:
+    log_path = tmp_path / "audit.jsonl"
+    path = write(root / "config.py", f"{SENSITIVE_LINE}\n")
+    etag = compute_etag(path.stat())
+    failing = f"@@ -1,1 +1,1 @@ def load_secret():\n-{SENSITIVE_LINE}x\n+api_token = None\n"
+    working = f"@@ -1,1 +1,1 @@ def load_secret():\n-{SENSITIVE_LINE}\n+api_token = None\n"
+    settings = make_settings(audit_log=log_path, allow_write=True)
+    async with Client(create_server(settings)) as client:
+        failed = await client.call_tool(
+            "apply_patch", {"path": "config.py", "diff": failing, "expected_etag": etag}
+        )
+        applied = await client.call_tool(
+            "apply_patch", {"path": "config.py", "diff": working, "expected_etag": etag}
+        )
+    assert failed.is_error
+    assert not applied.is_error
+    log = read_log(log_path)
+    assert [entry["args"]["diff"] for entry in log] == [
+        {"chars": len(failing)},
+        {"chars": len(working)},
+    ]
+    assert log[0]["error"]["type"] == "NoMatchError"
+    text = log_path.read_text()
+    assert "do-not-log-me" not in text
+    assert "load_secret" not in text
 
 
 @pytest.mark.anyio

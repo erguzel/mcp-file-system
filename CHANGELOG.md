@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `apply_patch` tool (full profile, `--allow-write`): applies a unified diff to one file,
+  all hunks or none, guarded by the file's etag. Context and removed lines must match
+  exactly; hunks whose line numbers are off are placed at the nearest exact match (no
+  fuzz) and the offset is reported. Missing or ambiguous context fails the patch and the
+  error names each failed hunk; `dry_run=true` reports which hunks would fail and why.
+  Untouched lines keep their own line endings. The diff is logged as its length only.
 - `read_ranges` tool (full profile): reads up to 20 `(path, start, end)` ranges from one
   or more files in one call, saving round trips. The ranges share one budget
   (`max_read_lines`, `max_output_chars`), spent in the given order; ranges cut by it

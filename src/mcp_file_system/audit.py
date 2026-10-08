@@ -28,6 +28,7 @@ logger = logging.getLogger("mcp_file_system.audit")
 CONTENT_ARGUMENTS: Mapping[str, frozenset[str]] = {
     "replace_in_file": frozenset({"pattern", "replacement"}),
     "edit_lines": frozenset({"new_text"}),
+    "apply_patch": frozenset({"diff"}),
     "write_file": frozenset({"content"}),
 }
 """Per tool, the arguments that contain file content and are logged as a length only."""
