@@ -546,6 +546,29 @@ class EditResult(ToolResult):
         return f"{head}\n{self.diff}" if self.diff else f"{head}\n[No textual changes]"
 
 
+class UndoResult(EditResult):
+    """Outcome of undo_last_edit."""
+
+    renamed_to: str | None = Field(
+        default=None, description="Where a file created by the undone edit was moved."
+    )
+
+    def render(self) -> str:  # noqa: D102
+        if self.renamed_to:
+            verb = "would be renamed" if self.dry_run else "renamed"
+            head = (
+                f"Undo of the creation of {self.path}: {verb} to {self.renamed_to} "
+                "(delete it once it is no longer needed)"
+            )
+        elif self.dry_run:
+            head = f"Dry run: {self.path} would be restored to the version before the last edit"
+        else:
+            head = (
+                f"Restored {self.path} to the version before the last edit (new etag {self.etag})"
+            )
+        return f"{head}\n{self.diff}" if self.diff else f"{head}\n[No textual changes]"
+
+
 class Replacement(BaseModel):
     """One literal replacement in a multi_replace batch."""
 

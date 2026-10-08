@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `undo_last_edit` tool (full profile, `--allow-write`): restores the exact bytes from
+  before this server's latest edit of a file, refused if the file changed since. One
+  level per file, no redo, in memory for the server session (at most 100 files and
+  64 MiB; no snapshots are kept when the tool is not exposed). A file the server created
+  is renamed to `<name>.deleted-<UTC time>` instead of being deleted; a name blocked by
+  the deny list leaves the file unchanged.
 - `multi_replace` tool (full profile, `--allow-write`): up to 50 exact-text replacements
   in one file, applied in order and written once, so either all apply or none. Each
   edit must match its `expected_count` (default 1, 0 = any); a failing edit leaves the

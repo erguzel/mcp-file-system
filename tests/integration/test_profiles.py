@@ -40,7 +40,7 @@ LITE_READ = FULL_READ - {
     "log_summary",
 }
 LITE_WRITE = {"replace_in_file", "edit_lines", "write_file"}
-FULL_WRITE = LITE_WRITE | {"multi_replace", "apply_patch"}
+FULL_WRITE = LITE_WRITE | {"multi_replace", "apply_patch", "undo_last_edit"}
 
 LITE_PARAMETERS = {
     "file_info": {"path"},
@@ -181,6 +181,8 @@ def test_instructions_follow_the_profile(make_settings: SettingsFactory) -> None
     assert "read_between" in full_text
     assert "dry_run" in full_text
     assert "read_ranges" in full_text
+    assert "undo_last_edit" not in lite_text
+    assert "undo_last_edit" in full_text
 
 
 class TestLiteBehavior:
@@ -256,6 +258,19 @@ class TestLiteBehavior:
             result = await call(lite, tool, **arguments)
             assert not result.is_error, (tool, text_of(result))
             assert expected in text_of(result), tool
+
+
+class TestFullEditing:
+    async def test_undo_last_edit(self, full: Client, root: Path) -> None:
+        path = write(root / "a.txt", "x = 1\n")
+        await call(full, "replace_in_file", path="a.txt", pattern="1", replacement="2")
+        undone = await call(full, "undo_last_edit", path="a.txt")
+        assert not undone.is_error, text_of(undone)
+        assert path.read_text() == "x = 1\n"
+        await call(full, "write_file", path="new.txt", content="fresh\n")
+        renamed = await call(full, "undo_last_edit", path="new.txt")
+        assert "renamed to new.txt.deleted-" in text_of(renamed)
+        assert not (root / "new.txt").exists()
 
 
 class TestSentinelDefaults:

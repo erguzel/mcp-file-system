@@ -32,6 +32,7 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.peek` | `Peeker` service behind `peek`: shape summaries per format (`tabular`, `structured`, `text` modules) chosen by file name or suffix; streamed formats have fixed scan budgets. |
 | `core.query` | `DataQuery` service behind `query`: key-path parsing (`keypath`), a `DataNode` view per format (`nodes`: lazy tree-sitter views for JSON and YAML with line spans, `tomllib` values for TOML) and depth-limited rendering (`render`). |
 | `core.editor.FileEditor` | Guarded edits: etag checks, diffs, atomic writes, format preservation. |
+| `core.history` | `EditHistory` for `undo_last_edit`: the bytes before each file's latest edit plus the etag after it; one level, in memory, LRU-bounded by file count and bytes. Built only when the tool is exposed. |
 | `core.patch` | Pure unified-diff parsing (`parse_patch`) and all-or-nothing hunk placement (`apply_hunks`): exact context, nearest-offset search without fuzz, untouched line endings kept; reports never quote lines. |
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `core.skeleton` | Language-independent skeleton rendering from fold ranges reported by providers (`fold_ranges`). |

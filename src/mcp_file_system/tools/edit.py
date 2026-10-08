@@ -1,6 +1,6 @@
 """Editing tools, registered only when writes are enabled.
 
-Tools: replace_in_file, multi_replace, edit_lines, apply_patch, write_file.
+Tools: replace_in_file, multi_replace, edit_lines, apply_patch, write_file, undo_last_edit.
 """
 
 from typing import Annotated
@@ -10,7 +10,7 @@ from pydantic import Field
 
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.editor import MAX_EDITS
-from mcp_file_system.core.models import EditResult, PatchResult, Replacement
+from mcp_file_system.core.models import EditResult, PatchResult, Replacement, UndoResult
 from mcp_file_system.tools._common import (
     WRITES,
     PathArg,
@@ -168,3 +168,15 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
                 dry_run=dry_run,
             )
         )
+
+    @registry.tool(WRITES)
+    def undo_last_edit(
+        path: PathArg, dry_run: DryRunArg = False
+    ) -> Annotated[CallToolResult, UndoResult]:
+        """Undo this server's latest edit of a file, if nothing changed the file since.
+
+        Restores the exact previous version: one level per file, no redo, kept only for
+        this server session. A file this server created is renamed to
+        '<name>.deleted-<UTC time>' instead of being deleted.
+        """
+        return to_call_result(editor.undo_last_edit(path, dry_run=dry_run))
