@@ -22,11 +22,13 @@ from typing import Any
 
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
+from pydantic import BaseModel
 
 logger = logging.getLogger("mcp_file_system.audit")
 
 CONTENT_ARGUMENTS: Mapping[str, frozenset[str]] = {
     "replace_in_file": frozenset({"pattern", "replacement"}),
+    "multi_replace": frozenset({"edits"}),
     "edit_lines": frozenset({"new_text"}),
     "apply_patch": frozenset({"diff"}),
     "write_file": frozenset({"content"}),
@@ -147,13 +149,38 @@ def sanitize_arguments(tool: str, arguments: Mapping[str, Any]) -> dict[str, Any
     content = CONTENT_ARGUMENTS.get(tool, frozenset())
     sanitized: dict[str, Any] = {}
     for key, value in arguments.items():
-        if key in content and isinstance(value, str):
-            sanitized[key] = {"chars": len(value)}
+        if key in content:
+            sanitized[key] = _content_size(value)
         elif isinstance(value, str) and len(value) > MAX_ARGUMENT_CHARS:
             sanitized[key] = value[:MAX_ARGUMENT_CHARS] + "…"
         else:
             sanitized[key] = value
     return sanitized
+
+
+def _content_size(value: Any) -> dict[str, int]:
+    """The size of a content-carrying argument, never the content itself.
+
+    Lists (e.g. multi_replace's ``edits``) also report their length. The SDK hands
+    validated arguments over as pydantic objects, whose ``str()`` would print every
+    field, so text is only ever counted.
+    """
+    if isinstance(value, list | tuple):
+        return {"items": len(value), "chars": _text_chars(value)}
+    return {"chars": _text_chars(value)}
+
+
+def _text_chars(value: Any) -> int:
+    """Total length of the strings inside ``value`` (models, mappings and sequences)."""
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, BaseModel):
+        value = value.model_dump()
+    if isinstance(value, Mapping):
+        return sum(_text_chars(item) for item in value.values())
+    if isinstance(value, list | tuple):
+        return sum(_text_chars(item) for item in value)
+    return 0
 
 
 def _measure(result: Any) -> tuple[int | None, bool | None]:

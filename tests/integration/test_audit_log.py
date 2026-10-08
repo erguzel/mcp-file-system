@@ -122,6 +122,23 @@ async def test_patches_are_recorded_without_content(
 
 
 @pytest.mark.anyio
+async def test_multi_replace_is_recorded_without_content(
+    make_settings: SettingsFactory, root: Path, tmp_path: Path
+) -> None:
+    log_path = tmp_path / "audit.jsonl"
+    path = write(root / "config.py", f"{SENSITIVE_LINE}\n")
+    edits = [{"pattern": SENSITIVE_LINE, "replacement": "api_token = None"}]
+    settings = make_settings(audit_log=log_path, allow_write=True)
+    async with Client(create_server(settings)) as client:
+        result = await client.call_tool("multi_replace", {"path": "config.py", "edits": edits})
+    assert not result.is_error
+    assert path.read_text() == "api_token = None\n"
+    (entry,) = read_log(log_path)
+    assert entry["args"]["edits"] == {"items": 1, "chars": len(SENSITIVE_LINE) + 16}
+    assert "do-not-log-me" not in log_path.read_text()
+
+
+@pytest.mark.anyio
 async def test_disallowed_tools_are_not_wrapped(
     make_settings: SettingsFactory, root: Path, tmp_path: Path
 ) -> None:

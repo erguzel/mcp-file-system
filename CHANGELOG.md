@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `multi_replace` tool (full profile, `--allow-write`): up to 50 exact-text replacements
+  in one file, applied in order and written once, so either all apply or none. Each
+  edit must match its `expected_count` (default 1, 0 = any); a failing edit leaves the
+  file unchanged and the error names it (`edit 2 of 3: ...`). The growing text is
+  checked against `max_file_bytes` before every edit. The edits are logged as their
+  count and total length only.
 - `apply_patch` tool (full profile, `--allow-write`): applies a unified diff to one file,
   all hunks or none, guarded by the file's etag. Context and removed lines must match
   exactly; hunks whose line numbers are off are placed at the nearest exact match (no

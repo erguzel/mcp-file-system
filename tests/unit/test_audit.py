@@ -10,6 +10,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog, sanitize_arguments
+from mcp_file_system.core.models import Replacement
 from mcp_file_system.errors import StaleFileError
 
 FIXED = datetime(2026, 10, 4, 12, 0, 1, 123456, tzinfo=UTC)
@@ -68,6 +69,18 @@ def test_content_arguments_are_logged_as_length_only() -> None:
     assert sanitize_arguments("write_file", {"content": ""}) == {"content": {"chars": 0}}
     # grep patterns are search terms, not file content: kept.
     assert sanitize_arguments("grep", {"pattern": "TODO"}) == {"pattern": "TODO"}
+
+
+@pytest.mark.parametrize(
+    "edits",
+    [
+        [Replacement(pattern="secret", replacement="xy"), Replacement(pattern="a", replacement="")],
+        [{"pattern": "secret", "replacement": "xy"}, {"pattern": "a", "replacement": ""}],
+    ],
+)
+def test_structured_content_arguments_are_logged_as_sizes(edits: list[Any]) -> None:
+    sanitized = sanitize_arguments("multi_replace", {"path": "a.py", "edits": edits})
+    assert sanitized == {"path": "a.py", "edits": {"items": 2, "chars": 9}}
 
 
 def test_long_strings_are_cut() -> None:
