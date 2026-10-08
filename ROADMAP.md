@@ -83,8 +83,9 @@ and prints a summary table.
   line-based). The `tree-sitter-dockerfile` package has no Windows wheels.
 - Python stays on the standard library `ast` (no dependency, richer signatures).
 
-**Why:** `outline` and `read_symbol` save the most tokens, but only for Python and Markdown
-today. Config files are the most frequently over-read files, and a line-aware parser is
+**Why:** `outline` and `read_symbol` save the most tokens, but when this item was written
+they covered only Python and Markdown (the status above lists what is supported now).
+Config files are the most frequently over-read files, and a line-aware parser is
 required for their outlines. One parsing mechanism for code and flat files compounds:
 every grammar added here also extends the enclosing-symbol hints (item 4) and the
 skeleton view (item 5). Plain text and logs have no grammar; items 6 and 8 cover them.
