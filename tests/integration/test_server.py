@@ -28,7 +28,7 @@ READ_TOOLS = {
     "query",
     "log_summary",
 }
-WRITE_TOOLS = {"replace_in_file", "edit_lines", "write_file"}
+WRITE_TOOLS = {"replace_in_file", "edit_lines", "apply_patch", "write_file"}
 
 
 @pytest.fixture

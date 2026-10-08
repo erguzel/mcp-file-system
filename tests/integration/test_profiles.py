@@ -39,7 +39,8 @@ LITE_READ = FULL_READ - {
     "query",
     "log_summary",
 }
-WRITE = {"replace_in_file", "edit_lines", "write_file"}
+LITE_WRITE = {"replace_in_file", "edit_lines", "write_file"}
+FULL_WRITE = LITE_WRITE | {"apply_patch"}
 
 LITE_PARAMETERS = {
     "file_info": {"path"},
@@ -90,7 +91,8 @@ async def test_profiles_expose_expected_tools(
 ) -> None:
     tools = await list_tools(make_settings, profile=profile, allow_write=allow_write)
     expected = FULL_READ if profile == "full" else LITE_READ
-    assert set(tools) == (expected | WRITE if allow_write else expected)
+    write_tools = FULL_WRITE if profile == "full" else LITE_WRITE
+    assert set(tools) == (expected | write_tools if allow_write else expected)
 
 
 @pytest.mark.parametrize("profile", ["full", "lite"])

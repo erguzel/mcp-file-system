@@ -227,6 +227,78 @@ class TestEditLines:
         assert path.read_text() == "someone else wrote this\n"
 
 
+class TestApplyPatch:
+    DIFF = "@@ -2,1 +2,1 @@\n-b\n+B\n"
+
+    def test_applies_and_returns_diff(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "f.txt", "a\nb\nc\n")
+        result = ctx.editor.apply_patch("f.txt", self.DIFF, expected_etag=etag(path))
+        assert path.read_text() == "a\nB\nc\n"
+        assert result.applied
+        assert result.etag == etag(path)
+        assert "-b\n+B" in result.diff
+        assert result.render().startswith("Applied 1 change(s) to f.txt")
+
+    def test_moved_hunk_is_reported(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "f.txt", "x\ny\na\nb\nc\n")
+        result = ctx.editor.apply_patch("f.txt", self.DIFF, expected_etag=etag(path))
+        assert "[hunk 1 applied at line 4 (offset +2)]" in result.render()
+
+    def test_failing_hunk_leaves_file_unchanged(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "f.txt", "a\nb\nc\nd\n")
+        before = etag(path)
+        diff = (
+            "@@ -1,1 +1,1 @@\n-a\n+A\n"
+            "@@ -2,1 +2,1 @@ def hidden():\n-zzz\n+Z\n"
+            "@@ -4,1 +4,1 @@\n-d\n+D\n"
+        )
+        with pytest.raises(NoMatchError) as error:
+            ctx.editor.apply_patch("f.txt", diff, expected_etag=before)
+        message = str(error.value)
+        assert "hunk 2 (@@ -2,1 +2,1 @@): context not found" in message
+        assert "hunk 1" not in message
+        assert "hidden" not in message
+        assert "zzz" not in message
+        assert path.read_text() == "a\nb\nc\nd\n"
+        assert etag(path) == before
+
+    def test_dry_run_reports_failing_hunks(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "f.txt", "a\nb\n")
+        diff = f"{self.DIFF}@@ -9,1 +9,1 @@\n-q\n+Q\n"
+        result = ctx.editor.apply_patch("f.txt", diff, expected_etag=etag(path), dry_run=True)
+        assert not result.applied
+        assert [hunk.applied for hunk in result.hunks] == [True, False]
+        assert result.render() == (
+            "Dry run: 1 of 2 hunk(s) would fail on f.txt; nothing would be applied.\n"
+            "[hunk 2 @@ -9,1 +9,1 @@: context not found]"
+        )
+        assert path.read_text() == "a\nb\n"
+
+    def test_dry_run_success(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "f.txt", "a\nb\n")
+        result = ctx.editor.apply_patch("f.txt", self.DIFF, expected_etag=etag(path), dry_run=True)
+        assert result.render().startswith("Dry run: 1 change(s) would be applied")
+        assert path.read_text() == "a\nb\n"
+
+    def test_crlf_file_gets_crlf_lines(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "f.txt", "a\r\nb\r\n")
+        ctx.editor.apply_patch("f.txt", "@@ -1,1 +1,2 @@\n a\n+new\n", expected_etag=etag(path))
+        assert path.read_bytes() == b"a\r\nnew\r\nb\r\n"
+
+    def test_guards(self, make_ctx: ContextFactory, root: Path, outside: Path) -> None:
+        path = write(root / "f.txt", "a\nb\n")
+        write(root / ".env", "b\n")
+        ctx = make_ctx(max_file_bytes=50)
+        with pytest.raises(StaleFileError):
+            ctx.editor.apply_patch("f.txt", self.DIFF, expected_etag="0-0")
+        with pytest.raises(AccessDeniedError):
+            ctx.editor.apply_patch(".env", self.DIFF, expected_etag="0-0")
+        with pytest.raises(PathOutsideRootError):
+            ctx.editor.apply_patch(str(outside / "secret.txt"), self.DIFF, expected_etag="0-0")
+        with pytest.raises(InvalidArgumentError, match="larger than max_file_bytes"):
+            ctx.editor.apply_patch("f.txt", self.DIFF + " x\n" * 30, expected_etag=etag(path))
+
+
 class TestWrite:
     def test_create_with_parents(self, ctx: AppContext, root: Path) -> None:
         result = ctx.editor.write("new/dir/file.py", "x = 1\n")

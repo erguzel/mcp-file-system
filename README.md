@@ -90,7 +90,7 @@ every request. Large models handle the full set easily. Small local models (roug
 
 | | `full` (default) | `lite` |
 |---|---|---|
-| Tools | all 13 (+3 editing) | 7 (+3 editing): no `read_ranges`, `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
+| Tools | all 13 (+4 editing) | 7 (+3 editing): no `apply_patch`, `read_ranges`, `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
 | Tool listing size* | ~35k characters | ~7.1k characters |
@@ -124,6 +124,7 @@ Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
 | `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. Accepts `if_changed_since` like `read_lines`. |
 | `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1). |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |
+| `apply_patch`* | Apply a unified diff to one file, all hunks or none (full profile). Requires the file's etag. Context and removed lines must match exactly; a hunk whose line numbers are off is placed at the nearest exact match and its offset reported, while missing or ambiguous context fails the patch and names the hunk. `dry_run=true` lists which hunks would fail and why. Header counts are recomputed from the hunk body; new files go through `write_file`. |
 | `write_file`* | Create a file (with parent directories), or overwrite one when its etag is supplied. |
 
 \* Only registered with `--allow-write`.
@@ -182,8 +183,8 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
 ```
 
 - **No file contents:** content-carrying arguments (`replace_in_file`'s pattern and
-  replacement, `edit_lines`' new text, `write_file`'s content) are logged as
-  `{"chars": N}`. Errors are logged with their type, e.g. `StaleFileError`.
+  replacement, `edit_lines`' new text, `apply_patch`'s diff, `write_file`'s content) are
+  logged as `{"chars": N}`. Errors are logged with their type, e.g. `StaleFileError`.
 - **Cost:** about 25 µs and 200 bytes per call (≈1 MB per 5,000 calls). Each record is
   appended and the file closed again, so external log rotation is safe.
 - **Failure handling:** if the log cannot be written (e.g. a full disk), the tool call still

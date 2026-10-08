@@ -1,6 +1,6 @@
 """Editing tools, registered only when writes are enabled.
 
-Tools: replace_in_file, edit_lines, write_file.
+Tools: replace_in_file, edit_lines, apply_patch, write_file.
 """
 
 from typing import Annotated
@@ -9,7 +9,7 @@ from mcp.types import CallToolResult
 from pydantic import Field
 
 from mcp_file_system.context import AppContext
-from mcp_file_system.core.models import EditResult
+from mcp_file_system.core.models import EditResult, PatchResult
 from mcp_file_system.tools._common import (
     WRITES,
     PathArg,
@@ -88,6 +88,29 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             editor.edit_lines(
                 path, start, end, new_text, expected_etag=expected_etag, dry_run=dry_run
             )
+        )
+
+    @registry.tool(WRITES)
+    def apply_patch(
+        path: PathArg,
+        diff: Annotated[
+            str,
+            Field(
+                description="Unified diff for this one file, hunks starting with "
+                "'@@ -a,b +c,d @@'. Context and removed lines must match the file exactly."
+            ),
+        ],
+        expected_etag: RequiredEtagArg,
+        dry_run: DryRunArg = False,
+    ) -> Annotated[CallToolResult, PatchResult]:
+        """Apply a unified diff to one file: all hunks or none.
+
+        A hunk whose line numbers are off is placed at the nearest exact match of its
+        context; missing or ambiguous context fails the whole patch and names the hunk.
+        Use dry_run=true to see which hunks apply. Returns a diff and the new etag.
+        """
+        return to_call_result(
+            editor.apply_patch(path, diff, expected_etag=expected_etag, dry_run=dry_run)
         )
 
     @registry.tool(WRITES)
