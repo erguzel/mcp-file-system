@@ -93,9 +93,10 @@ every request. Large models handle the full set easily. Small local models (roug
 | Tools | all 13 (+6 editing) | 7 (+3 editing): no `multi_replace`, `apply_patch`, `undo_last_edit`, `read_ranges`, `read_between`, `read_skeleton`, `peek`, `query`, `log_summary` |
 | Parameters | all | essential only; hidden ones keep their defaults |
 | Output schemas | published | omitted (results still carry structured content) |
-| Tool listing size* | ~35k characters | ~7.1k characters |
+| Tool listing size* | ~12k tokens; ~6k with `--no-output-schema` | ~2k tokens, about a sixth of `full` |
 
-\* With editing enabled, measured on version 0.1.x.
+\* Rough sizes with editing enabled (characters / 4). They grow with every tool added to
+`full`; `lite` stays small by design (a test keeps it under half of `full`).
 
 `lite` is narrow but complete: it still covers navigating, searching, sizing up, reading
 parts of files and editing, so a small model never needs detours. Its `grep` searches
@@ -103,7 +104,10 @@ an invalid regular expression as literal text instead of failing, its `replace_i
 requires a unique literal match, and its `write_file` only creates new files.
 
 Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
-`--[no-]output-schema` to override the output-schema default.
+`--[no-]output-schema` to override the output-schema default. Output schemas are about
+half of the `full` listing but serve clients that process results in code; the text view
+of each result carries the same information, so `full` with `--no-output-schema` suits
+chat agents whose context window is tight.
 
 ## Tools
 
