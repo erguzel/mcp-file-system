@@ -22,7 +22,8 @@ uv run pytest --cov        # fails below 90% coverage
 
 - Code, docstrings and documentation are in English. Public functions and classes have
   Google-style docstrings.
-- Keep `core/` and `security/` free of MCP imports. Tool adapters in `tools/` stay thin.
+- Only `tools/`, `server.py` and `cli.py` import `mcp` (a test enforces this). Tool adapters
+  in `tools/` stay thin.
 - Raise `errors.FsError` subclasses with messages that tell the agent what to do next.
   Never include paths outside the roots in messages.
 - Every behavior change needs tests. Security-relevant changes also need a test in

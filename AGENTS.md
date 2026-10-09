@@ -16,7 +16,8 @@ Security is the core feature, not an add-on.
    budgets, size and output limits, or read-only by default. Any change under
    `src/mcp_file_system/security/` needs a new test in `tests/security/`.
 3. Keep `src/mcp_file_system/core/` and `src/mcp_file_system/security/` free of `mcp`
-   imports. Only `tools/`, `server.py`, and `cli.py` may import `mcp`.
+   imports. Only `tools/`, `server.py`, and `cli.py` may import `mcp`. A test enforces
+   this (`tests/unit/test_import_boundaries.py`).
 4. Implement `ROADMAP.md` items **in order**, one item per change. Do not start an item
    that is not next unless the human asks.
 
