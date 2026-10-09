@@ -79,9 +79,7 @@ class Settings(BaseSettings):
             "first root. Defaults to the current working directory.",
         ),
     ] = Field(default_factory=_cwd_roots)
-    allow_write: bool = Field(
-        default=False, description="Register the editing tools (replace, edit, write)."
-    )
+    allow_write: bool = Field(default=False, description="Register the editing tools.")
     deny_globs: tuple[str, ...] = Field(
         default=DEFAULT_DENY_GLOBS,
         description="Gitignore-style patterns that are never readable or writable.",
