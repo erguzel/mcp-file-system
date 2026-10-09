@@ -50,8 +50,15 @@ A change is finished only when **all** of these are true:
 - [ ] New behavior has tests; bug fixes have a test that fails without the fix.
 - [ ] Public functions and classes have Google-style docstrings.
 - [ ] User-visible changes have a `CHANGELOG.md` entry under `## [Unreleased]`.
-- [ ] If a `ROADMAP.md` item was completed, its status checkbox is ticked.
+- [ ] If a `ROADMAP.md` item was completed, its status checkbox is ticked and its **What**
+      matches what shipped.
 - [ ] User-visible changes (tools, flags, settings) are documented in `README.md`.
+- [ ] Every doc that mentions what the change renames, adds, removes or re-measures is
+      updated in the same commit: search `*.md`, `docs/`, docstrings and test names for
+      the names and numbers involved. A new module under `core/`, `security/` or `tools/`
+      also gets a row in the project map below and in `docs/ARCHITECTURE.md`.
+- [ ] Measured figures (listing sizes, savings, timings) appear only in `README.md`;
+      `CHANGELOG.md` and `ROADMAP.md` describe them without exact numbers.
 
 ## Project map
 
