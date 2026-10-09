@@ -217,9 +217,10 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
 - Every path goes through one choke point (`PathGuard`). It resolves symlinks and requires
   the real path to lie inside a root. Errors never reveal whether paths outside the roots
   exist.
-- A case-insensitive deny list blocks `.env` and `.env.*` (except the `.env.example`,
-  `.env.sample` and `.env.template` templates), keys and certificates, `.git/`, `.ssh/`,
-  cloud and package-manager credentials, and similar files, even through symlinks.
+- A case-insensitive deny list blocks `.env`, `.env.*`, direnv's `.envrc` and `.envrc.*`
+  (except their `.example`, `.sample` and `.template` templates), keys and certificates,
+  `.git/`, `.ssh/`, cloud and package-manager credentials, and similar files, even
+  through symlinks.
   `.gitignore` only hides paths from walks; gitignored files can still be read by
   explicit path.
 - Regular expressions use the `regex` engine with a time budget. Pathological patterns

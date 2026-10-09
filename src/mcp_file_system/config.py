@@ -23,12 +23,18 @@ DEFAULT_DENY_GLOBS: tuple[str, ...] = (
     ".git/",
     ".hg/",
     ".svn/",
-    # Environment files, but not their documented templates.
+    # Environment files, including direnv's .envrc (a shell script that often exports
+    # secrets, or sources them from .envrc.local), but not their documented templates.
     ".env",
     ".env.*",
     "!.env.example",
     "!.env.sample",
     "!.env.template",
+    ".envrc",
+    ".envrc.*",
+    "!.envrc.example",
+    "!.envrc.sample",
+    "!.envrc.template",
     # Keys and certificates.
     "*.pem",
     "*.key",
