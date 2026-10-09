@@ -130,7 +130,7 @@ chat agents whose context window is tight.
 | `multi_replace`* | Several exact-text replacements in one file, applied in order and written once: all or none (full profile, at most 50). Each must match `expected_count` times (default 1, 0 = any); a failing edit leaves the file unchanged and is named in the error. |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |
 | `apply_patch`* | Apply a unified diff to one file, all hunks or none (full profile). Requires the file's etag. Context and removed lines must match exactly; a hunk whose line numbers are off is placed at the nearest exact match and its offset reported, while missing or ambiguous context fails the patch and names the hunk. `dry_run=true` lists which hunks would fail and why. Header counts are recomputed from the hunk body; new files go through `write_file`. |
-| `write_file`* | Create a file (with parent directories), or overwrite one when its etag is supplied. |
+| `write_file`* | Create a file (with parent directories), or overwrite one with `overwrite=true` and its etag. |
 | `undo_last_edit`* | Restore the exact bytes from before this server's latest edit of a file (full profile). Refused if the file changed since that edit. One level per file, no redo, kept in memory for the server session only (at most 100 files and 64 MiB). A file the server created is not deleted but renamed to `<name>.deleted-<UTC time>` next to it; in a git project it shows up as untracked, so delete it by hand once it is no longer needed. |
 
 \* Only registered with `--allow-write`.
@@ -154,8 +154,8 @@ A typical agent workflow:
 
 ## Configuration
 
-Every option can be set on the command line or through an `MCP_FS_*` environment variable.
-CLI flags take precedence. Complex values in the environment are JSON.
+Every option can be set through an `MCP_FS_*` environment variable, and most also on the
+command line (see the table). CLI flags take precedence. Complex values in the environment are JSON.
 
 | Setting | CLI flag | Default | Description |
 |---|---|---|---|
@@ -185,7 +185,7 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
 
 ```json
 {"ts": "2026-10-04T12:00:01Z", "tool": "read_lines", "profile": "lite",
- "args": {"path": "src/a.py", "start": 10, "end": 40},
+ "args": {"path": "src/a.py", "start": 10, "end": 40, "if_changed_since": ""},
  "duration_ms": 2.5, "result_chars": 1240, "truncated": false, "error": null}
 ```
 
@@ -215,7 +215,8 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
 - Every path goes through one choke point (`PathGuard`). It resolves symlinks and requires
   the real path to lie inside a root. Errors never reveal whether paths outside the roots
   exist.
-- A case-insensitive deny list blocks `.env*`, keys and certificates, `.git/`, `.ssh/`,
+- A case-insensitive deny list blocks `.env` and `.env.*` (except the `.env.example`,
+  `.env.sample` and `.env.template` templates), keys and certificates, `.git/`, `.ssh/`,
   cloud and package-manager credentials, and similar files, even through symlinks.
   `.gitignore` only hides paths from walks; gitignored files can still be read by
   explicit path.

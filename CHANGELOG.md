@@ -55,7 +55,7 @@ All notable changes to this project are documented here. The format follows
   list the keys that exist; output honors `max_output_chars`, `max_line_chars` and
   `max_file_bytes`. JSON and YAML report the value's line span and tolerate syntax
   errors elsewhere in the file (with a note); YAML Helm templates are supported.
-- `peek` tool: the shape of a data file without its content. CSV/TSV (columns, guessed
+- `peek` tool (full profile): the shape of a data file without its content. CSV/TSV (columns, guessed
   types, row count, sample rows), JSON and TOML (key tree with types and array lengths,
   no values), logs (time span, level counts), manifests (`pyproject.toml`,
   `package.json`, `Cargo.toml`: name, version, dependencies) and Markdown (front matter,

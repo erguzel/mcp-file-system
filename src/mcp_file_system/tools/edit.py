@@ -155,7 +155,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         ] = "",
         dry_run: DryRunArg = False,
     ) -> Annotated[CallToolResult, EditResult]:
-        """Create a new file (with parent directories), or overwrite one given its etag.
+        """Create a file (with parent directories), or replace one with overwrite=true and its etag.
 
         Prefer edit_lines or replace_in_file for changes to existing files.
         """
