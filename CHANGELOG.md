@@ -118,6 +118,10 @@ All notable changes to this project are documented here. The format follows
   unreadable directory, a symlink loop or a file used as a directory there (e.g.
   `../outside/file.txt/x`) produced "Cannot resolve path" instead of "outside the allowed
   roots", and `.env/x` answered differently depending on whether `.env` exists.
+- The default deny list now covers direnv's `.envrc` and `.envrc.*` (e.g. `.envrc.local`),
+  except their `.example`, `.sample` and `.template` templates. These files often export
+  secrets. They can no longer be read and no longer appear in `list_directory`,
+  `find_files` or grep results; `--deny '!.envrc'` re-allows a single file.
 - `file_info` on a directory no longer reveals denied entries. It counted every entry
   (a directory holding only `.env` showed "entries: 1"), and its size and modification
   time change with each entry. It now counts what `list_directory(include_hidden=true)`

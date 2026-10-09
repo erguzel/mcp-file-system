@@ -173,6 +173,10 @@ def test_symlink_loop_is_denied(guard: PathGuard, root: Path) -> None:
         ".ssh/known_hosts",
         ".aws/credentials",
         ".npmrc",
+        ".envrc",
+        "sub/.envrc",
+        ".envrc.local",
+        ".envrc/x",
     ],
 )
 def test_default_deny_list_blocks_secrets(guard: PathGuard, root: Path, relative: str) -> None:
@@ -181,7 +185,9 @@ def test_default_deny_list_blocks_secrets(guard: PathGuard, root: Path, relative
         guard.resolve(relative)
 
 
-@pytest.mark.parametrize("variant", [".ENV", ".Env", "SERVER.PEM", ".GIT/config", "Id_Rsa"])
+@pytest.mark.parametrize(
+    "variant", [".ENV", ".Env", "SERVER.PEM", ".GIT/config", "Id_Rsa", ".ENVRC"]
+)
 def test_deny_list_is_case_insensitive(guard: PathGuard, root: Path, variant: str) -> None:
     # On case-insensitive filesystems these open the real secret; resolution keeps the case.
     write(root / variant, "secret")
@@ -191,7 +197,16 @@ def test_deny_list_is_case_insensitive(guard: PathGuard, root: Path, variant: st
 
 @pytest.mark.parametrize(
     "relative",
-    [".env", "sub/.env", ".env.local", "server.pem", ".git", ".git/config", ".ssh/id_rsa"],
+    [
+        ".env",
+        "sub/.env",
+        ".env.local",
+        ".envrc",
+        "server.pem",
+        ".git",
+        ".git/config",
+        ".ssh/id_rsa",
+    ],
 )
 def test_no_existence_oracle_for_denied_paths(guard: PathGuard, root: Path, relative: str) -> None:
     # A denied path must answer the same whether or not it exists; otherwise "not found"
@@ -223,7 +238,9 @@ def test_denied_directory_itself_is_blocked(guard: PathGuard, root: Path) -> Non
         guard.resolve(".git")
 
 
-@pytest.mark.parametrize("relative", [".env.example", ".env.sample", ".gitignore", "envfile"])
+@pytest.mark.parametrize(
+    "relative", [".env.example", ".env.sample", ".gitignore", "envfile", "envrc", ".envrc.example"]
+)
 def test_templates_and_lookalikes_are_allowed(guard: PathGuard, root: Path, relative: str) -> None:
     write(root / relative, "ok")
     assert guard.resolve(relative).display == relative
