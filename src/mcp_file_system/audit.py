@@ -5,8 +5,9 @@ tool definitions, and the log file must live outside the allowed roots (enforced
 :class:`~mcp_file_system.config.Settings`), so an agent can neither read nor tamper
 with it through this server.
 
-File contents are never written. Arguments that carry file content (replacement text,
-new lines, whole files) are reduced to their length.
+Arguments that carry file content (replacement text, new lines, whole files) are reduced
+to their length. Error messages are kept (cut to ``MAX_ARGUMENT_CHARS``); they are the
+agent-facing text and can name keys or symbols of a file.
 """
 
 import json

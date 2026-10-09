@@ -68,8 +68,8 @@ All notable changes to this project are documented here. The format follows
   (`MCP_FS_OUTPUT_SCHEMA`); output schemas default to off in `lite`.
 - `file_info` reports an approximate token count for text files.
 - `--audit-log FILE` (`MCP_FS_AUDIT_LOG`): one JSON line per tool call (tool, arguments,
-  duration, result size, truncation, error type). File contents are never logged, and
-  the file must be outside the roots.
+  duration, result size, truncation, error type and message). File contents are never
+  logged as arguments, and the file must be outside the roots.
 
 - Outlines for JSON, TOML and YAML: key trees with line spans and inline scalar values,
   so `read_symbol("tool.ruff.lint")` or `read_symbol("jobs.test.steps[0]")` returns just

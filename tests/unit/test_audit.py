@@ -159,7 +159,7 @@ class TestAudited:
         assert entry["args"] == {"path": "a.py", "start": 1}
         assert (entry["result_chars"], entry["truncated"], entry["error"]) == (5, True, None)
 
-    def test_domain_errors_are_recorded_with_their_type(self, tmp_path: Path) -> None:
+    def test_domain_errors_are_recorded_with_type_and_message(self, tmp_path: Path) -> None:
         log = make_log(tmp_path)
 
         def tool(path: str) -> CallToolResult:
