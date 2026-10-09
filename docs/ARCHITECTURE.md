@@ -22,8 +22,11 @@ they can be unit-tested and reused (e.g. from a CLI or another protocol) without
 | `security.AccessPolicy` | Case-insensitive, gitignore-style deny list. |
 | `security.regex` | `compile_pattern` / `SafePattern`: regexes evaluated against a shared `Deadline`. |
 | `core.textio` | Encoding/newline detection, streaming lines, fast line counting, line splitting. |
+| `core.etag` | `compute_etag` / `ensure_etag`: version stamps from `stat` that edits must present back. |
+| `core.render` | Output helpers shared by result models: `clip_line`, `number_lines`, `truncate_text`, `human_size`, `human_count`. |
 | `core.reader.FileReader` | `file_info`, `read_lines`, `read_ranges`, `read_between`. |
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
+| `core.ignore.IgnoreRules` | Hierarchical `.gitignore` evaluation for walks; hides paths, never blocks direct reads. |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |
 | `core.templates` | `mask_line` (fixed masks for timestamps, UUIDs, IPs, hex values, numbers) and the bounded `TemplateTally`; shared by grep's `collapsed` mode and `log_summary`. |
 | `core.logsummary.LogSummarizer` | `log_summary`: streams one file into a `TemplateTally` within the search time budget, with a `start` line to continue. |
@@ -49,9 +52,11 @@ they can be unit-tested and reused (e.g. from a CLI or another protocol) without
   actionable messages. `tools._common.translate_errors` turns them (and sanitized
   `OSError`s) into MCP tool errors. Any other exception is reported by the SDK as a
   generic failure and logged with its traceback to stderr.
-- **Budgets:** every result is bounded (`max_read_lines`, `max_output_chars`,
-  `max_matches`, `max_results`, `search_timeout_s`). When a result is truncated, it
-  says so and tells the agent how to continue.
+- **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
+  `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
+  `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.
+  `MAX_BATCH_RANGES`, `MAX_EDITS`). When a result is truncated, it says so and tells the
+  agent how to continue.
 - **Etags** are `"{mtime_ns:x}-{size:x}"`, which needs only a `stat` call. Readers return
   them; editors require them back.
 - **Small-model-friendly schemas:** tool parameters never use `X | None = None` (it

@@ -64,7 +64,7 @@ A change is finished only when **all** of these are true:
 | `src/mcp_file_system/errors.py` | `FsError` and its subclasses (agent-facing errors). |
 | `src/mcp_file_system/security/` | `PathGuard`, `AccessPolicy` (deny list), safe regex with deadlines. |
 | `src/mcp_file_system/audit.py` | Optional audit log (one JSON line per tool call, never file contents). |
-| `src/mcp_file_system/core/` | Domain logic: reader, search, finder, outline, editor, result models. |
+| `src/mcp_file_system/core/` | Domain logic: reading (`reader`, `textio`, `tracking`, `etag`), search (`search`, `finder`, `ignore`, `templates`, `logsummary`), structure (`outline`, `skeleton`, `peek`, `query`), editing (`editor`, `patch`, `history`), results (`models`, `render`). |
 | `src/mcp_file_system/tools/` | Thin MCP tool adapters, one module per group, each with `register()`. |
 | `tests/unit/`, `tests/security/`, `tests/integration/` | Tests; shared helpers in `tests/conftest.py`. |
 | `docs/ARCHITECTURE.md` | Layers, conventions, and how to extend (read before larger changes). |
@@ -79,9 +79,11 @@ A change is finished only when **all** of these are true:
   roots, file contents of denied files, or stack traces in messages.
 - **Results:** services return a `core.models.ToolResult` subclass. Its `render()` returns
   compact text for the model; the model itself is the structured output.
-- **Limits:** every result must be bounded by a setting (`max_read_lines`,
-  `max_output_chars`, `max_matches`, `max_results`, `search_timeout_s`). When output is
-  cut, say so and say how to continue (for example `next_start`).
+- **Limits:** every result must be bounded, by a setting (`max_read_lines`,
+  `max_output_chars`, `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`,
+  `max_pattern_length`, `search_timeout_s`) or, for a fixed per-call cap, by a named module
+  constant (e.g. `MAX_BATCH_RANGES`, `MAX_EDITS`). When output is cut, say so and say how
+  to continue (for example `next_start`).
 - **Lines:** a line ends at `\n`, `\r\n`, or a lone `\r`. Use the helpers in
   `core/textio.py` (`split_lines`, `open_lines`, `count_lines`); do not use
   `str.splitlines()`, which also splits on other characters.
