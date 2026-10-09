@@ -25,13 +25,14 @@ class WalkEntry:
     """A visible entry produced by :class:`Walker`."""
 
     target: ResolvedPath
-    """The entry as a fully checked path (symlinks are resolved to their target)."""
+    """The entry as a fully checked path (symlinks and junctions resolve to their target)."""
     relative: str
     """POSIX path relative to the walk's start directory."""
     is_dir: bool
     depth: int
     """1 for immediate children of the start directory."""
     is_symlink: bool = False
+    """A symlink or Windows junction; such directories are listed but never walked."""
 
 
 class GlobMatcher:
@@ -58,8 +59,10 @@ class GlobMatcher:
 class Walker:
     """Depth-first, sorted walk that honors the deny policy, hidden files and .gitignore.
 
-    Symlinked files are followed only if their target passes :class:`PathGuard`;
-    symlinked directories are listed but never descended into (no loops, no escapes).
+    Symlinks and Windows junctions are followed only if their target passes
+    :class:`PathGuard`; linked directories are listed but never descended into (no loops,
+    no escapes). Junctions need their own check: ``os.DirEntry`` reports them as plain
+    directories, not as symlinks.
     """
 
     def __init__(self, guard: PathGuard, *, respect_gitignore: bool) -> None:
@@ -125,7 +128,7 @@ class Walker:
         path = Path(item.path)
         relative = PurePath(os.path.relpath(path, start.path)).as_posix()
         try:
-            if item.is_symlink():
+            if item.is_symlink() or item.is_junction():
                 target = self._guard.resolve(os.fspath(path))
                 target_is_dir = target.path.is_dir()
                 if not target_is_dir and not target.path.is_file():

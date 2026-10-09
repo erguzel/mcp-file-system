@@ -1,5 +1,6 @@
 """Shared fixtures: an isolated workspace root and factories for settings and services."""
 
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,20 @@ def symlink_or_skip(link: Path, target: Path) -> None:
         link.symlink_to(target, target_is_directory=target.is_dir())
     except (OSError, NotImplementedError) as exc:
         pytest.skip(f"symlinks unavailable: {exc}")
+
+
+def junction_or_skip(link: Path, target: Path) -> None:
+    """Create a Windows directory junction, skipping the test on other platforms.
+
+    Junctions need no privileges, so on Windows any failure is a real error and
+    propagates instead of turning a security test into a silent skip.
+    """
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+    else:
+        pytest.skip("directory junctions exist only on Windows")
 
 
 def numbered(count: int, prefix: str = "line") -> str:

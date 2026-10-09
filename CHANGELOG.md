@@ -122,6 +122,11 @@ All notable changes to this project are documented here. The format follows
   except their `.example`, `.sample` and `.template` templates. These files often export
   secrets. They can no longer be read and no longer appear in `list_directory`,
   `find_files` or grep results; `--deny '!.envrc'` re-allows a single file.
+- On Windows, directory walks followed junctions. A junction inside a root that pointed
+  outside let `list_directory` and `find_files` list, and `grep` read, files outside the
+  roots, and `file_info` counted it; a junction pointing back into the root made walks
+  loop until the depth limit. Walks now treat junctions like symlinks. Direct reads were
+  not affected.
 - `file_info` on a directory no longer reveals denied entries. It counted every entry
   (a directory holding only `.env` showed "entries: 1"), and its size and modification
   time change with each entry. It now counts what `list_directory(include_hidden=true)`

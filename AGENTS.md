@@ -129,12 +129,13 @@ def my_tool(
 
 ## Test conventions
 
-- Import helpers with `from conftest import write, symlink_or_skip, numbered`.
+- Import helpers with `from conftest import write, symlink_or_skip, junction_or_skip, numbered`.
 - Create test files with `write(path, content)`. It writes exact bytes, so tests behave
   the same on Linux, macOS, and Windows. Do not rely on platform newline translation.
 - Use the `root` fixture for the workspace and `outside` for a directory that must stay
   unreachable. Use `make_ctx(**settings)` to change limits.
-- Create symlinks only through `symlink_or_skip(link, target)` (Windows may forbid them).
+- Create symlinks only through `symlink_or_skip(link, target)` (Windows may forbid them),
+  and Windows junctions only through `junction_or_skip(link, target)` (skipped elsewhere).
 - Mark OS-specific tests with `pytest.mark.skipif(...)`.
 - Test file names must be unique across all test directories (there are no
   `__init__.py` files).

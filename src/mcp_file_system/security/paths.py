@@ -166,7 +166,7 @@ class PathGuard:
         """Return whether a directory-walk entry under ``root`` is visible.
 
         Walks pass the already-resolved parent plus an entry name, so only the deny
-        policy needs checking; symlinked entries must go through :meth:`resolve`.
+        policy needs checking; symlinked and junction entries must go through :meth:`resolve`.
         """
         return not self._policy.is_denied(_relative_posix(path, root), is_dir=is_dir)
 

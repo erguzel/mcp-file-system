@@ -24,7 +24,7 @@ asks for, it cannot:
 | Threat | Control |
 |---|---|
 | Path traversal (`../`, absolute paths) | `PathGuard` resolves every path and requires the real path to be inside a root. |
-| Symlink / junction escapes | Paths are fully resolved before the containment check. Walks never descend into symlinked directories and drop links whose targets fail the guard. |
+| Symlink / junction escapes | Paths are fully resolved before the containment check. Walks never descend into symlinked directories and drop links whose targets fail the guard. Windows junctions (and volume mount points) are treated the same way. |
 | Existence probing | Confinement and the deny policy are checked before existence, so a missing and an existing path produce the same error when outside the roots or denied (e.g. whether a `.env` exists cannot be probed). This also holds when resolving fails for another reason: an unreadable directory, a symlink loop, or a file used as a directory (`../outside/file.txt/x`, `.env/x`). Directory metadata counts only entries a walk may show and withholds the directory's size and modification time, which change with denied entries. |
 | Secret files inside roots | Gitignore-style deny list, applied to both the requested and the resolved path, matched case-insensitively (case-insensitive filesystems would otherwise allow `.ENV`). |
 | NTFS alternate data streams (`file::$DATA`) | Colons outside a drive prefix are rejected on Windows. |
