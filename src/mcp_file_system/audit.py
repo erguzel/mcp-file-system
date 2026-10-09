@@ -9,19 +9,14 @@ File contents are never written. Arguments that carry file content (replacement 
 new lines, whole files) are reduced to their length.
 """
 
-import functools
-import inspect
 import json
 import logging
 import threading
-import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import CallToolResult, TextContent
 from pydantic import BaseModel
 
 logger = logging.getLogger("mcp_file_system.audit")
@@ -102,47 +97,6 @@ class AuditLog:
             else:
                 self._failing = False
 
-    def wrap[F: Callable[..., Any]](self, name: str, fn: F) -> F:
-        """Return ``fn`` wrapped so that every call is recorded under ``name``.
-
-        ``fn`` is a tool function after error translation, so anticipated failures
-        arrive as :class:`ToolError` whose cause is the domain error.
-        """
-        signature = inspect.signature(fn)
-
-        @functools.wraps(fn)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            bound = signature.bind_partial(*args, **kwargs)
-            bound.apply_defaults()
-            started = time.perf_counter()
-            result: Any = None
-            error: dict[str, str] | None = None
-            try:
-                result = fn(*args, **kwargs)
-            except ToolError as exc:
-                cause = exc.__cause__
-                error = {
-                    "type": type(cause).__name__ if cause else type(exc).__name__,
-                    "message": str(cause or exc)[:MAX_ARGUMENT_CHARS],
-                }
-                raise
-            except Exception as exc:
-                error = {"type": type(exc).__name__, "message": "unexpected error"}
-                raise
-            finally:
-                chars, truncated = _measure(result)
-                self.record(
-                    tool=name,
-                    arguments=bound.arguments,
-                    duration_ms=(time.perf_counter() - started) * 1000,
-                    result_chars=chars,
-                    truncated=truncated,
-                    error=error,
-                )
-            return result
-
-        return wrapper  # type: ignore[return-value]
-
 
 def sanitize_arguments(tool: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
     """Prepare arguments for the log: content as length only, long strings cut."""
@@ -181,12 +135,3 @@ def _text_chars(value: Any) -> int:
     if isinstance(value, list | tuple):
         return sum(_text_chars(item) for item in value)
     return 0
-
-
-def _measure(result: Any) -> tuple[int | None, bool | None]:
-    if not isinstance(result, CallToolResult):
-        return None, None
-    chars = sum(len(block.text) for block in result.content if isinstance(block, TextContent))
-    structured = result.structured_content or {}
-    truncated = structured.get("truncated")
-    return chars, truncated if isinstance(truncated, bool) else None

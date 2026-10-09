@@ -3,7 +3,7 @@
 ## Layers
 
 ```
-cli.py ──► server.py ──► tools/*  (thin MCP adapters: schema, description, error translation)
+cli.py ──► server.py ──► tools/*  (thin MCP adapters: schema, description, error translation, audit)
                │             │
                └──► context.py (composition root: builds and wires every service)
                              │
@@ -12,8 +12,8 @@ cli.py ──► server.py ──► tools/*  (thin MCP adapters: schema, descri
                           config.py (immutable Settings)
 ```
 
-Dependencies only point downwards. `core` and `security` never import `mcp`, so they
-can be unit-tested and reused (e.g. from a CLI or another protocol) without a server.
+Dependencies only point downwards. `core`, `security` and `audit` never import `mcp`, so
+they can be unit-tested and reused (e.g. from a CLI or another protocol) without a server.
 
 | Module | Responsibility |
 |---|---|
@@ -37,9 +37,9 @@ can be unit-tested and reused (e.g. from a CLI or another protocol) without a se
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `core.skeleton` | Language-independent skeleton rendering from fold ranges reported by providers (`fold_ranges`). |
 | `core.tracking.ReadTracker` | Session memory of which lines of which file version were returned; powers "already returned" notes and `if_changed_since`. One per server process (one stdio session); a multi-session transport must key it by session. |
-| `audit.AuditLog` | Optional JSON Lines audit log; `ToolRegistry` wraps every exposed tool with it when enabled. |
+| `audit.AuditLog` | Optional JSON Lines audit log writer (no `mcp` imports); `tools._common.audited` wraps every exposed tool to record into it when enabled. |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
-| `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting and error translation. |
+| `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting, error translation and audit wrapping. |
 
 ## Conventions
 

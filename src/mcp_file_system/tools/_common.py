@@ -1,7 +1,9 @@
 """Shared plumbing for tool adapters."""
 
 import functools
+import inspect
 import logging
+import time
 from collections.abc import Callable
 from typing import Annotated, Any
 
@@ -10,7 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
-from mcp_file_system.audit import AuditLog
+from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.models import ToolResult
 from mcp_file_system.errors import FsError
@@ -86,6 +88,59 @@ def translate_errors[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
     return wrapper
 
 
+def audited[F: Callable[..., Any]](audit: AuditLog, name: str, fn: F) -> F:
+    """Return ``fn`` wrapped so that every call is recorded in ``audit`` under ``name``.
+
+    ``fn`` is a tool function after error translation, so anticipated failures
+    arrive as :class:`ToolError` whose cause is the domain error. This lives with the
+    adapters rather than in :mod:`~mcp_file_system.audit` because it inspects MCP
+    results and errors; the log writer itself stays free of ``mcp`` imports.
+    """
+    signature = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        bound = signature.bind_partial(*args, **kwargs)
+        bound.apply_defaults()
+        started = time.perf_counter()
+        result: Any = None
+        error: dict[str, str] | None = None
+        try:
+            result = fn(*args, **kwargs)
+        except ToolError as exc:
+            cause = exc.__cause__
+            error = {
+                "type": type(cause).__name__ if cause else type(exc).__name__,
+                "message": str(cause or exc)[:MAX_ARGUMENT_CHARS],
+            }
+            raise
+        except Exception as exc:
+            error = {"type": type(exc).__name__, "message": "unexpected error"}
+            raise
+        finally:
+            chars, truncated = _measure(result)
+            audit.record(
+                tool=name,
+                arguments=bound.arguments,
+                duration_ms=(time.perf_counter() - started) * 1000,
+                result_chars=chars,
+                truncated=truncated,
+                error=error,
+            )
+        return result
+
+    return wrapper  # type: ignore[return-value]
+
+
+def _measure(result: Any) -> tuple[int | None, bool | None]:
+    if not isinstance(result, CallToolResult):
+        return None, None
+    chars = sum(len(block.text) for block in result.content if isinstance(block, TextContent))
+    structured = result.structured_content or {}
+    truncated = structured.get("truncated")
+    return chars, truncated if isinstance(truncated, bool) else None
+
+
 class ToolRegistry:
     """Registers tool functions on a server, applying the cross-cutting settings.
 
@@ -116,7 +171,7 @@ class ToolRegistry:
                 return fn
             tool_fn: Callable[..., Any] = translate_errors(fn)
             if self._audit is not None:
-                tool_fn = self._audit.wrap(name, tool_fn)
+                tool_fn = audited(self._audit, name, tool_fn)
             self._server.add_tool(
                 tool_fn,
                 annotations=annotations,
