@@ -34,8 +34,9 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         """Show a file's structure: code symbols, Markdown headings, or config keys.
 
         Each entry has its line span, so you can read just what you need with
-        read_symbol or read_lines. Supports Python, Markdown, JSON, TOML and YAML; for
-        config files, scalar values are shown inline (e.g. `version = "1.2"`).
+        read_symbol or read_lines. Supports Python, Markdown, JSON, TOML, YAML, shell scripts
+        and Dockerfiles, plus JS/TS, Go and Java with the [code] extra; for config files,
+        scalar values are shown inline (e.g. `version = "1.2"`).
         """
         return to_call_result(outliner.outline(path))
 

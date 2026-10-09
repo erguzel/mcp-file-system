@@ -18,8 +18,9 @@ Security is the core feature, not an add-on.
 3. Keep `src/mcp_file_system/core/` and `src/mcp_file_system/security/` free of `mcp`
    imports. Only `tools/`, `server.py`, and `cli.py` may import `mcp`. A test enforces
    this (`tests/unit/test_import_boundaries.py`).
-4. Implement `ROADMAP.md` items **in order**, one item per change. Do not start an item
-   that is not next unless the human asks.
+4. Implement `ROADMAP.md` items **in order**, one item per change. The next item is the
+   first unticked one whose status does not defer it. Do not start any other item unless
+   the human asks.
 
 ## Commands
 
@@ -57,8 +58,9 @@ A change is finished only when **all** of these are true:
       updated in the same commit: search `*.md`, `docs/`, docstrings and test names for
       the names and numbers involved. A new module under `core/`, `security/` or `tools/`
       also gets a row in the project map below and in `docs/ARCHITECTURE.md`.
-- [ ] Measured figures (listing sizes, savings, timings) appear only in `README.md`;
-      `CHANGELOG.md` and `ROADMAP.md` describe them without exact numbers.
+- [ ] Exact measured figures (listing sizes, savings, timings) appear only in `README.md`;
+      `CHANGELOG.md` and `ROADMAP.md` may give an approximate ratio (e.g. "about half")
+      but no exact numbers.
 
 ## Project map
 

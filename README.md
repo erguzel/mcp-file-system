@@ -37,7 +37,8 @@ uvx --from "git+https://github.com/erguzel/mcp-file-system.git" mcp-file-system 
 ```
 
 Outlines for JavaScript/TypeScript, Go and Java come from the optional `[code]` extra
-(small, pinned grammar packages; nothing is downloaded at runtime):
+(small grammar packages with minimum versions; exact versions are locked only in
+`uv.lock`; nothing is downloaded at runtime):
 
 ```bash
 pip install "mcp-file-system[code] @ git+https://github.com/erguzel/mcp-file-system.git"
@@ -161,7 +162,7 @@ command line (see the table). CLI flags take precedence. Complex values in the e
 |---|---|---|---|
 | `roots` | `--root DIR` (repeatable) | CWD | Allowed directories (`MCP_FS_ROOTS='["/a","/b"]'`). |
 | `allow_write` | `--allow-write` | `false` | Register the editing tools. |
-| `deny_globs` | `--deny GLOB` (adds) | secrets list | Gitignore-style patterns that are never accessible. |
+| `deny_globs` | `--deny GLOB` (adds) | secrets list | Gitignore-style patterns that are never accessible. `--deny` adds to the defaults; `MCP_FS_DENY_GLOBS` replaces them. |
 | `respect_gitignore` | `--[no-]gitignore` | `true` | Hide ignored paths from walks and searches. |
 | `max_file_bytes` | `--max-file-bytes` | 10 MiB | Largest file loaded fully (outline, symbols, edits). |
 | `max_read_lines` | `--max-read-lines` | 2000 | Most lines per read. |
@@ -194,8 +195,8 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
   logged as `{"chars": N}`; `multi_replace`'s edits as `{"items": N, "chars": N}`.
 - **Errors:** a failed call logs the error's type and message, cut to 500 characters, e.g.
   `{"type": "StaleFileError", "message": "..."}`. Domain errors carry the message the agent
-  sees, which can quote short excerpts of a file: key and symbol names, or a value cut to
-  40 characters (`query`, `read_symbol`). Filesystem errors (`OSError`) carry the full
+  sees, which can quote short excerpts of a file: key and symbol names (`query`,
+  `read_symbol`) or a value cut to 40 characters (`query`). Filesystem errors (`OSError`) carry the full
   operating-system message, including the absolute path the agent is not shown.
   Unexpected exceptions are logged as their type with the message `"unexpected error"`.
 - **Cost:** about 25 µs and 200 bytes per call (≈1 MB per 5,000 calls). Each record is

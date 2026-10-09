@@ -2,7 +2,8 @@
 
 :func:`create_server` builds a fully configured :class:`MCPServer` independent of the
 transport, so the same server can run over stdio today and be served over HTTP later
-(``server.run("streamable-http", ...)``) without touching tools or services.
+(``server.run("streamable-http", ...)``) without touching the tools. Serving several
+sessions also needs per-session state, see ``docs/ARCHITECTURE.md``.
 """
 
 from typing import Any

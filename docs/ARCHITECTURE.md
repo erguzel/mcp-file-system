@@ -137,9 +137,12 @@ ripgrep backend, for example, would pass the explicit file list to `rg`. Plug it
 
 ## Deploying as an HTTP server (future)
 
-`create_server()` does not depend on the transport. Serving over HTTP needs only a CLI
-switch around `server.run("streamable-http", host=..., port=...)`. The production
-checklist for that step:
+`create_server()` does not depend on the transport. Serving over HTTP needs a CLI switch
+around `server.run("streamable-http", host=..., port=...)` and the checklist below:
+
+- per-session state: `ReadTracker` and `EditHistory` exist once per process today and
+  must be keyed by session, or one client sees another's "already returned" notes and
+  undo history,
 
 - authentication (bearer token or OAuth via the SDK's `auth`/`token_verifier` options),
 - binding to `127.0.0.1` behind a reverse proxy with TLS,
