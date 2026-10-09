@@ -28,8 +28,9 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         """Get metadata for a file or directory without reading its content.
 
         Returns size, approximate token count, line count, encoding, newline style,
-        binary flag and the etag (required by edit tools). Call this first on
-        unfamiliar files to decide how much to read.
+        binary flag and the etag (required by edit tools). For a directory, returns
+        the number of entries list_directory shows with include_hidden=true. Call this
+        first on unfamiliar files to decide how much to read.
         """
         return to_call_result(reader.info(path))
 

@@ -54,7 +54,7 @@ class AppContext:
         return cls(
             settings=settings,
             guard=guard,
-            reader=FileReader(guard, settings, tracker),
+            reader=FileReader(guard, walker, settings, tracker),
             finder=finder,
             searcher=Searcher(
                 finder, search_backend or PythonSearchBackend(), settings, symbols=outliner

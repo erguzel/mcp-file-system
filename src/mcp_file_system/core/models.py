@@ -37,8 +37,12 @@ class FileInfo(ToolResult):
 
     path: str
     kind: Literal["file", "directory"]
-    size_bytes: int
-    modified: datetime
+    size_bytes: int | None = Field(
+        description="None for directories, whose size would reveal hidden entries."
+    )
+    modified: datetime | None = Field(
+        description="None for directories, whose time changes with hidden entries."
+    )
     etag: str | None = Field(default=None, description="Version token required by edit tools.")
     is_binary: bool | None = None
     encoding: str | None = None
@@ -47,11 +51,14 @@ class FileInfo(ToolResult):
     approx_tokens: int | None = Field(
         default=None, description="Rough token cost of reading the whole file (bytes / 4)."
     )
-    entry_count: int | None = Field(default=None, description="Immediate children (dirs).")
+    entry_count: int | None = Field(
+        default=None,
+        description="Immediate children that list_directory shows with include_hidden=true.",
+    )
 
     def render(self) -> str:  # noqa: D102
         rows = [f"path: {self.path}", f"kind: {self.kind}"]
-        if self.kind == "directory":
+        if self.size_bytes is None:
             rows.append(f"entries: {self.entry_count}")
         else:
             size = f"size: {human_size(self.size_bytes)} ({self.size_bytes} bytes"
@@ -63,7 +70,8 @@ class FileInfo(ToolResult):
             else:
                 rows.append(f"lines: {self.line_count}")
                 rows.append(f"encoding: {self.encoding}, newline: {self.newline}")
-        rows.append(f"modified: {self.modified.isoformat()}")
+        if self.modified is not None:
+            rows.append(f"modified: {self.modified.isoformat()}")
         if self.etag:
             rows.append(f"etag: {self.etag}")
         return "\n".join(rows)

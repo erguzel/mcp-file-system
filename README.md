@@ -114,7 +114,7 @@ chat agents whose context window is tight.
 
 | Tool | Purpose |
 |---|---|
-| `file_info` | Size, approximate token count, line count, encoding, newline style, binary flag and **etag** of a file (or entry count of a directory). |
+| `file_info` | Size, approximate token count, line count, encoding, newline style, binary flag and **etag** of a file. For a directory, only the number of entries `list_directory(include_hidden=true)` would show; size and modification time are withheld, since both change with denied entries. |
 | `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). `around=N` (full profile) reads `N-radius..N+radius` instead (`radius` defaults to 10), for line numbers from stack traces or grep hits. Continues via `next_start`. `if_changed_since=<etag>` returns a one-line "unchanged" answer instead of lines you already have. |
 | `read_ranges` | Several `(path, start, end)` ranges, from one or more files, in one call (at most 20). The ranges share one output budget (`max_read_lines`, `max_output_chars`), spent in order; ranges cut by the budget are listed with a ready-made `read_ranges` call to continue. A failing range is reported without stopping the others. |
 | `read_between` | Lines from the Nth match of `start_pattern` to the next `end_pattern`, like `sed -n '/a/,/b/p'`. |
