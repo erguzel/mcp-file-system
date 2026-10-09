@@ -19,7 +19,7 @@ models. Item 1 introduces profiles so that later additions can be gated.
   (larger than the input schemas) while still returning the compact text.
 - Add `--profile lite|full` (default `full`) and a `--tools name,name` allowlist. `lite`
   exposes the core tools with only their essential parameters.
-- Add an approximate token count to `file_info` (e.g. `~tokens: 12.4k`, characters / 4) so
+- Add an approximate token count to `file_info` (e.g. `~12.4k tokens`, bytes / 4) so
   the agent can weigh the cost of reading a whole file.
 
 **Why:** Local models in LM Studio sometimes fail with
@@ -62,9 +62,8 @@ and prints a summary table.
 - Add `tree-sitter` plus the Markdown, JSON, TOML and YAML grammars as **core
   dependencies** (approved). All are small, MIT-licensed and ship wheels for Linux, macOS
   and Windows.
-- A generic tree-sitter `OutlineProvider` driven by a per-language mapping (or query) of
-  which syntax nodes count as symbols. Reuse the grammars' bundled tag queries where they
-  exist.
+- A shared tree-sitter base class, `TreeSitterOutlineProvider`, that parses and walks the
+  syntax tree; each language subclass decides which nodes count as symbols.
 - JSON, TOML and YAML outlines: a key tree with line spans, so
   `read_symbol("tool.ruff.lint")` returns just that table. (The standard library's `json`
   and `tomllib` cannot do this: they return values without line positions.)
