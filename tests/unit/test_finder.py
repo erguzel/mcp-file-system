@@ -120,6 +120,13 @@ class TestNestedGitignore:
         write(root / "sub" / "a.src", "x")
         assert ctx.finder.find("*", "sub").paths == ["sub/a.src"]
 
+    def test_only_line_terminators_split_patterns(self, ctx: AppContext, root: Path) -> None:
+        # A form feed is part of the pattern "x\fy", not a line break that would yield "x".
+        write(root / ".gitignore", b"x\x0cy\n*.tmp\n")
+        write(root / "x", "x")
+        write(root / "a.tmp", "t")
+        assert ctx.finder.find("*").paths == ["x"]
+
 
 class TestFind:
     def test_find_files_by_glob(self, ctx: AppContext, tree: Path) -> None:

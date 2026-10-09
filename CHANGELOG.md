@@ -106,6 +106,9 @@ All notable changes to this project are documented here. The format follows
   read as Latin-1, or an unpaired surrogate) no longer fails with a generic tool error
   and a stack trace on stderr. All editing tools now report which encoding is involved
   and what to do, and leave the file unchanged.
+- `.gitignore` files are split into patterns at line ends only. Characters such as a form
+  feed inside a pattern no longer split it into two patterns that could hide unrelated
+  paths from walks and searches.
 
 ### Security
 

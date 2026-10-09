@@ -9,6 +9,8 @@ from pathlib import Path, PurePath
 
 from pathspec import GitIgnoreSpec
 
+from mcp_file_system.core.textio import split_lines
+
 IGNORE_FILE = ".gitignore"
 
 
@@ -56,7 +58,7 @@ class IgnoreRules:
             spec: GitIgnoreSpec | None = None
             try:
                 if ignore_file.is_file():
-                    lines = ignore_file.read_text(encoding="utf-8", errors="replace").splitlines()
+                    lines = split_lines(ignore_file.read_text(encoding="utf-8", errors="replace"))
                     spec = GitIgnoreSpec.from_lines(lines)
             except OSError:
                 spec = None
