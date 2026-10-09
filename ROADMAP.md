@@ -279,6 +279,13 @@ and `re2` was not requested.
   the many `list_directory` calls an agent makes when entering a project.
 - **File diff** (`diff_files(a, b)`): only the differences between two files, without
   reading both. Overlaps with the git toolset (item 11) but works without git.
+- **Legacy encodings:** files that are not valid UTF-8 (and have no BOM) are read as
+  Latin-1, so a Windows-1254 file shows `þ ð ý` instead of `ş ğ ı`. Writing characters
+  Latin-1 cannot store is reported as an error and changes nothing. Better detection
+  needs a heuristic or a dependency; start only when such files actually come up.
+- **UTF-16 byte order (unverified):** an edited UTF-16 BE file may be written back as LE
+  (found in review, not reproduced). Undo restores the original bytes. Verify with a
+  test before fixing.
 
 ## Deferred until requested
 
