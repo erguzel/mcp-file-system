@@ -55,6 +55,34 @@ class TestInfo:
         assert info.etag is None
         assert "entries: 2" in info.render()
 
+    def test_directory_count_matches_hidden_listing(self, ctx: AppContext, root: Path) -> None:
+        write(root / ".gitignore", "build/\n")
+        write(root / "d" / "a.txt", "a")
+        write(root / "d" / ".github" / "ci.yml", "on: push\n")
+        write(root / "d" / "build" / "out.bin", "o")
+        listing = ctx.finder.list_directory("d", include_hidden=True)
+        assert ctx.reader.info("d").entry_count == len(listing.entries) == 2
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX-only")
+    def test_directory_count_skips_special_files(self, ctx: AppContext, root: Path) -> None:
+        write(root / "d" / "a.txt", "a")
+        os.mkfifo(root / "d" / "pipe")
+        assert ctx.reader.info("d").entry_count == 1
+
+    @pytest.mark.skipif(
+        sys.platform == "win32" or os.geteuid() == 0,
+        reason="POSIX permissions; root can read anything",
+    )
+    def test_unreadable_directory_is_an_error(self, ctx: AppContext, root: Path) -> None:
+        directory = root / "locked"
+        directory.mkdir()
+        directory.chmod(0)
+        try:
+            with pytest.raises(PermissionError):
+                ctx.reader.info("locked")
+        finally:
+            directory.chmod(0o700)
+
     @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX-only")
     def test_special_file_is_rejected(self, ctx: AppContext, root: Path) -> None:
         os.mkfifo(root / "pipe")

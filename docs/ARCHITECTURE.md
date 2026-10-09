@@ -24,7 +24,7 @@ they can be unit-tested and reused (e.g. from a CLI or another protocol) without
 | `core.textio` | Encoding/newline detection, streaming lines, fast line counting, line splitting. |
 | `core.etag` | `compute_etag` / `ensure_etag`: version stamps from `stat` that edits must present back. |
 | `core.render` | Output helpers shared by result models: `clip_line`, `number_lines`, `truncate_text`, `human_size`, `human_count`. |
-| `core.reader.FileReader` | `file_info`, `read_lines`, `read_ranges`, `read_between`. |
+| `core.reader.FileReader` | `file_info`, `read_lines`, `read_ranges`, `read_between`. Directory entry counts go through `Walker`, so they honor the deny policy. |
 | `core.finder` | `Walker` (policy-, hidden- and gitignore-aware walk), `FileFinder` (find, list, file selection). |
 | `core.ignore.IgnoreRules` | Hierarchical `.gitignore` evaluation for walks; hides paths, never blocks direct reads. |
 | `core.search` | `Searcher` service plus the `SearchBackend` strategy (`PythonSearchBackend`). |

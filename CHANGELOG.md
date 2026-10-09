@@ -114,6 +114,11 @@ All notable changes to this project are documented here. The format follows
 
 - Denied paths inside the roots no longer reveal whether they exist: a missing `.env`
   now reports "denied by policy" like an existing one, instead of "No such file".
+- `file_info` on a directory no longer reveals denied entries. It counted every entry
+  (a directory holding only `.env` showed "entries: 1"), and its size and modification
+  time change with each entry. It now counts what `list_directory(include_hidden=true)`
+  shows, so gitignored entries, FIFOs and sockets, and symlinks leaving the roots are no
+  longer counted either; `size_bytes` and `modified` are `null` for directories.
 - Outlining a Markdown or shell file can no longer crash the server on Linux. The
   tree-sitter-markdown and tree-sitter-bash scanners pass characters above U+00FF to
   `isdigit()`, which reads outside glibc's lookup table (e.g. `1` or `{` followed by an

@@ -7,6 +7,7 @@ from itertools import islice
 
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag
+from mcp_file_system.core.finder import Walker
 from mcp_file_system.core.models import (
     BatchLinesResult,
     FileInfo,
@@ -40,26 +41,33 @@ class FileReader:
     """Reads metadata and selected parts of text files without loading them whole."""
 
     def __init__(
-        self, guard: PathGuard, settings: Settings, tracker: ReadTracker | None = None
+        self,
+        guard: PathGuard,
+        walker: Walker,
+        settings: Settings,
+        tracker: ReadTracker | None = None,
     ) -> None:
         self._guard = guard
+        self._walker = walker
         self._settings = settings
         self._tracker = tracker or ReadTracker()
 
     def info(self, path: str) -> FileInfo:
-        """Describe a file or directory so the caller can choose a reading strategy."""
+        """Describe a file or directory so the caller can choose a reading strategy.
+
+        A directory reports only what a walk may show: denied entries are not counted,
+        and its size and modification time are withheld because both change with
+        entries the agent must not learn about (e.g. creating ``.env``).
+        """
         resolved = self._guard.resolve(path)
         stat = resolved.path.stat()
-        modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
         if resolved.path.is_dir():
-            with os.scandir(resolved.path) as entries:
-                entry_count = sum(1 for _ in entries)
             return FileInfo(
                 path=resolved.display,
                 kind="directory",
-                size_bytes=stat.st_size,
-                modified=modified,
-                entry_count=entry_count,
+                size_bytes=None,
+                modified=None,
+                entry_count=self._count_entries(resolved),
             )
         if not resolved.path.is_file():
             raise PathTypeError(f"Not a regular file or directory: {path}")
@@ -68,7 +76,7 @@ class FileReader:
             "path": resolved.display,
             "kind": "file",
             "size_bytes": stat.st_size,
-            "modified": modified,
+            "modified": datetime.fromtimestamp(stat.st_mtime, tz=UTC),
             "etag": compute_etag(stat),
         }
         if fmt is None:
@@ -81,6 +89,16 @@ class FileReader:
             line_count=count_lines(resolved.path, fmt, stat),
             approx_tokens=estimate_tokens(stat.st_size),
         )
+
+    def _count_entries(self, directory: ResolvedPath) -> int:
+        """Count the immediate children ``list_directory(include_hidden=True)`` would show.
+
+        The walk silently skips unreadable directories, so the directory is opened once
+        first: a permission error must surface instead of looking like an empty directory.
+        """
+        with os.scandir(directory.path):
+            pass
+        return sum(1 for _ in self._walker.walk(directory, max_depth=1, include_hidden=True))
 
     def read_lines(
         self,
