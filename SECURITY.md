@@ -31,7 +31,7 @@ asks for, it cannot:
 | ReDoS | Patterns are compiled with the `regex` module. Every evaluation draws on a shared wall-clock deadline, and pattern length is limited. |
 | Resource exhaustion | Limits on lines, output characters, matches, listed paths, file size for full loads, and walk depth. Binary files are skipped. FIFOs and devices are never opened. |
 | Stale or racing edits | Edits require (or verify) an etag, re-checked immediately before an atomic replace. |
-| Tampering with the audit trail | The optional audit log must be outside the roots (startup fails otherwise), so the agent can neither read nor edit it. Content-carrying arguments are reduced to their length; error messages are logged as the agent sees them (at most 500 characters), which can include short excerpts such as key or symbol names. |
+| Tampering with the audit trail | The optional audit log must be outside the roots (startup fails otherwise), so the agent can neither read nor edit it. Content-carrying arguments are reduced to their length; error messages are logged (at most 500 characters): domain errors as the agent sees them, which can include short excerpts such as key or symbol names, and filesystem errors with the full OS message and absolute path, which only the operator can read. |
 | Accidental writes | Editing tools are not even registered unless writes are enabled. |
 | Information leakage in errors | Unexpected `OSError`s are reduced to their description. Other unexpected exceptions reach the client only as a generic failure. |
 | Supply chain | Locked dependencies (`uv.lock`), CI installs with `--locked`, `pip-audit` on every run, Dependabot, actions pinned by commit SHA, least-privilege workflow permissions. |
