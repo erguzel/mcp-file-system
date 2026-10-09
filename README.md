@@ -189,9 +189,14 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
  "duration_ms": 2.5, "result_chars": 1240, "truncated": false, "error": null}
 ```
 
-- **No file contents:** content-carrying arguments (`replace_in_file`'s pattern and
+- **No content arguments:** content-carrying arguments (`replace_in_file`'s pattern and
   replacement, `edit_lines`' new text, `apply_patch`'s diff, `write_file`'s content) are
-  logged as `{"chars": N}`; `multi_replace`'s edits as `{"items": N, "chars": N}`. Errors are logged with their type, e.g. `StaleFileError`.
+  logged as `{"chars": N}`; `multi_replace`'s edits as `{"items": N, "chars": N}`.
+- **Errors:** a failed call logs the error's type and message, cut to 500 characters, e.g.
+  `{"type": "StaleFileError", "message": "..."}`. Messages are the ones the agent sees and
+  can quote short excerpts of a file: key and symbol names, or a value cut to 40
+  characters (`query`, `read_symbol`). Unexpected exceptions are logged as their type with
+  the message `"unexpected error"`.
 - **Cost:** about 25 µs and 200 bytes per call (≈1 MB per 5,000 calls). Each record is
   appended and the file closed again, so external log rotation is safe.
 - **Failure handling:** if the log cannot be written (e.g. a full disk), the tool call still

@@ -39,7 +39,8 @@ documents the profiles.
 
 **What**
 - Optional `--audit-log PATH`: one JSON line per tool call with timestamp, tool, arguments,
-  result size and error flag. File contents are never logged.
+  result size and the error's type and message. File contents are never logged as
+  arguments.
 - `scripts/eval/`: runs fixed tasks against an OpenAI-compatible endpoint (e.g. LM Studio)
   and reports tool-call parse failures, number of calls, characters read versus file
   sizes, and task success.
