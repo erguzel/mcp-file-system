@@ -3,7 +3,7 @@
 Each module exposes ``register(registry, ctx)``. Adapters are deliberately thin: they
 declare the agent-facing schema and description and delegate to a service from
 :class:`~mcp_file_system.context.AppContext`. :class:`~._common.ToolRegistry` applies the
-cross-cutting settings (allowlist, output schemas, error translation).
+cross-cutting settings (allowlist, output schemas, error translation, audit log).
 
 To add a tool group, write a module with a ``register`` function and add it to the
 profile tables below. New tools normally go into the ``full`` profile only; see

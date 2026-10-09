@@ -12,6 +12,7 @@ from mcp.types import CallToolResult, TextContent
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog, sanitize_arguments
 from mcp_file_system.core.models import Replacement
 from mcp_file_system.errors import StaleFileError
+from mcp_file_system.tools._common import audited
 
 FIXED = datetime(2026, 10, 4, 12, 0, 1, 123456, tzinfo=UTC)
 
@@ -142,7 +143,7 @@ def test_concurrent_writes_produce_whole_lines(tmp_path: Path) -> None:
     assert len(entries(log)) == 800  # every line parses as JSON
 
 
-class TestWrap:
+class TestAudited:
     def test_success_records_arguments_with_defaults_and_result_size(self, tmp_path: Path) -> None:
         log = make_log(tmp_path)
 
@@ -152,7 +153,7 @@ class TestWrap:
                 structured_content={"truncated": True},
             )
 
-        wrapped = log.wrap("read_lines", tool)
+        wrapped = audited(log, "read_lines", tool)
         assert wrapped(path="a.py").content[0].text == "12345"  # type: ignore[union-attr]
         entry = entries(log)[0]
         assert entry["args"] == {"path": "a.py", "start": 1}
@@ -165,7 +166,7 @@ class TestWrap:
             raise ToolError("stale") from StaleFileError("a.py changed since it was read")
 
         with pytest.raises(ToolError):
-            log.wrap("edit_lines", tool)(path="a.py")
+            audited(log, "edit_lines", tool)(path="a.py")
         entry = entries(log)[0]
         assert entry["error"] == {
             "type": "StaleFileError",
@@ -180,7 +181,7 @@ class TestWrap:
             raise RuntimeError("internal detail")
 
         with pytest.raises(RuntimeError):
-            log.wrap("grep", tool)()
+            audited(log, "grep", tool)()
         assert entries(log)[0]["error"] == {"type": "RuntimeError", "message": "unexpected error"}
 
     def test_tool_error_without_cause(self, tmp_path: Path) -> None:
@@ -190,11 +191,11 @@ class TestWrap:
             raise ToolError("plain")
 
         with pytest.raises(ToolError):
-            log.wrap("grep", tool)()
+            audited(log, "grep", tool)()
         assert entries(log)[0]["error"] == {"type": "ToolError", "message": "plain"}
 
     def test_non_tool_result_is_not_measured(self, tmp_path: Path) -> None:
         log = make_log(tmp_path)
-        log.wrap("x", lambda: "plain")()
+        audited(log, "x", lambda: "plain")()
         entry = entries(log)[0]
         assert (entry["result_chars"], entry["truncated"]) == (None, None)
