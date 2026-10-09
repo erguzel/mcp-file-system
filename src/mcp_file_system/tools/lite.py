@@ -7,7 +7,8 @@ Design rules:
   calls and more tokens.
 * **Essential parameters only.** Hidden parameters keep the full tools' defaults.
 * **Short descriptions.** Tool and parameter text is sent with every request.
-* **Same services.** Behavior matches the full tools called with the same arguments.
+* **Same services.** Behavior matches the full tools called with the same arguments,
+  except that grep retries an invalid regex as literal text instead of failing.
 """
 
 from typing import Annotated

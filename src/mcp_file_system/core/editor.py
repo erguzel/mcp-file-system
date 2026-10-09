@@ -170,7 +170,7 @@ class FileEditor:
         if not pattern:
             raise InvalidPatternError("Pattern must not be empty.")
         if expected_count is not None and expected_count < 1:
-            raise InvalidArgumentError("expected_count must be >= 1 (or null for any count).")
+            raise InvalidArgumentError("expected_count must be >= 1 (or None for any count).")
         resolved = self._guard.resolve_file(path)
         document = self._load(resolved, expected_etag)
         text = document.text
