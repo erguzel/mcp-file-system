@@ -1,6 +1,7 @@
 # Roadmap
 
-Planned improvements, **in implementation order**. Work on one item at a time. Each item
+Planned improvements, **in implementation order**. Work on one item at a time; an item
+whose status defers it (until a condition is met) is skipped until then. Each item
 lands as its own focused change with tests and a `CHANGELOG.md` entry, and its checkbox is
 ticked in the same change.
 
@@ -35,7 +36,7 @@ documents the profiles.
 
 - [ ] **Status:** audit log done; evaluation harness deferred until a profile comparison
   is needed (current local models are 27B+, so `full` with `--no-output-schema` is the
-  default; real-usage data comes from the audit log).
+  setup in use; real-usage data comes from the audit log).
 
 **What**
 - Optional `--audit-log PATH`: one JSON line per tool call with timestamp, tool, arguments,

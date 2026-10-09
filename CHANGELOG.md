@@ -87,7 +87,7 @@ All notable changes to this project are documented here. The format follows
   `read_symbol`.
 - Optional `[code]` extra: outlines for JavaScript, TypeScript/TSX, Go (methods qualified
   by receiver, e.g. `Server.Handle`) and Java (nested types: `Outer.Inner.method`), using
-  individual pinned grammar packages. Without the extra, `outline` names the extra to
+  individual grammar packages. Without the extra, `outline` names the extra to
   install.
 - Dockerfile outlines (pure Python): build stages (`FROM ... AS name`) and their
   instructions, with line continuations, `# escape=` and BuildKit heredocs. `Dockerfile`,
