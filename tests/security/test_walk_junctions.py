@@ -17,11 +17,31 @@ def test_junction_is_not_reported_as_a_symlink(root: Path, outside: Path) -> Non
     assert entry.is_junction()
 
 
-def test_junction_leaving_the_roots_is_dropped(ctx: AppContext, root: Path, outside: Path) -> None:
+def test_list_directory_drops_junction_leaving_the_roots(
+    ctx: AppContext, root: Path, outside: Path
+) -> None:
     junction_or_skip(root / "j", outside)
     assert ctx.finder.list_directory(".", depth=3).entries == []
+
+
+def test_find_files_drops_junction_leaving_the_roots(
+    ctx: AppContext, root: Path, outside: Path
+) -> None:
+    junction_or_skip(root / "j", outside)
     assert ctx.finder.find("*.txt").paths == []
+
+
+def test_grep_does_not_read_through_junction_leaving_the_roots(
+    ctx: AppContext, root: Path, outside: Path
+) -> None:
+    junction_or_skip(root / "j", outside)
     assert ctx.searcher.grep("top secret").hits == []
+
+
+def test_file_info_does_not_count_junction_leaving_the_roots(
+    ctx: AppContext, root: Path, outside: Path
+) -> None:
+    junction_or_skip(root / "j", outside)
     assert ctx.reader.info(".").entry_count == 0
 
 
@@ -29,6 +49,7 @@ def test_junction_to_the_root_is_not_descended(ctx: AppContext, root: Path) -> N
     write(root / "real" / "data.txt", "d")
     junction_or_skip(root / "loop", root)
     paths = [e.path for e in ctx.finder.list_directory(".", depth=5).entries]
+    assert not [p for p in paths if p.startswith("loop/")]
     assert paths.count("real/data.txt") == 1
 
 
