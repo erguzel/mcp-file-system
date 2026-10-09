@@ -56,7 +56,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             EntryKind, Field(description="Return 'file's, 'directory's or 'any'.")
         ] = "file",
         max_depth: Annotated[
-            int, Field(ge=0, description="Limit search depth (0 = unlimited).")
+            int, Field(ge=0, description="Limit search depth (0 = the 64-level maximum).")
         ] = 0,
         max_results: Annotated[
             int, Field(ge=0, description="Limit result count (0 = server limit).")

@@ -202,5 +202,7 @@ def test_missing_extra_is_reported_with_install_hint(
 
     outliner = Outliner(ctx.guard, registry, ctx.settings)
     write(root / "main.go", GO)
-    with pytest.raises(InvalidArgumentError, match=r'pip install "mcp-file-system\[code\]"'):
+    with pytest.raises(
+        InvalidArgumentError, match=r"'code' extra: install mcp-file-system\[code\]"
+    ):
         outliner.outline("main.go")

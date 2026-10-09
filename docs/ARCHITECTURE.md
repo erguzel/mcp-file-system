@@ -64,7 +64,8 @@ they can be unit-tested and reused (e.g. from a CLI or another protocol) without
   by `unset_str` / `unset_int` before calling the service.
 - **Profiles:** `full` exposes everything; `lite` is a narrow but complete subset with
   essential parameters and short descriptions (`tools/lite.py`). Both call the same
-  services, so behavior is identical for the same arguments.
+  services, so behavior is identical for the same arguments, except that `lite`'s `grep`
+  retries an invalid regular expression as literal text.
 
 ## Extension points
 

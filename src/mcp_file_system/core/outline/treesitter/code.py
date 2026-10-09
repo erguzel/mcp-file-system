@@ -1,7 +1,7 @@
 """Outlines for programming languages in the optional ``[code]`` extra.
 
 JavaScript, TypeScript (incl. TSX), Go and Java. Each grammar ships as its own small
-package (``pip install "mcp-file-system[code]"``); if one is missing, its
+package in the ``[code]`` extra (install commands are in the README); if one is missing, its
 provider cannot be constructed and the registry skips it.
 
 Like the Python provider, outlines list top-level definitions and class members, but

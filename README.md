@@ -156,7 +156,8 @@ A typical agent workflow:
 ## Configuration
 
 Every option can be set through an `MCP_FS_*` environment variable, and most also on the
-command line (see the table). CLI flags take precedence. Complex values in the environment are JSON.
+command line (see the table). CLI flags take precedence. Complex values in the environment are JSON, except
+`MCP_FS_TOOLS`, which is a comma-separated list.
 
 | Setting | CLI flag | Default | Description |
 |---|---|---|---|

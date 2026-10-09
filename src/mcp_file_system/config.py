@@ -2,8 +2,8 @@
 
 Settings are read from (highest precedence first) explicit keyword arguments (the CLI
 passes its flags this way), then ``MCP_FS_*`` environment variables, then defaults.
-Complex values in the environment are JSON, e.g. ``MCP_FS_ROOTS='["/srv/a", "/srv/b"]'``;
-``MCP_FS_TOOLS`` also accepts a comma-separated list.
+Complex values in the environment are JSON, e.g. ``MCP_FS_ROOTS='["/srv/a", "/srv/b"]'``,
+except ``MCP_FS_TOOLS``, which is a comma-separated list (JSON is not accepted).
 """
 
 import os
