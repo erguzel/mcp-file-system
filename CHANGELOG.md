@@ -114,6 +114,10 @@ All notable changes to this project are documented here. The format follows
 
 - Denied paths inside the roots no longer reveal whether they exist: a missing `.env`
   now reports "denied by policy" like an existing one, instead of "No such file".
+- Paths that cannot be resolved no longer reveal what exists outside the roots. An
+  unreadable directory, a symlink loop or a file used as a directory there (e.g.
+  `../outside/file.txt/x`) produced "Cannot resolve path" instead of "outside the allowed
+  roots", and `.env/x` answered differently depending on whether `.env` exists.
 - `file_info` on a directory no longer reveals denied entries. It counted every entry
   (a directory holding only `.env` showed "entries: 1"), and its size and modification
   time change with each entry. It now counts what `list_directory(include_hidden=true)`

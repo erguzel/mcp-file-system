@@ -5,7 +5,8 @@ filesystem. Every tool resolves its paths through it, which guarantees that:
 
 * the fully resolved (symlink-free) path lies inside one of the configured roots,
 * neither the requested nor the resolved path matches the deny policy,
-* error messages never reveal where an escaping path would have led.
+* error messages never reveal where an escaping path would have led,
+* errors never reveal whether a path outside the roots, or a denied path, exists.
 
 Known limitation: checks happen before I/O, so a concurrent process that swaps a path
 component for a symlink between the check and the access (TOCTOU) is out of scope.
@@ -105,8 +106,10 @@ class PathGuard:
         Raises:
             InvalidArgumentError: The path is empty or contains NUL bytes.
             NotFoundError: ``must_exist`` is set and the path does not exist.
-            PathOutsideRootError: The resolved path escapes every root.
-            AccessDeniedError: The path is blocked by policy or cannot be resolved.
+            PathOutsideRootError: The resolved path escapes every root, including paths
+                outside the roots whose components cannot be read or resolved.
+            AccessDeniedError: The path is blocked by policy, or it is a path inside the
+                roots that cannot be resolved.
         """
         if not raw or "\x00" in raw:
             raise InvalidArgumentError("Path must be a non-empty string without NUL bytes.")
@@ -119,19 +122,19 @@ class PathGuard:
             candidate = self.primary_root / candidate
         try:
             real = candidate.resolve(strict=must_exist)
-        except FileNotFoundError:
-            # Report confinement and policy before existence: otherwise "not found" vs
-            # "outside"/"denied" would reveal which paths exist outside the roots, or
-            # whether a denied file (e.g. .env) exists inside them.
+        except (OSError, RuntimeError) as exc:
+            # A missing path, or one that cannot be resolved (an unreadable component, a
+            # symlink loop, a file used as a directory). Report confinement and policy
+            # first: otherwise the kind of error would reveal which paths exist outside
+            # the roots, or whether a denied file (e.g. .env) exists inside them.
             loose = self._resolve_loosely(candidate, raw)
             loose_root = self._containing_root(loose)
             if loose_root is None:
                 raise self._outside_error(raw) from None
             # A missing path could become a file or a directory: deny if either is denied.
             self._enforce_policy(raw, candidate, loose, loose_root, is_dir=None)
-            raise NotFoundError(f"No such file or directory: {raw}") from None
-        except (OSError, RuntimeError):
-            # Symlink loops, permission errors on a component, invalid names, ...
+            if isinstance(exc, FileNotFoundError):
+                raise NotFoundError(f"No such file or directory: {raw}") from None
             raise AccessDeniedError(f"Cannot resolve path: {raw}") from None
 
         root = self._containing_root(real)
@@ -204,11 +207,18 @@ class PathGuard:
             f"Allowed roots: {', '.join(str(r) for r in self._roots)}"
         )
 
-    @staticmethod
-    def _resolve_loosely(candidate: Path, raw: str) -> Path:
+    def _resolve_loosely(self, candidate: Path, raw: str) -> Path:
+        """Resolve symlinks as far as possible, never failing on missing or unreadable parts.
+
+        ``os.path.realpath`` without ``strict`` skips components it cannot read and stops at
+        symlink loops; ``Path.resolve(strict=False)`` would raise on loops (Python 3.12).
+        """
         try:
-            return candidate.resolve(strict=False)
-        except (OSError, RuntimeError):
+            return Path(os.path.realpath(candidate))
+        except (OSError, ValueError):  # pragma: no cover - e.g. Windows winerror 206
+            # Decide by the lexical path, so even this error cannot tell outside paths apart.
+            if self._containing_root(Path(os.path.normpath(candidate))) is None:
+                raise self._outside_error(raw) from None
             raise AccessDeniedError(f"Cannot resolve path: {raw}") from None
 
     def _containing_root(self, path: Path) -> Path | None:

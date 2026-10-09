@@ -1,5 +1,6 @@
 import os
 import sys
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -296,3 +297,83 @@ def test_other_drive_is_rejected_on_windows(
     other = "D:\\" if root.drive.upper() != "D:" else "E:\\"
     with pytest.raises((PathOutsideRootError, NotFoundError, AccessDeniedError)):
         guard.resolve(other)
+
+
+POSIX_PERMISSIONS = pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="needs enforced POSIX permissions; root can read anything",
+)
+
+
+@pytest.fixture
+def lock() -> Iterator[Callable[[Path], Path]]:
+    """Create directories with mode 000, restoring them so tmp_path cleanup still works."""
+    locked: list[Path] = []
+
+    def make(path: Path) -> Path:
+        path.mkdir(parents=True)
+        path.chmod(0)
+        locked.append(path)
+        return path
+
+    yield make
+    for path in locked:
+        path.chmod(0o700)
+
+
+@pytest.mark.parametrize(
+    "raw", ["../outside/secret.txt/x", "../outside/missing.txt/x", "../outside/secret.txt/x/y"]
+)
+def test_no_existence_oracle_below_outside_file(guard: PathGuard, outside: Path, raw: str) -> None:
+    # "Not a directory" below an existing outside file must look like a missing path.
+    with pytest.raises(PathOutsideRootError):
+        guard.resolve(raw)
+
+
+def test_no_existence_oracle_below_denied_file(guard: PathGuard, root: Path) -> None:
+    with pytest.raises(AccessDeniedError) as missing:
+        guard.resolve(".env/x")
+    write(root / ".env", "SECRET=1\n")
+    with pytest.raises(AccessDeniedError) as existing:
+        guard.resolve(".env/x")
+    assert str(missing.value) == str(existing.value)
+
+
+@POSIX_PERMISSIONS
+@pytest.mark.parametrize("raw", ["../outside/locked/x", "{outside}/locked/x", "../outside/locked"])
+def test_no_existence_oracle_for_unreadable_outside_directory(
+    guard: PathGuard, outside: Path, lock: Callable[[Path], Path], raw: str
+) -> None:
+    lock(outside / "locked")
+    with pytest.raises(PathOutsideRootError):
+        guard.resolve(raw.format(outside=outside))
+
+
+@POSIX_PERMISSIONS
+def test_symlink_into_unreadable_outside_directory_is_outside(
+    guard: PathGuard, root: Path, outside: Path, lock: Callable[[Path], Path]
+) -> None:
+    symlink_or_skip(root / "link", lock(outside / "locked"))
+    with pytest.raises(PathOutsideRootError):
+        guard.resolve("link/x")
+
+
+@pytest.mark.parametrize("must_exist", [True, False])
+@pytest.mark.parametrize("raw", ["../outside/loop", "../outside/loop/x"])
+def test_no_existence_oracle_for_outside_symlink_loop(
+    guard: PathGuard, outside: Path, raw: str, must_exist: bool
+) -> None:
+    symlink_or_skip(outside / "loop", outside / "loop")
+    with pytest.raises(PathOutsideRootError):
+        guard.resolve(raw, must_exist=must_exist)
+
+
+@POSIX_PERMISSIONS
+def test_unreadable_directory_inside_root_is_still_denied(
+    guard: PathGuard, lock: Callable[[Path], Path], root: Path
+) -> None:
+    lock(root / "locked")
+    with pytest.raises(AccessDeniedError, match="Cannot resolve"):
+        guard.resolve("locked/x")
+    with pytest.raises(AccessDeniedError):
+        guard.resolve("locked/.env")
