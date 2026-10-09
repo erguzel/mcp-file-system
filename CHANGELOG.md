@@ -62,8 +62,8 @@ All notable changes to this project are documented here. The format follows
   heading counts). CSV and logs are streamed with fixed scan budgets; JSON and TOML
   honor `max_file_bytes`.
 - Tool profiles: `--profile lite` exposes a small but complete tool set with essential
-  parameters and short descriptions for small local models (the tool listing shrinks
-  from ~27k to ~7.1k characters). `lite`'s `grep` searches invalid regexes literally.
+  parameters and short descriptions for small local models (the tool listing shrinks to
+  about a sixth of `full`'s). `lite`'s `grep` searches invalid regexes literally.
 - `--tools NAME,...` (`MCP_FS_TOOLS`) allowlist and `--[no-]output-schema`
   (`MCP_FS_OUTPUT_SCHEMA`); output schemas default to off in `lite`.
 - `file_info` reports an approximate token count for text files.
@@ -76,8 +76,8 @@ All notable changes to this project are documented here. The format follows
   that section. TOML tables include their directly following sub-tables.
 - `read_skeleton` (full profile): a code file with function and method bodies folded to
   one `<start>-<end> ...` row each, keeping imports, signatures, docstrings and class
-  structure. Python, shell, and JS/TS, Go and Java with `[code]`. About 50–60% smaller
-  than the full file on this (docstring-heavy) codebase.
+  structure. Python, shell, and JS/TS, Go and Java with `[code]`. About half the size of
+  the full file on this (docstring-heavy) codebase.
 - Change-aware reads: `read_lines` and `read_symbol` accept `if_changed_since=<etag>` and
   return a one-line "unchanged" answer when the file is unchanged and those lines were
   already returned in this session (otherwise content is sent, with a note). Re-reading

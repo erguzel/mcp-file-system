@@ -4,7 +4,7 @@
 
 ```bash
 uv sync --all-extras       # Python 3.12 environment with dev tools and optional grammars
-uv run pre-commit install  # run ruff and mypy on every commit
+uv run pre-commit install  # ruff, mypy and file checks (e.g. private keys) on every commit
 ```
 
 ## Checks

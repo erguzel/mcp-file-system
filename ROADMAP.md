@@ -16,8 +16,7 @@ models. Item 1 introduces profiles so that later additions can be gated.
   `max_matches: int = 100`, `end: int = -1`). This removes all `anyOf`/`null` constructs
   from the input schemas.
 - Add `--no-output-schema` (env `MCP_FS_OUTPUT_SCHEMA=false`). It omits the output schemas
-  (≈10k characters across all tools, more than the input schemas) while still returning
-  the compact text.
+  (larger than the input schemas) while still returning the compact text.
 - Add `--profile lite|full` (default `full`) and a `--tools name,name` allowlist. `lite`
   exposes the core tools with only their essential parameters.
 - Add an approximate token count to `file_info` (e.g. `~tokens: 12.4k`, characters / 4) so
@@ -92,7 +91,8 @@ skeleton view (item 5). Plain text and logs have no grammar; items 6 and 8 cover
 
 **Done when:** each provider has unit tests including malformed input; JSON/TOML/YAML
 symbols resolve with correct line spans; the server starts and the core formats work when
-the `[code]` extra is not installed; CI stays green on all three operating systems.
+the `[code]` extra is not installed; CI stays green on all three operating systems
+(macOS has run on manual dispatch only since the CI matrix was trimmed).
 
 ## 4. Change-aware reads and navigation hints
 
@@ -106,8 +106,8 @@ the `[code]` extra is not installed; CI stays green on all three operating syste
   returned. When an unchanged range is requested again, still return it, but prepend a
   note such as "already returned earlier in this session; file unchanged".
 - **Enclosing symbol in grep hits:** for files with an outline provider, show the symbol
-  that contains each hit, e.g. `src/a.py:42 [in Parser.parse]: ...`, so the agent can go
-  straight to `read_symbol`.
+  that contains each hit, e.g. a `[Parser.parse]` line above the hits inside that method,
+  so the agent can go straight to `read_symbol`.
 
 **Why:** agents re-read content that is already in their context, and prompts alone are
 unreliable on small models; this solves it on the server. Never refuse a read: the model
@@ -129,8 +129,8 @@ structure, like a header file. Python (via `ast`) and shell, plus JS/TS, Go and 
 the `[code]` extra. Providers report fold ranges; rendering is language-independent.
 
 **Why:** an outline is only a list. A skeleton shows how a module is used (its API) with
-far fewer tokens than reading it: 49–63% smaller on this repository's modules, which are
-docstring-heavy (docstrings stay visible); more on code with long bodies.
+far fewer tokens than reading it: about half the size on this repository's modules, which
+are docstring-heavy (docstrings stay visible); more on code with long bodies.
 
 **Done when:** the skeleton of every module in this repository parses as valid Python
 (tested); nested classes, decorators and async functions are tested.
