@@ -69,6 +69,14 @@ def test_invalid_regex_rejected() -> None:
         compile_pattern("(", deadline=Deadline(1), max_length=5)
 
 
+def test_invalid_regex_message_does_not_echo_the_pattern() -> None:
+    # Error messages reach the audit log, where replace_in_file's pattern must stay hidden.
+    with pytest.raises(InvalidPatternError) as excinfo:
+        compile_pattern("secret[", deadline=Deadline(1), max_length=50)
+    assert "secret" not in str(excinfo.value)
+    assert "position" in str(excinfo.value)
+
+
 def test_fixed_string_escapes_metacharacters() -> None:
     pattern = compile_pattern("a.b(", deadline=Deadline(1), max_length=10, fixed_string=True)
     assert pattern.search("xa.b(y") is not None
