@@ -53,7 +53,7 @@ class FileInfo(ToolResult):
     )
     entry_count: int | None = Field(
         default=None,
-        description="Immediate children that list_directory shows with include_hidden=true.",
+        description="Immediate children a directory listing shows, hidden ones included.",
     )
 
     def render(self) -> str:  # noqa: D102
@@ -167,7 +167,7 @@ class BatchLinesResult(ToolResult):
 
 
 class GrepHit(BaseModel):
-    """One matching line (or, with only_matching, one match) plus surrounding context."""
+    """One matching line (or one match) plus surrounding context."""
 
     model_config = ConfigDict(frozen=True)
 

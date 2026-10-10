@@ -168,7 +168,7 @@ class PythonSearchBackend:
         if not count:
             return
         if len(tally.files) >= request.max_matches:
-            tally.stop_reason = f"max_matches={request.max_matches} files reached"
+            tally.stop_reason = f"match limit ({request.max_matches} files) reached"
             return
         tally.files.append(FileCount(path=display, count=count))
 
@@ -191,7 +191,7 @@ class PythonSearchBackend:
                 pending = _feed_after_context(pending, clip_line(line, width), tally)
             for match in _matches(request, line):
                 if len(tally.hits) >= request.max_matches:
-                    tally.stop_reason = f"max_matches={request.max_matches} reached"
+                    tally.stop_reason = f"match limit ({request.max_matches}) reached"
                     return
                 if tally.chars >= request.max_output_chars:
                     tally.stop_reason = "output size budget reached"

@@ -1,6 +1,7 @@
 """Tool profiles, the tool allowlist, output-schema control and schema slimming."""
 
 import json
+import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -123,6 +124,79 @@ async def test_collapsed_grep_mode_stays_out_of_lite(make_settings: SettingsFact
     assert "collapsed" in modes(await list_tools(make_settings))
 
 
+async def full_only_names(make_settings: SettingsFactory) -> dict[str, re.Pattern[str]]:
+    """Per lite tool (and ``""`` for text not tied to one), the full-only names to avoid.
+
+    Flags full tool and parameter names that lite lacks and that contain ``_`` (setting
+    names such as max_matches count too, since a lite client cannot pass them), the tool's
+    own full-only parameters, and one-word full-only parameters written as ``name=``.
+    One-word names alone (``regex``, ``around``) are ordinary words in descriptions.
+    """
+    full = await list_tools(make_settings, allow_write=True)
+    lite = await list_tools(make_settings, profile="lite", allow_write=True)
+
+    def params(tool: Tool) -> set[str]:
+        return set(tool.input_schema["properties"])
+
+    def pattern(names: set[str]) -> re.Pattern[str]:
+        terms = [re.escape(n) + r"(?!\w)" if "_" in n else re.escape(n) + "=" for n in names]
+        return re.compile(r"\b(?:" + "|".join(sorted(terms)) + ")")
+
+    full_params = set().union(*(params(tool) for tool in full.values()))
+    lite_names = set(lite).union(*(params(tool) for tool in lite.values()))
+    missing = (set(full) | full_params) - lite_names
+    common = {n for n in missing if "_" in n} | (full_params - lite_names)
+    patterns = {
+        name: pattern(common | (params(full[name]) - params(tool))) for name, tool in lite.items()
+    }
+    patterns[""] = pattern(common)
+    return patterns
+
+
+def descriptions(schema: Any) -> list[str]:
+    """Every ``description`` string in a JSON schema, at any depth."""
+    if isinstance(schema, dict):
+        own = [schema["description"]] if isinstance(schema.get("description"), str) else []
+        return own + [text for value in schema.values() for text in descriptions(value)]
+    if isinstance(schema, list):
+        return [text for value in schema for text in descriptions(value)]
+    return []
+
+
+async def test_lite_listing_names_only_lite_tools(make_settings: SettingsFactory) -> None:
+    forbidden = await full_only_names(make_settings)
+    settings = make_settings(profile="lite", allow_write=True, output_schema=True)
+    async with Client(create_server(settings)) as client:
+        tools = (await client.list_tools()).tools
+    for tool in tools:
+        texts = [tool.description or "", *descriptions(tool.input_schema)]
+        texts += descriptions(tool.output_schema)
+        for text in texts:
+            assert not forbidden[tool.name].search(text), (tool.name, text)
+    assert not forbidden[""].search(build_instructions(settings))
+
+
+async def test_lite_hints_name_only_lite_tools(make_settings: SettingsFactory, root: Path) -> None:
+    forbidden = await full_only_names(make_settings)
+    write(root / "big.py", "def f():\n    pass\n" * 20)
+    write(root / "twice.txt", "x\nx\n")
+    write(root / "other.txt", "x\n")
+    settings = make_settings(profile="lite", allow_write=True, max_file_bytes=100, max_matches=1)
+    calls = [
+        ("outline", {"path": "big.py"}, "limited to 100 bytes"),
+        ("write_file", {"path": "new.txt", "content": "y" * 200}, "Nothing was written"),
+        ("replace_in_file", {"path": "twice.txt", "pattern": "x", "replacement": "y"}, "2 time"),
+        ("write_file", {"path": "twice.txt", "content": "y"}, "already exists"),
+        ("grep", {"pattern": "x"}, "match limit"),
+        ("grep", {"pattern": "x", "output_mode": "count"}, "match limit"),
+    ]
+    async with Client(create_server(settings)) as client:
+        for tool, arguments, expected in calls:
+            text = text_of(await client.call_tool(tool, arguments))
+            assert expected in text, (tool, text)
+            assert not forbidden[tool].search(text), (tool, text)
+
+
 async def test_lite_listing_is_much_smaller(make_settings: SettingsFactory) -> None:
     def size(tools: dict[str, Tool]) -> int:
         return len(
@@ -199,7 +273,7 @@ class TestLiteBehavior:
         assert result.structured_content is not None
         note = result.structured_content["note"]
         assert note.startswith("pattern is not a valid regular expression")
-        assert "max_matches=100" in note
+        assert "match limit (100) reached" in note
 
     async def test_grep_context_applies_to_both_sides(self, lite: Client, root: Path) -> None:
         write(root / "f.txt", "a\nb\nhit\nc\nd\n")
