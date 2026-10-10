@@ -104,7 +104,9 @@ parts of files and editing, so a small model never needs detours. Its `grep` sea
 an invalid regular expression as literal text instead of failing, its `replace_in_file`
 requires a unique literal match, and its `write_file` only creates new files.
 
-Use `--tools grep,read_lines,...` to expose only some tools of a profile, and
+Use `--tools grep,read_lines,...` to expose only some tools of a profile; the server
+instructions then name only those tools, while error hints and tool descriptions may
+still mention a hidden one (e.g. `read_symbol`'s "see outline"). Use
 `--[no-]output-schema` to override the output-schema default. Output schemas are about
 half of the `full` listing but serve clients that process results in code; the text view
 of each result carries the same information, so `full` with `--no-output-schema` suits

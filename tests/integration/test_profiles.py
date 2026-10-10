@@ -259,6 +259,29 @@ def test_instructions_follow_the_profile(make_settings: SettingsFactory) -> None
     assert "undo_last_edit" in full_text
 
 
+@pytest.mark.parametrize(
+    ("profile", "tools", "allow_write"),
+    [
+        ("full", ("read_symbol",), False),
+        ("full", ("grep", "read_lines"), False),
+        ("full", ("read_ranges",), False),
+        ("full", ("write_file",), True),
+        ("full", ("apply_patch", "undo_last_edit"), True),
+        ("full", ("grep",), True),
+        ("lite", ("read_lines", "edit_lines"), True),
+    ],
+)
+def test_instructions_follow_the_allowlist(
+    make_settings: SettingsFactory, profile: str, tools: tuple[str, ...], allow_write: bool
+) -> None:
+    settings = make_settings(profile=profile, tools=tools, allow_write=allow_write)
+    text = build_instructions(settings)
+    for name in (FULL_READ | FULL_WRITE) - set(tools):
+        assert not re.search(rf"\b{name}\b", text), (name, text)
+    offers_writes = bool(set(tools) & FULL_WRITE)
+    assert ("The server is read-only." in text) is not offers_writes
+
+
 class TestLiteBehavior:
     async def test_grep_falls_back_to_literal_search(self, lite: Client, root: Path) -> None:
         write(root / "app.py", "value = compute(1)\n")
