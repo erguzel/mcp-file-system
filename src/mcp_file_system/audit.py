@@ -9,6 +9,10 @@ Arguments that carry file content (replacement text, new lines, whole files) are
 to their length. Error messages are kept (cut to ``MAX_ARGUMENT_CHARS``): for domain
 errors the agent-facing text, which can name keys or symbols of a file, and for
 filesystem errors the full OS message, including paths the agent is not shown.
+
+Calls the SDK rejects before the tool runs (arguments that fail the input schema, unknown
+tool names) are recorded too. Their arguments are raw, so only the declared scalar
+arguments that passed validation are logged as is; everything else is a length.
 """
 
 import json
@@ -75,13 +79,18 @@ class AuditLog:
         result_chars: int | None,
         truncated: bool | None,
         error: Mapping[str, str] | None,
+        plain: frozenset[str] | None = None,
     ) -> None:
-        """Append one record. Never raises."""
+        """Append one record. Never raises.
+
+        ``plain`` is passed on to :func:`sanitize_arguments`; give it for arguments that
+        were not validated.
+        """
         entry = {
             "ts": self._clock().isoformat(timespec="seconds").replace("+00:00", "Z"),
             "tool": tool,
             "profile": self._profile,
-            "args": sanitize_arguments(tool, arguments),
+            "args": sanitize_arguments(tool, arguments, plain=plain),
             "duration_ms": round(duration_ms, 1),
             "result_chars": result_chars,
             "truncated": truncated,
@@ -100,18 +109,33 @@ class AuditLog:
                 self._failing = False
 
 
-def sanitize_arguments(tool: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    """Prepare arguments for the log: content as length only, long strings cut."""
+def sanitize_arguments(
+    tool: str, arguments: Mapping[str, Any], *, plain: frozenset[str] | None = None
+) -> dict[str, Any]:
+    """Prepare arguments for the log: content as length only, long strings cut.
+
+    Args:
+        tool: Tool name, which selects the content arguments.
+        arguments: Argument names and values.
+        plain: For unvalidated arguments, the names whose values may be logged as is.
+            Any other key, and any value that is not a scalar, is logged as its size:
+            a misnamed or wrongly typed argument can hold file content.
+    """
     content = CONTENT_ARGUMENTS.get(tool, frozenset())
     sanitized: dict[str, Any] = {}
     for key, value in arguments.items():
-        if key in content:
+        if key in content or (plain is not None and not _is_plain(key, value, plain)):
             sanitized[key] = _content_size(value)
         elif isinstance(value, str) and len(value) > MAX_ARGUMENT_CHARS:
             sanitized[key] = value[:MAX_ARGUMENT_CHARS] + "…"
         else:
             sanitized[key] = value
     return sanitized
+
+
+def _is_plain(key: str, value: Any, plain: frozenset[str]) -> bool:
+    """Whether an unvalidated argument may be logged as is."""
+    return key in plain and (value is None or isinstance(value, str | int | float))
 
 
 def _content_size(value: Any) -> dict[str, int]:

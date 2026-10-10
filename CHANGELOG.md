@@ -136,6 +136,11 @@ All notable changes to this project are documented here. The format follows
   part of the error message, although the log records that pattern as its length only.
   Regex error messages (`grep`, `read_between`, `replace_in_file`) no longer quote the
   pattern; the agent still gets the error and its position.
+- The audit log now records calls the SDK rejects before a tool runs: arguments that
+  fail the input schema, and unknown tool names, including tools hidden by a missing
+  `--allow-write` or by `--tools`. These calls used to leave no trace. Their raw
+  arguments are logged as sizes unless they are declared, passed validation and hold a
+  single value, and the error names fields, never the rejected values.
 - Outlining a Markdown or shell file can no longer crash the server on Linux. The
   tree-sitter-markdown and tree-sitter-bash scanners pass characters above U+00FF to
   `isdigit()`, which reads outside glibc's lookup table (e.g. `1` or `{` followed by an
