@@ -40,7 +40,7 @@ they can be unit-tested and reused (e.g. from a CLI or another protocol) without
 | `core.models` | Result models. Each is the tool's structured output schema and has a `render()` text view. |
 | `core.skeleton` | Language-independent skeleton rendering from fold ranges reported by providers (`fold_ranges`). |
 | `core.tracking.ReadTracker` | Session memory of which lines of which file version were returned; powers "already returned" notes and `if_changed_since`. One per server process (one stdio session); a multi-session transport must key it by session. |
-| `audit.AuditLog` | Optional JSON Lines audit log writer (no `mcp` imports); `tools._common.audited` wraps every exposed tool to record into it when enabled. |
+| `audit.AuditLog` | Optional JSON Lines audit log writer (no `mcp` imports); `tools._common.audited` wraps every exposed tool to record into it when enabled, and `server.FileSystemServer.call_tool` records the calls the SDK rejects before a tool runs (schema failures, unknown tools). |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
 | `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting, error translation and audit wrapping. |
 

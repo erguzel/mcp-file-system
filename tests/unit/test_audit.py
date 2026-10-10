@@ -84,6 +84,21 @@ def test_structured_content_arguments_are_logged_as_sizes(edits: list[Any]) -> N
     assert sanitized == {"path": "a.py", "edits": {"items": 2, "chars": 9}}
 
 
+def test_only_plain_scalars_are_logged_as_is() -> None:
+    sanitized = sanitize_arguments(
+        "replace_in_file",
+        {"path": "a.py", "count": 2, "pattern": "SECRET", "text": "SECRET", "end": ["SECRET"]},
+        plain=frozenset({"path", "count", "pattern", "end"}),
+    )
+    assert sanitized == {
+        "path": "a.py",
+        "count": 2,
+        "pattern": {"chars": 6},  # a content argument stays a length
+        "text": {"chars": 6},  # not plain
+        "end": {"items": 1, "chars": 6},  # plain, but not a scalar
+    }
+
+
 def test_long_strings_are_cut() -> None:
     sanitized = sanitize_arguments("grep", {"pattern": "x" * 2000})
     assert len(sanitized["pattern"]) == MAX_ARGUMENT_CHARS + 1

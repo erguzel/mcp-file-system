@@ -200,6 +200,14 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
   `read_symbol`) or a value cut to 40 characters (`query`). Filesystem errors (`OSError`) carry the full
   operating-system message, including the absolute path the agent is not shown.
   Unexpected exceptions are logged as their type with the message `"unexpected error"`.
+- **Rejected calls:** calls refused before the tool runs are logged too, with
+  `result_chars` and `truncated` set to `null`. Arguments that fail the input schema
+  give `{"type": "ValidationError", "message": "expected_count: Input should be a valid
+  integer, ..."}` (field names and the reason, never the rejected value). An unknown tool,
+  including one hidden by a missing `--allow-write` or by `--tools`, gives
+  `{"type": "UnknownToolError", "message": "Unknown tool"}`. Arguments are raw here, so
+  only declared arguments that passed validation and hold a single value are logged as is;
+  the rest, and every argument of an unknown tool, are logged as their size.
 - **Cost:** about 25 µs and 200 bytes per call (≈1 MB per 5,000 calls). Each record is
   appended and the file closed again, so external log rotation is safe.
 - **Failure handling:** if the log cannot be written (e.g. a full disk), the tool call still

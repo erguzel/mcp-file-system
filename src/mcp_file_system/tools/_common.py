@@ -10,7 +10,7 @@ from typing import Annotated, Any
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog
 from mcp_file_system.config import Settings
@@ -132,6 +132,28 @@ def audited[F: Callable[..., Any]](audit: AuditLog, name: str, fn: F) -> F:
     return wrapper  # type: ignore[return-value]
 
 
+UNKNOWN_TOOL_ERROR = {"type": "UnknownToolError", "message": "Unknown tool"}
+"""Audit ``error`` for a call to a tool the server does not expose."""
+
+
+def describe_rejection(exc: ValidationError) -> tuple[dict[str, str], frozenset[str]]:
+    """Summarize arguments the SDK rejected against the input schema, for the audit log.
+
+    Lives with :func:`audited` because it reads SDK-side (pydantic) errors. The message
+    holds field locations and pydantic's fixed wording only, never the rejected values,
+    which can be file content.
+
+    Returns:
+        The record's ``error``, and the top-level arguments that failed validation.
+    """
+    problems = [
+        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors()
+    ]
+    failed = frozenset(str(error["loc"][0]) for error in exc.errors() if error["loc"])
+    message = "; ".join(problems)[:MAX_ARGUMENT_CHARS]
+    return {"type": "ValidationError", "message": message}, failed
+
+
 def _measure(result: Any) -> tuple[int | None, bool | None]:
     if not isinstance(result, CallToolResult):
         return None, None
@@ -147,7 +169,8 @@ class ToolRegistry:
     It is the single place that decides, per tool, whether the tool is exposed
     (``Settings.tools`` allowlist), whether it publishes an output schema
     (``Settings.emit_output_schema``), that errors are translated, and whether calls
-    are recorded in the audit log.
+    that reach the tool are recorded in the audit log. Calls the SDK rejects before the
+    tool runs are recorded by the server (``server.FileSystemServer``).
     """
 
     def __init__(
