@@ -120,6 +120,9 @@ All notable changes to this project are documented here. The format follows
   `only_matching`), which small models then tried and failed on. Content too large to
   write now says so instead of suggesting how to read it, and the regex timeout hint no
   longer suggests `fixed_string`, which `replace_in_file` does not have.
+- The server instructions follow the `--tools` allowlist: they name only exposed tools,
+  and say the server is read-only when `--allow-write` is set but no editing tool is
+  exposed.
 
 ### Security
 
