@@ -109,6 +109,9 @@ All notable changes to this project are documented here. The format follows
 - `.gitignore` files are split into patterns at line ends only. Characters such as a form
   feed inside a pattern no longer split it into two patterns that could hide unrelated
   paths from walks and searches.
+- Editing a big-endian UTF-16 or UTF-32 file no longer rewrites it as little-endian. Every
+  editing tool wrote the machine's byte order, so the BOM and every byte of the file
+  changed; the file now keeps its BOM and byte order.
 
 ### Security
 

@@ -11,6 +11,7 @@ from mcp_file_system.core.textio import (
     count_lines,
     detect_format,
     detect_format_bytes,
+    encode_text,
     open_lines,
     read_text,
     require_text,
@@ -27,21 +28,54 @@ def _resolved(path: Path) -> ResolvedPath:
 
 
 @pytest.mark.parametrize(
-    ("sample", "encoding", "newline"),
+    ("sample", "encoding", "newline", "bom"),
     [
-        (b"plain\n", "utf-8", "\n"),
-        (b"crlf\r\nline\r\n", "utf-8", "\r\n"),
-        (b"old mac\rline\r", "utf-8", "\r"),
-        (b"no newline", "utf-8", "\n"),
-        ("café\n".encode(), "utf-8", "\n"),
-        (codecs.BOM_UTF8 + b"bom\r\n", "utf-8-sig", "\r\n"),
-        ("wide\n".encode("utf-16"), "utf-16", "\n"),
-        ("wider\r\n".encode("utf-32"), "utf-32", "\r\n"),
-        (b"caf\xe9\n", "latin-1", "\n"),
+        (b"plain\n", "utf-8", "\n", b""),
+        (b"crlf\r\nline\r\n", "utf-8", "\r\n", b""),
+        (b"old mac\rline\r", "utf-8", "\r", b""),
+        (b"no newline", "utf-8", "\n", b""),
+        ("café\n".encode(), "utf-8", "\n", b""),
+        # utf-8-sig writes its own BOM, so none is recorded.
+        (codecs.BOM_UTF8 + b"bom\r\n", "utf-8-sig", "\r\n", b""),
+        (codecs.BOM_UTF16_LE + "wide\n".encode("utf-16-le"), "utf-16", "\n", codecs.BOM_UTF16_LE),
+        (codecs.BOM_UTF16_BE + "wide\n".encode("utf-16-be"), "utf-16", "\n", codecs.BOM_UTF16_BE),
+        (
+            codecs.BOM_UTF32_LE + "wider\r\n".encode("utf-32-le"),
+            "utf-32",
+            "\r\n",
+            codecs.BOM_UTF32_LE,
+        ),
+        (
+            codecs.BOM_UTF32_BE + "wider\r\n".encode("utf-32-be"),
+            "utf-32",
+            "\r\n",
+            codecs.BOM_UTF32_BE,
+        ),
+        (b"caf\xe9\n", "latin-1", "\n", b""),
     ],
 )
-def test_detect_format(sample: bytes, encoding: str, newline: str) -> None:
-    assert detect_format_bytes(sample) == TextFormat(encoding, newline)
+def test_detect_format(sample: bytes, encoding: str, newline: str, bom: bytes) -> None:
+    assert detect_format_bytes(sample) == TextFormat(encoding, newline, bom)
+
+
+@pytest.mark.parametrize(
+    ("bom", "codec"),
+    [
+        (codecs.BOM_UTF16_LE, "utf-16-le"),
+        (codecs.BOM_UTF16_BE, "utf-16-be"),
+        (codecs.BOM_UTF32_LE, "utf-32-le"),
+        (codecs.BOM_UTF32_BE, "utf-32-be"),
+        (codecs.BOM_UTF8, "utf-8"),
+        (b"", "utf-8"),
+        (b"", "latin-1"),
+    ],
+)
+def test_encode_text_round_trips_the_detected_format(bom: bytes, codec: str) -> None:
+    raw = bom + "x = 'é'\r\n".encode(codec)
+    fmt = detect_format_bytes(raw)
+    assert fmt is not None
+    text = raw.decode(fmt.encoding)
+    assert encode_text(text, fmt, errors="strict") == raw
 
 
 def test_truncated_multibyte_at_sample_end_is_still_utf8() -> None:

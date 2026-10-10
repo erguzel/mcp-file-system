@@ -31,6 +31,7 @@ from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
     TextFormat,
     check_size,
+    encode_text,
     require_text,
     split_lines,
     split_lines_keepends,
@@ -502,7 +503,7 @@ class FileEditor:
     ) -> EditResult:
         diff = self._diff(resolved.display, document.text, new_text, create=create)
         try:
-            data = new_text.encode(document.fmt.encoding, errors="surrogateescape")
+            data = encode_text(new_text, document.fmt, errors="surrogateescape")
         except UnicodeEncodeError as exc:
             raise InvalidArgumentError(
                 _unencodable_message(resolved.display, document.fmt.encoding)
