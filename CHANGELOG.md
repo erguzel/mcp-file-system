@@ -115,6 +115,11 @@ All notable changes to this project are documented here. The format follows
 - The `--deny` help, the `deny_globs` description and the README said the patterns only
   add to the defaults. They now say that the last matching pattern wins, so
   `--deny '!PATTERN'` re-allows a path the defaults block. The behavior is unchanged.
+- Hints that `lite` tools return no longer suggest tools or parameters `lite` lacks
+  (`read_between`, `expected_count`, `overwrite`, `max_matches`, `include_hidden`,
+  `only_matching`), which small models then tried and failed on. Content too large to
+  write now says so instead of suggesting how to read it, and the regex timeout hint no
+  longer suggests `fixed_string`, which `replace_in_file` does not have.
 
 ### Security
 

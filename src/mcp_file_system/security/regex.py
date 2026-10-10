@@ -15,7 +15,7 @@ from mcp_file_system.errors import InvalidPatternError, PatternTimeoutError
 
 _TIMEOUT_HINT = (
     "Pattern evaluation exceeded the time budget. Simplify the pattern (avoid nested "
-    "quantifiers such as '(a+)+'), use fixed_string=true, or narrow the search path."
+    "quantifiers such as '(a+)+'), search for literal text instead, or narrow the search path."
 )
 
 

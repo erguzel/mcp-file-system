@@ -26,7 +26,8 @@ uv run pytest --cov        # fails below 90% coverage
 - Only `tools/`, `server.py` and `cli.py` import `mcp` (a test enforces this). Tool adapters
   in `tools/` stay thin.
 - Raise `errors.FsError` subclasses with messages that tell the agent what to do next.
-  Never include paths outside the roots in messages.
+  Never include paths outside the roots in messages. Hints that `lite` tools can return
+  name only tools and parameters the `lite` profile has.
 - Every behavior change needs tests. Security-relevant changes also need a test in
   `tests/security/`.
 - Write test files with explicit bytes (see `tests/conftest.py::write`) so they behave

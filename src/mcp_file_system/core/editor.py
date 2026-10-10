@@ -133,10 +133,14 @@ def _check_count(count: int, expected: int | None, display: str, label: str = ""
             "and indentation must match exactly."
         )
     if expected is not None and count != expected:
+        # A unique match is all a lite client can ask for; only full tools take a count.
+        advice = (
+            "Add surrounding context to make it unique."
+            if expected == 1
+            else "Adjust the pattern, or set expected_count to the intended number."
+        )
         raise MatchCountError(
-            f"{label}Pattern matches {count} time(s) in {display}, expected "
-            f"{expected}. Add surrounding context to make it unique, or set "
-            "expected_count to the intended number."
+            f"{label}Pattern matches {count} time(s) in {display}, expected {expected}. {advice}"
         )
 
 
@@ -341,7 +345,7 @@ class FileEditor:
             if not overwrite:
                 raise AlreadyExistsError(
                     f"{resolved.display} already exists. Edit it with edit_lines or "
-                    "replace_in_file, or pass overwrite=true together with expected_etag."
+                    "replace_in_file."
                 )
             if expected_etag is None:
                 raise InvalidArgumentError(
@@ -508,7 +512,11 @@ class FileEditor:
             raise InvalidArgumentError(
                 _unencodable_message(resolved.display, document.fmt.encoding)
             ) from exc
-        check_size(resolved, len(data), self._settings.max_file_bytes)
+        if len(data) > self._settings.max_file_bytes:
+            raise FileTooLargeError(
+                f"The new content of {resolved.display} would be {len(data)} bytes; the limit "
+                f"is {self._settings.max_file_bytes}. Nothing was written."
+            )
         if dry_run:
             return EditResult(
                 path=resolved.display,

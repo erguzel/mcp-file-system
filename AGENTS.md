@@ -85,7 +85,9 @@ A change is finished only when **all** of these are true:
   downwards only.
 - **Errors:** raise a subclass of `errors.FsError` with a message that tells the agent
   what to do next (e.g. "Use read_lines instead"). Never put paths outside the allowed
-  roots, file contents of denied files, or stack traces in messages.
+  roots, file contents of denied files, or stack traces in messages. A hint that a `lite`
+  tool can return names only tools and parameters `lite` also has (tests in
+  `tests/integration/test_profiles.py` check this).
 - **Results:** services return a `core.models.ToolResult` subclass. Its `render()` returns
   compact text for the model; the model itself is the structured output.
 - **Limits:** every result must be bounded, by a setting (`max_read_lines`,

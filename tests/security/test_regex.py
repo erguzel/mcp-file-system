@@ -27,9 +27,12 @@ def test_deadline_counts_down_and_expires() -> None:
 def test_catastrophic_backtracking_times_out_quickly() -> None:
     pattern = compile_pattern(r"(a|aa)+$", deadline=Deadline(0.3), max_length=100)
     started = time.monotonic()
-    with pytest.raises(PatternTimeoutError, match="time budget"):
+    with pytest.raises(PatternTimeoutError, match="time budget") as excinfo:
         pattern.search("a" * 64 + "b")
     assert time.monotonic() - started < 5
+    # Callers differ in how they search literally (fixed_string, regex=false).
+    assert "Simplify the pattern" in str(excinfo.value)
+    assert "fixed_string" not in str(excinfo.value)
 
 
 def test_expired_deadline_refuses_new_work() -> None:

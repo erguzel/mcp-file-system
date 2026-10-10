@@ -110,7 +110,7 @@ def test_max_matches_truncates(ctx: AppContext, project: Path) -> None:
     result = ctx.searcher.grep("alpha", max_matches=1)
     assert len(result.hits) == 1
     assert result.truncated
-    assert "max_matches=1" in result.render()
+    assert "match limit (1) reached" in result.render()
 
 
 def test_max_matches_is_capped_by_settings(make_ctx: ContextFactory, project: Path) -> None:

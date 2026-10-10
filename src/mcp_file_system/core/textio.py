@@ -113,7 +113,7 @@ def check_size(resolved: ResolvedPath, size: int, max_bytes: int) -> None:
     if size > max_bytes:
         raise FileTooLargeError(
             f"{resolved.display} is {size} bytes; operations that load the whole file are "
-            f"limited to {max_bytes} bytes. Use read_lines, read_between or grep instead."
+            f"limited to {max_bytes} bytes. Use read_lines or grep instead."
         )
 
 
