@@ -163,7 +163,7 @@ command line (see the table). CLI flags take precedence. Complex values in the e
 |---|---|---|---|
 | `roots` | `--root DIR` (repeatable) | CWD | Allowed directories (`MCP_FS_ROOTS='["/a","/b"]'`). |
 | `allow_write` | `--allow-write` | `false` | Register the editing tools. |
-| `deny_globs` | `--deny GLOB` (adds) | secrets list | Gitignore-style patterns that are never accessible. `--deny` adds to the defaults; `MCP_FS_DENY_GLOBS` replaces them. |
+| `deny_globs` | `--deny GLOB` (appends) | secrets list | Gitignore-style patterns that are never accessible. `--deny` appends to the defaults and the last matching pattern wins, so `--deny '!.env'` re-allows `.env`; `MCP_FS_DENY_GLOBS` replaces the defaults. |
 | `respect_gitignore` | `--[no-]gitignore` | `true` | Hide ignored paths from walks and searches. |
 | `max_file_bytes` | `--max-file-bytes` | 10 MiB | Largest file loaded fully (outline, symbols, edits). |
 | `max_read_lines` | `--max-read-lines` | 2000 | Most lines per read. |

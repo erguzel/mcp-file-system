@@ -88,7 +88,10 @@ class Settings(BaseSettings):
     allow_write: bool = Field(default=False, description="Register the editing tools.")
     deny_globs: tuple[str, ...] = Field(
         default=DEFAULT_DENY_GLOBS,
-        description="Gitignore-style patterns that are never readable or writable.",
+        description=(
+            "Gitignore-style patterns that are never readable or writable. The last "
+            "matching pattern wins; a '!' pattern re-allows a path an earlier one blocks."
+        ),
     )
     respect_gitignore: bool = Field(
         default=True, description="Hide .gitignore'd paths from directory walks and searches."
