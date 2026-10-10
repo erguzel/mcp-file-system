@@ -149,4 +149,10 @@ around `server.run("streamable-http", host=..., port=...)` and the checklist bel
 - binding to `127.0.0.1` behind a reverse proxy with TLS,
 - a container image that runs as a non-root user, with the workspace mounted (read-only
   unless writes are needed),
-- a health endpoint and request logging to stderr.
+- a health endpoint and request logging to stderr,
+- lone surrogates in arguments (JSON `"\ud800"`): over stdio the SDK rejects such
+  messages before any tool runs, but an HTTP path must be checked again. If they get
+  through, `PathGuard.resolve` fails with an unhandled `UnicodeEncodeError` (generic
+  error, no file access) and `AuditLog.record` cannot write the record. The fix is an
+  `os.fsencode` check in the guard and `errors="backslashreplace"` plus a catch-all in
+  `record`, with tests in `tests/security/`.
