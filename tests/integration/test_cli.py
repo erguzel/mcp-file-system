@@ -10,6 +10,7 @@ from mcp.client.stdio import StdioServerParameters
 from conftest import write
 from mcp_file_system import __version__, cli
 from mcp_file_system.config import DEFAULT_DENY_GLOBS
+from mcp_file_system.security import AccessPolicy
 
 
 def parse(*argv: str) -> Any:
@@ -40,6 +41,17 @@ def test_multiple_roots_and_extra_deny(root: Path, outside: Path) -> None:
     )
     assert settings.roots == (root, outside)
     assert settings.deny_globs == (*DEFAULT_DENY_GLOBS, "*.sqlite", "dumps/")
+
+
+def test_deny_negation_re_allows_a_default(root: Path) -> None:
+    # --deny patterns follow the defaults and the last matching pattern wins.
+    policy = AccessPolicy(
+        cli.settings_from_args(parse("-r", str(root), "--deny", "!.env")).deny_globs
+    )
+    assert not policy.is_denied(".env", is_dir=False)
+    assert policy.is_denied(".env.local", is_dir=False)
+    again = cli.settings_from_args(parse("-r", str(root), "--deny", "!.env", "--deny", ".env"))
+    assert AccessPolicy(again.deny_globs).is_denied(".env", is_dir=False)
 
 
 def test_invalid_configuration_exits_with_code_2(

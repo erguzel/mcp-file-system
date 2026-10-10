@@ -112,6 +112,9 @@ All notable changes to this project are documented here. The format follows
 - Editing a big-endian UTF-16 or UTF-32 file no longer rewrites it as little-endian. Every
   editing tool wrote the machine's byte order, so the BOM and every byte of the file
   changed; the file now keeps its BOM and byte order.
+- The `--deny` help, the `deny_globs` description and the README said the patterns only
+  add to the defaults. They now say that the last matching pattern wins, so
+  `--deny '!PATTERN'` re-allows a path the defaults block. The behavior is unchanged.
 
 ### Security
 

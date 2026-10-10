@@ -44,7 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--deny",
         action="append",
         metavar="GLOB",
-        help="Extra gitignore-style pattern to block (repeatable; adds to the defaults).",
+        help=(
+            "Gitignore-style pattern appended to the deny list (repeatable). The last "
+            "matching pattern wins, so '!GLOB' re-allows a path the defaults block."
+        ),
     )
     parser.add_argument(
         "--gitignore",

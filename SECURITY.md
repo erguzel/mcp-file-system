@@ -46,6 +46,8 @@ asks for, it cannot:
   Use `--deny` for anything that must stay unreadable.
 - **The deny list is a blocklist.** Review the defaults (`config.DEFAULT_DENY_GLOBS`) and
   add project-specific patterns with `--deny`. Setting `MCP_FS_DENY_GLOBS` replaces the
-  defaults instead of adding to them.
+  defaults instead of adding to them. A `--deny '!PATTERN'` re-allows what the defaults
+  block (the last matching pattern wins), so review such patterns as carefully as the
+  list itself.
 - **HTTP transport** is not exposed yet. Before serving over a network, add
   authentication and TLS (see `docs/ARCHITECTURE.md`).
