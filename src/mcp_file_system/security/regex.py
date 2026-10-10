@@ -112,5 +112,7 @@ def compile_pattern(
     try:
         compiled = regex.compile(source, flags)
     except regex.error as exc:
-        raise InvalidPatternError(f"Invalid regular expression {pattern!r}: {exc}") from None
+        # Without quoting the pattern: errors reach the audit log, and a pattern can be
+        # file content (replace_in_file's pattern is logged as its length only).
+        raise InvalidPatternError(f"Invalid regular expression: {exc}") from None
     return SafePattern(compiled, deadline, pattern)

@@ -132,6 +132,10 @@ All notable changes to this project are documented here. The format follows
   time change with each entry. It now counts what `list_directory(include_hidden=true)`
   shows, so gitignored entries, FIFOs and sockets, and symlinks leaving the roots are no
   longer counted either; `size_bytes` and `modified` are `null` for directories.
+- An invalid regex passed to `replace_in_file` was written to the audit log in full as
+  part of the error message, although the log records that pattern as its length only.
+  Regex error messages (`grep`, `read_between`, `replace_in_file`) no longer quote the
+  pattern; the agent still gets the error and its position.
 - Outlining a Markdown or shell file can no longer crash the server on Linux. The
   tree-sitter-markdown and tree-sitter-bash scanners pass characters above U+00FF to
   `isdigit()`, which reads outside glibc's lookup table (e.g. `1` or `{` followed by an

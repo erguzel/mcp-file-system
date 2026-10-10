@@ -139,6 +139,26 @@ async def test_multi_replace_is_recorded_without_content(
 
 
 @pytest.mark.anyio
+async def test_invalid_regex_pattern_is_not_logged(
+    make_settings: SettingsFactory, root: Path, tmp_path: Path
+) -> None:
+    log_path = tmp_path / "audit.jsonl"
+    write(root / "config.py", f"{SENSITIVE_LINE}\n")
+    pattern = SENSITIVE_LINE + "["
+    settings = make_settings(audit_log=log_path, allow_write=True)
+    async with Client(create_server(settings)) as client:
+        result = await client.call_tool(
+            "replace_in_file",
+            {"path": "config.py", "pattern": pattern, "replacement": "x", "regex": True},
+        )
+    assert result.is_error
+    (entry,) = read_log(log_path)
+    assert entry["args"]["pattern"] == {"chars": len(pattern)}
+    assert entry["error"]["type"] == "InvalidPatternError"
+    assert "do-not-log-me" not in log_path.read_text()
+
+
+@pytest.mark.anyio
 async def test_disallowed_tools_are_not_wrapped(
     make_settings: SettingsFactory, root: Path, tmp_path: Path
 ) -> None:
