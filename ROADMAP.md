@@ -284,9 +284,6 @@ and `re2` was not requested.
   Latin-1, so a Windows-1254 file shows `þ ð ý` instead of `ş ğ ı`. Writing characters
   Latin-1 cannot store is reported as an error and changes nothing. Better detection
   needs a heuristic or a dependency; start only when such files actually come up.
-- **UTF-16 byte order (confirmed):** an edited UTF-16 BE file is written back as LE
-  (reproduced: a file starting `FE FF` starts `FF FE` after a replace). UTF-32 BE uses
-  the same mapping (not tested). Undo restores the original bytes. Fix with a test.
 
 ## Deferred until requested
 

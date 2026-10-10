@@ -28,6 +28,14 @@ _BOMS: tuple[tuple[bytes, str], ...] = (
     (codecs.BOM_UTF16_LE, "utf-16"),
     (codecs.BOM_UTF16_BE, "utf-16"),
 )
+# "utf-16"/"utf-32" read either byte order from the BOM but always write the machine's,
+# so text is written back with the codec of the file's own order.
+_BOM_ENCODINGS: dict[bytes, str] = {
+    codecs.BOM_UTF32_LE: "utf-32-le",
+    codecs.BOM_UTF32_BE: "utf-32-be",
+    codecs.BOM_UTF16_LE: "utf-16-le",
+    codecs.BOM_UTF16_BE: "utf-16-be",
+}
 # Encodings in which every newline is the single ASCII byte, so bytes can be counted.
 _BYTE_COUNTABLE = frozenset({"utf-8", "utf-8-sig", "latin-1"})
 NEWLINE_NAMES = {"\n": "LF", "\r\n": "CRLF", "\r": "CR"}
@@ -44,6 +52,11 @@ class TextFormat:
     """Python codec name used to decode the file."""
     newline: str
     """The first line terminator found (``"\\n"`` when the file has none)."""
+    bom: bytes = b""
+    """The UTF-16/UTF-32 byte-order mark, which fixes the byte order for writing.
+
+    Empty otherwise, also for UTF-8 with BOM, whose ``utf-8-sig`` codec writes its own.
+    """
 
     @property
     def newline_name(self) -> str:
@@ -66,7 +79,8 @@ def detect_format_bytes(sample: bytes) -> TextFormat | None:
     """
     for bom, encoding in _BOMS:
         if sample.startswith(bom):
-            return TextFormat(encoding, _detect_newline(sample.decode(encoding, errors="replace")))
+            newline = _detect_newline(sample.decode(encoding, errors="replace"))
+            return TextFormat(encoding, newline, bom if bom in _BOM_ENCODINGS else b"")
     if b"\x00" in sample:
         return None
     decoder = codecs.getincrementaldecoder("utf-8")()
@@ -122,6 +136,17 @@ def open_lines(path: Path, fmt: TextFormat) -> Iterator[Iterator[str]]:
 def read_text(path: Path, fmt: TextFormat, *, errors: str = "replace") -> str:
     """Decode a whole file without translating line terminators."""
     return path.read_bytes().decode(fmt.encoding, errors=errors)
+
+
+def encode_text(text: str, fmt: TextFormat, *, errors: str) -> bytes:
+    """Encode ``text`` as a file of format ``fmt``, keeping its BOM and byte order.
+
+    Raises:
+        UnicodeEncodeError: ``text`` holds characters the encoding cannot store.
+    """
+    if fmt.bom:
+        return fmt.bom + text.encode(_BOM_ENCODINGS[fmt.bom], errors=errors)
+    return text.encode(fmt.encoding, errors=errors)
 
 
 def split_lines(text: str) -> list[str]:

@@ -86,6 +86,22 @@ class TestReplace:
         ctx.editor.replace("a.txt", "café", "thé")
         assert path.read_bytes() == codecs.BOM_UTF8 + "thé\n".encode()
 
+    @pytest.mark.parametrize(
+        ("bom", "codec"),
+        [
+            (codecs.BOM_UTF16_BE, "utf-16-be"),
+            (codecs.BOM_UTF16_LE, "utf-16-le"),
+            (codecs.BOM_UTF32_BE, "utf-32-be"),
+            (codecs.BOM_UTF32_LE, "utf-32-le"),
+        ],
+    )
+    def test_utf16_and_utf32_keep_their_byte_order(
+        self, ctx: AppContext, root: Path, bom: bytes, codec: str
+    ) -> None:
+        path = write(root / "a.txt", bom + "café\nx\n".encode(codec))
+        ctx.editor.replace("a.txt", "café", "thé")
+        assert path.read_bytes() == bom + "thé\nx\n".encode(codec)
+
     def test_undecodable_bytes_round_trip(self, ctx: AppContext, root: Path) -> None:
         # Valid UTF-8 for the sniffed prefix, an invalid byte much later.
         original = b"a = 1\n" * 2000 + b"blob = '\xff'\nb = 2\n"
