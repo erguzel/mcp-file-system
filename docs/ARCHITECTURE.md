@@ -68,7 +68,9 @@ another protocol) without a server. Both rules are enforced by
   them; editors require them back.
 - **Small-model-friendly schemas:** tool parameters never use `X | None = None` (it
   becomes an `anyOf` schema). "Unset" is an empty string or `0`, mapped back to `None`
-  by `unset_str` / `unset_int` before calling the service.
+  by `unset_str` / `unset_int` before calling the service, except where `0` is a real
+  value (context line counts) or the service itself reads `""` as unset
+  (`if_changed_since`, `key_path`); `tests/unit/test_conventions.py` enforces this.
 - **Profiles:** `full` exposes everything; `lite` is a narrow but complete subset with
   essential parameters and short descriptions (`tools/lite.py`). Both call the same
   services, so behavior is identical for the same arguments, except that `lite`'s `grep`
@@ -83,7 +85,7 @@ another protocol) without a server. Both rules are enforced by
 2. Create `tools/<group>.py` with `register(registry, ctx)`. In it, define a sync function
    decorated with `@registry.tool(READ_ONLY)` (or `WRITES`). Its return type is
    `Annotated[CallToolResult, YourResult]` and its body returns `to_call_result(...)`.
-   Describe parameters with `Annotated[..., Field(description=...)]`; the docstring
+   Describe parameters with `Annotated[..., Field(description=...)]` (a profile test fails on an undescribed parameter); the docstring
    becomes the tool description. Use concrete defaults, not `None`.
 3. Add `register` to the `full` entry of `READ_TOOLSETS` or `WRITE_TOOLSETS` in
    `tools/__init__.py`. Add a `lite` variant only if the tool is essential for small
@@ -124,9 +126,10 @@ For a language with a tree-sitter grammar, subclass `TreeSitterOutlineProvider`
 `_prepare(source)` to transform the input before parsing without changing byte offsets
 (the YAML provider masks `{{ ... }}` template directives this way). The
 base class normalizes line endings and creates a fresh `Parser` per call, because
-parsers are not thread-safe and tools run in worker threads. Add the provider to
-`tests/unit/test_outline_fuzz.py`: tree-sitter is a C extension, so a bug there crashes
-the server process instead of raising, and only such tests catch it before users do.
+parsers are not thread-safe and tools run in worker threads. Registering the provider
+is enough for `tests/unit/test_outline_fuzz.py`, which fuzzes every provider of
+`default_registry()`: tree-sitter is a C extension, so a bug there crashes the server
+process instead of raising, and only such tests catch it before users do.
 
 Before adding a grammar, grep its external scanner (`src/scanner.c`) for `<ctype.h>`
 classifiers such as `isdigit()` or `isalpha()` applied to the lookahead character. If
