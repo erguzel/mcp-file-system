@@ -98,6 +98,25 @@ async def test_profiles_expose_expected_tools(
 
 
 @pytest.mark.parametrize("profile", ["full", "lite"])
+async def test_every_input_parameter_has_a_description(
+    make_settings: SettingsFactory, profile: str
+) -> None:
+    """ARCHITECTURE conventions: describe parameters with ``Field(description=...)``."""
+    tools = await list_tools(make_settings, profile=profile, allow_write=True)
+    missing = [
+        f"{name}.{parameter}"
+        for name, tool in tools.items()
+        for owner, schema in [
+            (name, tool.input_schema),
+            *tool.input_schema.get("$defs", {}).items(),
+        ]
+        for parameter, spec in schema.get("properties", {}).items()
+        if not spec.get("description")
+    ]
+    assert missing == []
+
+
+@pytest.mark.parametrize("profile", ["full", "lite"])
 async def test_input_schemas_have_no_nullable_unions(
     make_settings: SettingsFactory, profile: str
 ) -> None:
