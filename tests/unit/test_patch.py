@@ -1,7 +1,7 @@
 import pytest
 
 from mcp_file_system.core.models import HunkReport
-from mcp_file_system.core.patch import PatchOutcome, apply_hunks, parse_patch
+from mcp_file_system.core.patch import MAX_HUNKS, PatchOutcome, apply_hunks, parse_patch
 from mcp_file_system.core.textio import split_lines_keepends
 from mcp_file_system.errors import InvalidArgumentError
 
@@ -20,6 +20,12 @@ def failure(outcome: PatchOutcome) -> HunkReport:
 
 
 class TestApply:
+    def test_hunk_count_is_capped(self) -> None:
+        hunk = "@@ -1,1 +1,1 @@\n-line 1\n+one\n"
+        assert len(parse_patch(hunk * MAX_HUNKS)) == MAX_HUNKS
+        with pytest.raises(InvalidArgumentError, match=f"at most {MAX_HUNKS} hunks"):
+            parse_patch(hunk * (MAX_HUNKS + 1))
+
     def test_exact_position(self) -> None:
         outcome = patch(FILE, "@@ -2,2 +2,2 @@\n line 2\n-line 3\n+third\n")
         assert outcome.text == FILE.replace("line 3\n", "third\n")

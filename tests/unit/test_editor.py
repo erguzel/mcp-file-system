@@ -361,6 +361,20 @@ class TestApplyPatch:
         assert path.read_text() == "a\nb\nc\nd\n"
         assert etag(path) == before
 
+    def test_many_failing_hunks_are_listed_in_part(self, ctx: AppContext, root: Path) -> None:
+        # The error and the dry-run report must not grow with the number of failed hunks.
+        path = write(root / "f.txt", "a\n")
+        diff = "".join(f"@@ -9,1 +9,1 @@\n-q{i}\n+Q\n" for i in range(50))
+        with pytest.raises(NoMatchError) as error:
+            ctx.editor.apply_patch("f.txt", diff, expected_etag=etag(path))
+        assert str(error.value).count("hunk ") == 15
+        assert "(+35 more)" in str(error.value)
+        report = ctx.editor.apply_patch("f.txt", diff, expected_etag=etag(path), dry_run=True)
+        rows = report.render().splitlines()
+        assert rows[0].startswith("Dry run: 50 of 50 hunk(s) would fail")
+        assert len(rows) == 17
+        assert rows[-1] == "[+35 more failing hunks]"
+
     def test_dry_run_reports_failing_hunks(self, ctx: AppContext, root: Path) -> None:
         path = write(root / "f.txt", "a\nb\n")
         diff = f"{self.DIFF}@@ -9,1 +9,1 @@\n-q\n+Q\n"
