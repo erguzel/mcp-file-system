@@ -151,7 +151,11 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             bool, Field(description="Allow replacing an existing file (needs expected_etag).")
         ] = False,
         expected_etag: Annotated[
-            str, Field(description="Current etag of the file being overwritten.")
+            str,
+            Field(
+                description="Current etag of the file being overwritten; if that file no "
+                "longer exists the call fails as stale instead of creating a new one."
+            ),
         ] = "",
         dry_run: DryRunArg = False,
     ) -> Annotated[CallToolResult, EditResult]:

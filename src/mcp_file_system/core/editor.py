@@ -345,7 +345,11 @@ class FileEditor:
         expected_etag: str | None = None,
         dry_run: bool = False,
     ) -> EditResult:
-        """Create a file (and missing parent directories), or overwrite one with its etag."""
+        """Create a file (and missing parent directories), or overwrite one with its etag.
+
+        Raises:
+            StaleFileError: ``expected_etag`` was given but the file no longer exists.
+        """
         resolved = self._guard.resolve(path, must_exist=False)
         if resolved.path.exists():
             if not resolved.path.is_file():
@@ -363,6 +367,12 @@ class FileEditor:
             new_text = normalize_newlines(content, document.fmt.newline)
             return self._commit(resolved, document, new_text, changes=1, dry_run=dry_run)
 
+        if expected_etag is not None:
+            # An etag means "replace the version I read"; that version is gone.
+            raise StaleFileError(
+                f"{resolved.display} no longer exists; it was deleted or moved after you read "
+                "it. Check with file_info before creating it again."
+            )
         empty = _Document(text="", fmt=TextFormat("utf-8", "\n"), etag="", raw=b"")
         return self._commit(resolved, empty, content, changes=1, dry_run=dry_run, create=True)
 
