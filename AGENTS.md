@@ -103,6 +103,11 @@ A change is finished only when **all** of these are true:
   `max_pattern_length`, `search_timeout_s`) or, for a fixed per-call cap, by a named module
   constant (e.g. `MAX_BATCH_RANGES`, `MAX_EDITS`). When output is cut, say so and say how
   to continue (for example `next_start`).
+- **Continuation hints:** a hint on cut or bounded output names a next step that works in
+  every profile that can return it, and for every file type the tool accepts
+  (`tests/integration/test_profiles.py` runs lite's truncation hints).
+- **Raises sections:** if a docstring has a `Raises:` section, it lists every `FsError`
+  subclass the function can raise, including those from callees it does not catch.
 - **Lines:** a line ends at `\n`, `\r\n`, or a lone `\r`. Use the helpers in
   `core/textio.py` (`split_lines`, `open_lines`, `count_lines`); do not use
   `str.splitlines()`, which also splits on other characters
