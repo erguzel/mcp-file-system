@@ -434,6 +434,11 @@ class OutlineResult(ToolResult):
     total_lines: int
     symbols: list[Symbol]
     truncated: bool = False
+    next_line: int | None = Field(
+        default=None,
+        description="Start line of the first symbol not listed; continue with "
+        "read_lines(start=...).",
+    )
 
     def render(self) -> str:  # noqa: D102
         header = f"==> {self.path} ({self.language}, {self.total_lines} lines) <=="
@@ -445,10 +450,10 @@ class OutlineResult(ToolResult):
             span = f"{symbol.start_line:>{width}}-{symbol.end_line:<{width}}"
             label = symbol.signature or f"{symbol.kind} {symbol.name}"
             rows.append(f"{span}  {'  ' * symbol.depth}{label}")
-        if self.truncated:
+        if self.truncated and self.next_line is not None:
             rows.append(
-                f"[Truncated at {len(self.symbols)} symbols. Use read_skeleton, or "
-                f"read_lines(start={self.symbols[-1].end_line + 1}) for the rest.]"
+                f"[Truncated at {len(self.symbols)} symbols; the next one starts at line "
+                f"{self.next_line}. Continue with read_lines(start={self.next_line}).]"
             )
         return "\n".join(rows)
 

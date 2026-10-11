@@ -217,6 +217,32 @@ async def test_lite_hints_name_only_lite_tools(make_settings: SettingsFactory, r
             assert not forbidden[tool].search(text), (tool, text)
 
 
+async def test_lite_truncation_hints_name_only_lite_tools(
+    make_settings: SettingsFactory, root: Path
+) -> None:
+    # Hints on cut output reach lite users too; they must not suggest full-only tools.
+    forbidden = await full_only_names(make_settings)
+    write(root / "many.py", "".join(f"def f{n}(): pass\n" for n in range(2005)))
+    write(root / "wide.txt", "MARK " + "x" * 3000 + "\n")
+    settings = make_settings(
+        profile="lite", allow_write=True, max_read_lines=10, max_output_chars=1000
+    )
+    calls = [
+        ("outline", {"path": "many.py"}, "Continue with read_lines(start=2001)"),
+        ("read_lines", {"path": "many.py"}, "Continue with read_lines("),
+        (
+            "replace_in_file",
+            {"path": "wide.txt", "pattern": "MARK", "replacement": "SEEN"},
+            "re-read the changed lines",
+        ),
+    ]
+    async with Client(create_server(settings)) as client:
+        for tool, arguments, expected in calls:
+            text = text_of(await client.call_tool(tool, arguments))
+            assert expected in text, (tool, text[-300:])
+            assert not forbidden[tool].search(text), (tool, text[-300:])
+
+
 async def test_lite_listing_is_much_smaller(make_settings: SettingsFactory) -> None:
     """Keeps lite under half of full; logs the sizes README quotes (chars / 4 as tokens)."""
 

@@ -137,8 +137,8 @@ All notable changes to this project are documented here. The format follows
   exposed.
 - `apply_patch` accepts at most 500 hunks per call, and its error and dry-run report name
   at most 15 failing hunks and count the rest, so neither grows with the patch.
-- A cut `outline` says where to continue (`read_skeleton`, or `read_lines` from the line
-  after the last listed symbol) instead of only that it was cut.
+- A cut `outline` names the line where the first unlisted symbol starts (`next_line`) and
+  says to continue with `read_lines` from there, instead of only that it was cut.
 - Edit results report `truncated` when the diff was cut at the output limit and say to
   re-read the changed lines; the audit log records the flag.
 
