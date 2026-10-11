@@ -89,7 +89,7 @@ another protocol) without a server. Both rules are enforced by
    `tools/__init__.py`. Add a `lite` variant only if the tool is essential for small
    models (keep `lite` small).
 
-Sync tools run in a worker thread (the SDK uses `anyio.to_thread`), so blocking file
+Sync tools run in a worker thread (the `mcp` 2.x SDK uses `anyio.to_thread`), so blocking file
 I/O never stalls the event loop.
 
 ### Add an outline language
@@ -156,7 +156,7 @@ around `server.run("streamable-http", host=..., port=...)` and the checklist bel
 - a container image that runs as a non-root user, with the workspace mounted (read-only
   unless writes are needed),
 - a health endpoint and request logging to stderr,
-- lone surrogates in arguments (JSON `"\ud800"`): over stdio the SDK rejects such
+- lone surrogates in arguments (JSON `"\ud800"`): over stdio the `mcp` 2.x SDK rejects such
   messages before any tool runs, but an HTTP path must be checked again. If they get
   through, `PathGuard.resolve` fails with an unhandled `UnicodeEncodeError` (generic
   error, no file access) and `AuditLog.record` cannot write the record. The fix is an
