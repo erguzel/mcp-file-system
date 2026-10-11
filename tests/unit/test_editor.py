@@ -574,6 +574,17 @@ class TestWrite:
         assert "--- /dev/null" in result.diff
         assert result.render().startswith("Created new/dir/file.py")
 
+    def test_vanished_file_with_etag_is_stale(self, ctx: AppContext, root: Path) -> None:
+        # An etag says "replace what I read"; if that file is gone, creating a new one would
+        # hide the loss. Without an etag the call is a plain create and still succeeds.
+        path = write(root / "gone.py", "x = 1\n")
+        before = etag(path)
+        path.unlink()
+        with pytest.raises(StaleFileError, match="no longer exists"):
+            ctx.editor.write("gone.py", "y = 2\n", overwrite=True, expected_etag=before)
+        assert not path.exists()
+        assert ctx.editor.write("gone.py", "y = 2\n").created
+
     def test_existing_file_requires_overwrite_and_etag(self, ctx: AppContext, root: Path) -> None:
         path = write(root / "a.txt", "old\n")
         with pytest.raises(AlreadyExistsError):

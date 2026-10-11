@@ -214,6 +214,19 @@ async def test_partial_read_then_guarded_edit_flow(writer: Client, root: Path) -
     assert not created.is_error
     assert (root / "pkg" / "new.py").read_text() == "x = 1\n"
 
+    (root / "pkg" / "new.py").unlink()
+    vanished = await call(
+        writer,
+        "write_file",
+        path="pkg/new.py",
+        content="x = 2\n",
+        overwrite=True,
+        expected_etag=etag,
+    )
+    assert vanished.is_error
+    assert "no longer exists" in text_of(vanished)
+    assert not (root / "pkg" / "new.py").exists()
+
 
 # One call per exposed tool with a path argument; the guard must reject it before any
 # filesystem access (AGENTS.md hard rule 1). A new tool must be added here to be listed.
