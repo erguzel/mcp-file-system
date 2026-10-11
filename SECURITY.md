@@ -2,9 +2,8 @@
 
 ## Reporting a vulnerability
 
-Please report vulnerabilities privately through GitHub's "Report a vulnerability" (security
-advisories) feature of this repository, not through public issues. Include a description, a
-reproduction and the affected version. You can expect an initial response within a week.
+Report vulnerabilities privately by email to the maintainer (address in `pyproject.toml`),
+not through public issues. Include a description, a reproduction and the affected version.
 
 ## Threat model
 
