@@ -96,18 +96,20 @@ A change is finished only when **all** of these are true:
   roots, file contents of denied files, or stack traces in messages. A hint that a `lite`
   tool can return names only tools and parameters `lite` also has (tests in
   `tests/integration/test_profiles.py` check this).
+- **Raises sections:** if a docstring has a `Raises:` section, it lists every `FsError`
+  subclass that can propagate out of the function: raised directly, re-raised, or raised
+  at any depth by a callee and not handled. Other exceptions that are part of the contract
+  (e.g. `ValueError` for bad configuration, `OSError` at startup) are listed too;
+  incidental `OSError` from filesystem races need not be.
 - **Results:** services return a `core.models.ToolResult` subclass. Its `render()` returns
   compact text for the model; the model itself is the structured output.
 - **Limits:** every result must be bounded, by a setting (`max_read_lines`,
   `max_output_chars`, `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`,
   `max_pattern_length`, `search_timeout_s`) or, for a fixed per-call cap, by a named module
   constant (e.g. `MAX_BATCH_RANGES`, `MAX_EDITS`). When output is cut, say so and say how
-  to continue (for example `next_start`).
-- **Continuation hints:** a hint on cut or bounded output names a next step that works in
-  every profile that can return it, and for every file type the tool accepts
-  (`tests/integration/test_profiles.py` runs lite's truncation hints).
-- **Raises sections:** if a docstring has a `Raises:` section, it lists every `FsError`
-  subclass the function can raise, including those from callees it does not catch.
+  to continue (for example `next_start`), with a next step that works in every profile
+  that can return it and for every file type the tool accepts. Tests check only the lite
+  part of this (see Errors); other profiles and file types are not tested.
 - **Lines:** a line ends at `\n`, `\r\n`, or a lone `\r`. Use the helpers in
   `core/textio.py` (`split_lines`, `open_lines`, `count_lines`); do not use
   `str.splitlines()`, which also splits on other characters
