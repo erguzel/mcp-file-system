@@ -59,7 +59,8 @@ A change is finished only when **all** of these are true:
 - [ ] Every doc that mentions what the change renames, adds, removes or re-measures is
       updated in the same commit: search `*.md`, `docs/`, docstrings and test names for
       the names and numbers involved. A new module under `core/`, `security/` or `tools/`
-      also gets a row in the project map below and in `docs/ARCHITECTURE.md`.
+      also gets a row in the project map below and in `docs/ARCHITECTURE.md`
+      (`tests/unit/test_conventions.py` checks both).
 - [ ] Exact measured figures (listing sizes, savings, timings) appear only in `README.md`;
       `CHANGELOG.md` and `ROADMAP.md` may give an approximate ratio (e.g. "about half")
       but no exact numbers.
@@ -103,7 +104,8 @@ A change is finished only when **all** of these are true:
   to continue (for example `next_start`).
 - **Lines:** a line ends at `\n`, `\r\n`, or a lone `\r`. Use the helpers in
   `core/textio.py` (`split_lines`, `open_lines`, `count_lines`); do not use
-  `str.splitlines()`, which also splits on other characters.
+  `str.splitlines()`, which also splits on other characters
+  (`tests/unit/test_conventions.py` scans `src/` for it).
 - **Regex from users:** always compile with `security.compile_pattern(...)` and a
   `Deadline`. Never use the `re` module on agent-supplied patterns.
 - **Style:** type hints everywhere (`mypy --strict` must pass), line length 100, no
@@ -131,10 +133,11 @@ def my_tool(
    or `WRITE_TOOLSETS` in `tools/__init__.py`. Write tools go only in `WRITE_TOOLSETS`.
 4. **Never** use `X | None = None` for tool parameters (it becomes an `anyOf` schema that
    small models handle poorly). Use `""` or `0` for "unset" and convert with
-   `unset_str` / `unset_int` from `tools/_common.py`. A test
-   (`test_input_schemas_have_no_nullable_unions` in `tests/integration/test_profiles.py`)
-   checks that no input schema contains `anyOf`; it does not check how the sentinel is
-   converted.
+   `unset_str` / `unset_int` from `tools/_common.py`. Two tests enforce this:
+   `test_input_schemas_have_no_nullable_unions` (`tests/integration/test_profiles.py`)
+   rejects `anyOf` in any input schema, and `tests/unit/test_conventions.py` requires the
+   `unset_*` call for every `""`/`0` default, except context line counts (`0` is a value)
+   and `if_changed_since`/`key_path` (the service reads `""` as unset).
 5. Do **not** add the tool to the `lite` profile (`tools/lite.py`) unless the human asks;
    `lite` must stay small.
 
@@ -147,6 +150,8 @@ def my_tool(
   unreachable. Use `make_ctx(**settings)` to change limits.
 - Create symlinks only through `symlink_or_skip(link, target)` (Windows may forbid them),
   and Windows junctions only through `junction_or_skip(link, target)` (skipped elsewhere).
+  `tests/unit/test_conventions.py` fails on direct `write_text`, `symlink_to` and similar
+  calls outside `conftest.py`.
 - Mark OS-specific tests with `pytest.mark.skipif(...)`.
 - Test file names must be unique across all test directories (there are no
   `__init__.py` files).
