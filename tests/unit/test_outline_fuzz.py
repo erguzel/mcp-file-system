@@ -15,35 +15,19 @@ from hypothesis import strategies as st
 
 from mcp_file_system.core.models import Symbol
 from mcp_file_system.core.outline.base import OutlineProvider
-from mcp_file_system.core.outline.dockerfile import DockerfileOutlineProvider
-from mcp_file_system.core.outline.registry import _code_factories
+from mcp_file_system.core.outline.registry import default_registry
 from mcp_file_system.core.outline.treesitter import (
     JsonOutlineProvider,
-    ShellOutlineProvider,
     TomlOutlineProvider,
-    TreeSitterMarkdownOutlineProvider,
     YamlOutlineProvider,
 )
 from mcp_file_system.core.skeleton import normalize_folds
 from mcp_file_system.core.textio import split_lines
+from mcp_file_system.errors import ParseError
 
-
-def _code_providers() -> list[OutlineProvider]:
-    try:
-        return [factory() for factory in _code_factories()]
-    except ImportError:  # pragma: no cover - the [code] extra is not installed
-        return []
-
-
-PROVIDERS: list[OutlineProvider] = [
-    TreeSitterMarkdownOutlineProvider(),
-    JsonOutlineProvider(),
-    TomlOutlineProvider(),
-    YamlOutlineProvider(),
-    ShellOutlineProvider(),
-    DockerfileOutlineProvider(),
-    *_code_providers(),
-]
+# Every provider the server actually serves, so a newly registered language is fuzzed
+# without touching this file (the [code] providers are present only with the extra).
+PROVIDERS: tuple[OutlineProvider, ...] = default_registry().providers()
 FUZZ = settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
 # Text biased towards the syntax of the formats under test.
@@ -99,7 +83,11 @@ def assert_well_formed(symbols: list[Symbol], text: str) -> None:
 @FUZZ
 @given(text=st.one_of(st.text(max_size=300), SYNTAX_TEXT))
 def test_arbitrary_text_never_crashes(provider: OutlineProvider, text: str) -> None:
-    assert_well_formed(provider.outline(text), text)
+    try:
+        symbols = provider.outline(text)
+    except ParseError:  # a bounded, agent-facing refusal (e.g. Python syntax errors)
+        return
+    assert_well_formed(symbols, text)
     fold_ranges = getattr(provider, "fold_ranges", None)
     if fold_ranges is not None:
         total = max(1, len(split_lines(text)))
