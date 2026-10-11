@@ -24,12 +24,16 @@ _SUFFIX_KINDS = {
     ".csv": "csv",
     ".tsv": "csv",
     ".json": "json",
+    ".jsonc": "json",
     ".toml": "toml",
     ".log": "log",
     ".md": "markdown",
     ".markdown": "markdown",
 }
-SUPPORTED = "CSV/TSV, JSON, TOML, logs (.log), Markdown, pyproject.toml, package.json, Cargo.toml"
+SUPPORTED = (
+    "CSV/TSV, JSON (incl. comments, .jsonc), TOML, logs (.log), Markdown, pyproject.toml, "
+    "package.json, Cargo.toml"
+)
 
 
 class Peeker:

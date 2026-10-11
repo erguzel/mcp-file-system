@@ -4,6 +4,10 @@ import json
 import tomllib
 from typing import Any
 
+from tree_sitter import Node
+
+from mcp_file_system.core.outline.treesitter._base import node_text
+from mcp_file_system.core.outline.treesitter.structured import JsonOutlineProvider, unquote
 from mcp_file_system.errors import ParseError
 
 MAX_DEPTH = 4
@@ -14,12 +18,55 @@ MAX_NAMES = 40
 _TYPE_NAMES = {bool: "bool", int: "int", float: "float", str: "str", type(None): "null"}
 
 
+_JSON_TREE = JsonOutlineProvider()
+_JSON_LITERALS = {"true": True, "false": False, "null": None}
+
+
 def parse_json(text: str) -> Any:
-    """Parse JSON, mapping every failure (including too deep nesting) to :class:`ParseError`."""
+    """Parse JSON, mapping every failure (including too deep nesting) to :class:`ParseError`.
+
+    Strict JSON goes through :func:`json.loads`. Text it rejects is parsed once more with
+    the tree-sitter grammar that ``outline`` and ``query`` use, so comments (``//`` and
+    ``/* */``, as in ``.jsonc`` or ``tsconfig.json``) are accepted; anything the grammar
+    flags as an error (for example a trailing comma) is still rejected.
+    """
     try:
         return json.loads(text)
     except (ValueError, RecursionError) as exc:
-        raise ParseError(f"invalid JSON ({type(exc).__name__}: {str(exc)[:120]})") from None
+        strict_error = f"invalid JSON ({type(exc).__name__}: {str(exc)[:120]})"
+    try:
+        return _parse_with_comments(text)
+    except RecursionError:
+        raise ParseError(strict_error) from None
+
+
+def _parse_with_comments(text: str) -> Any:
+    """Build Python values from the tree-sitter JSON tree, skipping comment nodes."""
+    root, source = _JSON_TREE.parse(text)
+    values = [child for child in root.named_children if child.type != "comment"]
+    if root.has_error or not values:
+        raise ParseError("invalid JSON (comments are allowed, syntax errors are not)")
+    return _to_value(values[0], source)
+
+
+def _to_value(node: Node, source: bytes) -> Any:
+    if node.type == "object":
+        pairs = (
+            (pair.child_by_field_name("key"), pair.child_by_field_name("value"))
+            for pair in node.named_children
+            if pair.type == "pair"
+        )
+        return {
+            unquote(node_text(key, source)): _to_value(value, source)
+            for key, value in pairs
+            if key is not None and value is not None
+        }
+    if node.type == "array":
+        return [_to_value(c, source) for c in node.named_children if c.type != "comment"]
+    if node.type in ("string", "number"):
+        return json.loads(node_text(node, source))
+    # In an error-free tree the only other value nodes are the three literals.
+    return _JSON_LITERALS[node.type]
 
 
 def parse_toml(text: str) -> dict[str, Any]:
