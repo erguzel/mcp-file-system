@@ -77,7 +77,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         pattern: Annotated[str, Field(description="Regex (invalid regex is searched literally).")],
         path: DirArg = ".",
         glob: Annotated[str, Field(description="Only files matching this glob, e.g. '*.py'.")] = "",
-        ignore_case: bool = False,
+        ignore_case: Annotated[bool, Field(description="Case-insensitive matching.")] = False,
         context: Annotated[
             int, Field(ge=0, le=MAX_CONTEXT_LINES, description="Context lines around each hit.")
         ] = 0,
