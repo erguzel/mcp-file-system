@@ -16,8 +16,9 @@ models. Item 1 introduces profiles so that later additions can be gated.
 - Replace every `X | None = None` tool parameter with a concrete default (e.g.
   `max_matches: int = 100`, `end: int = -1`). This removes all `anyOf`/`null` constructs
   from the input schemas.
-- Add `--no-output-schema` (env `MCP_FS_OUTPUT_SCHEMA=false`). It omits the output schemas
-  (larger than the input schemas) while still returning the compact text.
+- Add `--[no-]output-schema` (env `MCP_FS_OUTPUT_SCHEMA`), on by default in `full` and off
+  in `lite`. Without the output schemas (larger than the input schemas) the tools still
+  return the compact text.
 - Add `--profile lite|full` (default `full`) and a `--tools name,name` allowlist. `lite`
   exposes the core tools with only their essential parameters.
 - Add an approximate token count to `file_info` (e.g. `~12.4k tokens`, bytes / 4) so
@@ -92,8 +93,8 @@ skeleton view (item 5). Plain text and logs have no grammar; items 6 and 8 cover
 
 **Done when:** each provider has unit tests including malformed input; JSON/TOML/YAML
 symbols resolve with correct line spans; the server starts and the core formats work when
-the `[code]` extra is not installed; CI stays green on all three operating systems
-(macOS has run on manual dispatch only since the CI matrix was trimmed).
+the `[code]` extra is not installed; CI stays green on Linux and Windows on every push
+and on macOS on manual dispatch (the matrix was trimmed).
 
 ## 4. Change-aware reads and navigation hints
 
@@ -101,8 +102,9 @@ the `[code]` extra is not installed; CI stays green on all three operating syste
 
 **What**
 - **Not-modified reads:** `read_lines` and `read_symbol` accept `if_changed_since=<etag>`.
-  If the file is unchanged, they return a one-line "unchanged" answer instead of the
-  content (like HTTP 304 Not Modified).
+  If the file is unchanged and those lines were returned earlier in this session, they
+  return a one-line "unchanged" answer instead of the content (like HTTP 304 Not
+  Modified); otherwise the content is sent with a note.
 - **Already-read tracking:** per session, remember which `(path, line range, etag)` were
   returned. When an unchanged range is requested again, still return it, but prepend a
   note such as "already returned earlier in this session; file unchanged".
@@ -288,8 +290,9 @@ and `re2` was not requested.
 ## Deferred until requested
 
 - **HTTP deployment:** a `--transport streamable-http` option, mandatory authentication,
-  TLS behind a reverse proxy, a non-root container image and a health endpoint. See
-  `docs/ARCHITECTURE.md`.
+  TLS behind a reverse proxy, a non-root container image, a health endpoint, per-session
+  state for `ReadTracker` and `EditHistory`, and a re-check of lone surrogates in
+  arguments. The full checklist is in `docs/ARCHITECTURE.md`.
 
 ## Not planned
 
