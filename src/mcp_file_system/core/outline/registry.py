@@ -65,6 +65,21 @@ class OutlineRegistry:
         for pattern in getattr(provider, "filenames", ()):
             self._by_filename[pattern.lower()] = provider
 
+    def providers(self) -> tuple[OutlineProvider, ...]:
+        """Every registered provider once, in registration order.
+
+        Lets tests and tooling enumerate what the registry serves instead of keeping a
+        second, hand-maintained list of providers.
+        """
+        seen: dict[int, OutlineProvider] = {}
+        for provider in (
+            *self._by_suffix.values(),
+            *self._by_interpreter.values(),
+            *self._by_filename.values(),
+        ):
+            seen.setdefault(id(provider), provider)
+        return tuple(seen.values())
+
     def for_path(self, path: Path) -> OutlineProvider | None:
         """Return the provider for ``path``'s name or suffix, or ``None`` if unsupported."""
         by_suffix = self._by_suffix.get(path.suffix.lower())
