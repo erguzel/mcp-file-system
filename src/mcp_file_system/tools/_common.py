@@ -31,7 +31,11 @@ PathArg = Annotated[
 ]
 DirArg = Annotated[
     str,
-    Field(description="Directory (or file) relative to the primary root, or absolute."),
+    Field(description="Directory relative to the primary root, or absolute."),
+]
+SearchPathArg = Annotated[
+    str,
+    Field(description="File or directory to search, relative to the primary root, or absolute."),
 ]
 IfChangedSinceArg = Annotated[
     str,

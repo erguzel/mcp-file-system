@@ -16,7 +16,8 @@ All notable changes to this project are documented here. The format follows
   the deny list leaves the file unchanged.
 - `multi_replace` tool (full profile, `--allow-write`): up to 50 exact-text replacements
   in one file, applied in order and written once, so either all apply or none. Each
-  edit must match its `expected_count` (default 1, 0 = any); a failing edit leaves the
+  edit must match its `expected_count` (default 1, 0 = any number but at least one); a
+  failing edit leaves the
   file unchanged and the error names it (`edit 2 of 3: ...`). The growing text is
   checked against `max_file_bytes` before every edit. The edits are logged as their
   count and total length only.
@@ -184,7 +185,8 @@ All notable changes to this project are documented here. The format follows
   corruption during tree walks) and the Markdown, JSON, TOML, YAML and Bash grammars.
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,
-  `grep(glob="")`, `replace_in_file(expected_count=0)` for any count). Results are
+  `grep(glob="")`, `replace_in_file(expected_count=0)` for any number of matches, at
+  least one). Results are
   unchanged.
 - CI matrix trimmed: macOS runs on manual dispatch only and Windows on Python 3.12 and
   3.14; Linux keeps 3.12 to 3.14.

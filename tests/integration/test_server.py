@@ -90,6 +90,11 @@ async def test_parameter_descriptions_reach_the_schema(client: Client) -> None:
     tools = {tool.name: tool for tool in (await client.list_tools()).tools}
     start = tools["read_lines"].input_schema["properties"]["start"]
     assert "Negative counts from the end" in start["description"]
+    # grep accepts a file or a directory; listing and finding take directories only.
+    assert tools["grep"].input_schema["properties"]["path"]["description"].startswith("File or")
+    for name in ("list_directory", "find_files"):
+        path = tools[name].input_schema["properties"]["path"]
+        assert path["description"].startswith("Directory relative"), name
 
 
 async def test_instructions_describe_roots(make_settings: SettingsFactory, root: Path) -> None:

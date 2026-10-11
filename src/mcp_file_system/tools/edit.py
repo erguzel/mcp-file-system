@@ -46,7 +46,11 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         regex: Annotated[bool, Field(description="Interpret pattern as a regex.")] = False,
         ignore_case: Annotated[bool, Field(description="Case-insensitive matching.")] = False,
         expected_count: Annotated[
-            int, Field(ge=0, description="Fail unless exactly this many matches (0 = any).")
+            int,
+            Field(
+                ge=0,
+                description="Fail unless exactly this many matches (0 = any number, at least one).",
+            ),
         ] = 1,
         expected_etag: Annotated[
             str, Field(description="Fail if the file changed since this etag (empty: no check).")

@@ -35,6 +35,7 @@ from mcp_file_system.tools._common import (
     DirArg,
     IfChangedSinceArg,
     PathArg,
+    SearchPathArg,
     ToolRegistry,
     to_call_result,
     unset_str,
@@ -75,7 +76,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
     @registry.tool(READ_ONLY)
     def grep(
         pattern: Annotated[str, Field(description="Regex (invalid regex is searched literally).")],
-        path: DirArg = ".",
+        path: SearchPathArg = ".",
         glob: Annotated[str, Field(description="Only files matching this glob, e.g. '*.py'.")] = "",
         ignore_case: Annotated[bool, Field(description="Case-insensitive matching.")] = False,
         context: Annotated[
