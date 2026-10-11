@@ -547,6 +547,15 @@ class QueryResult(ToolResult):
         return "\n".join(parts)
 
 
+def _diff_cut_hint(*, dry_run: bool, renamed: bool) -> str:
+    """The next step after a diff cut at the output limit, for the kind of edit result."""
+    if dry_run:
+        return "[Diff preview truncated at the output limit; nothing was written.]"
+    if renamed:  # the undone creation moved the file aside: no lines to re-read
+        return "[Diff truncated at the output limit.]"
+    return "[Diff truncated at the output limit; re-read the changed lines with read_lines.]"
+
+
 class EditResult(ToolResult):
     """Outcome of an edit tool."""
 
@@ -559,8 +568,8 @@ class EditResult(ToolResult):
     created: bool = False
     truncated: bool = Field(
         default=False,
-        description="True if the diff was cut at max_output_chars; the edit itself is "
-        "complete. Re-read the changed lines with read_lines.",
+        description="True if the diff was cut at max_output_chars. An applied edit is "
+        "complete regardless.",
     )
 
     def render(self) -> str:  # noqa: D102
@@ -572,9 +581,7 @@ class EditResult(ToolResult):
             head = f"Applied {self.changes} change(s) to {self.path} (new etag {self.etag})"
         parts = [head, self.diff or "[No textual changes]"]
         if self.truncated:
-            parts.append(
-                "[Diff truncated at the output limit; re-read the changed lines with read_lines.]"
-            )
+            parts.append(_diff_cut_hint(dry_run=self.dry_run, renamed=False))
         return "\n".join(parts)
 
 
@@ -600,9 +607,7 @@ class UndoResult(EditResult):
             )
         parts = [head, self.diff or "[No textual changes]"]
         if self.truncated:
-            parts.append(
-                "[Diff truncated at the output limit; re-read the changed lines with read_lines.]"
-            )
+            parts.append(_diff_cut_hint(dry_run=self.dry_run, renamed=self.renamed_to is not None))
         return "\n".join(parts)
 
 
