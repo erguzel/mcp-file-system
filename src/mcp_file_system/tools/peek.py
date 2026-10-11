@@ -20,7 +20,8 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
     def peek(path: PathArg) -> Annotated[CallToolResult, PeekResult]:
         """Show the shape of a data file instead of its content.
 
-        CSV/TSV: columns, types, row count, sample rows. JSON/TOML: key tree with types.
+        CSV/TSV: columns, types, row count, sample rows. JSON (comments allowed)/TOML: key
+        tree with types.
         Logs: time span and level counts. Manifests (pyproject.toml, package.json,
         Cargo.toml): name, version, dependencies. Markdown: front matter and headings.
         """

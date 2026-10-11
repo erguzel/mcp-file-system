@@ -101,6 +101,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `peek` accepts `.jsonc` files and JSON with `//` or `/* */` comments (such as
+  `tsconfig.json`), as `outline` and `query` already did; syntax errors are still rejected.
 - Editing a file with text its encoding cannot store (e.g. `ş` or `€` in a legacy file
   read as Latin-1, or an unpaired surrogate) no longer fails with a generic tool error
   and a stack trace on stderr. All editing tools now report which encoding is involved

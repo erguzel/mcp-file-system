@@ -95,6 +95,35 @@ class TestJson:
         write(root / "d.json", '{"x": [{"a": 1}, {"a": "s", "b": 2.5}]}')
         assert "x: array[2] of {a: int | str, b?: float}" in peek(make_ctx, root / "d.json")
 
+    def test_jsonc_with_comments(self, root: Path, make_ctx: ContextFactory) -> None:
+        write(
+            root / "settings.jsonc",
+            '{\n  // editor\n  "tabSize": 2, /* spaces */\n  "rulers": [80, /* soft */ 100]\n}\n',
+        )
+        out = peek(make_ctx, root / "settings.jsonc")
+        assert "tabSize: int" in out
+        assert "rulers: array[2] of int" in out
+        assert "editor" not in out
+
+    def test_json_with_comments_like_tsconfig(self, root: Path, make_ctx: ContextFactory) -> None:
+        write(
+            root / "tsconfig.json",
+            '{\n  // compiler\n  "compilerOptions": {\n    "strict": true\n  }\n}\n',
+        )
+        assert "compilerOptions: {strict: bool}" in peek(make_ctx, root / "tsconfig.json")
+
+    def test_comment_parse_keeps_scalar_types(self, root: Path, make_ctx: ContextFactory) -> None:
+        write(root / "t.jsonc", '// types\n{"a": 1, "b": 1.5, "c": "x", "d": null, "e": false}')
+        out = peek(make_ctx, root / "t.jsonc")
+        for expected in ("a: int", "b: float", "c: str", "d: null", "e: bool"):
+            assert expected in out
+
+    @pytest.mark.parametrize("body", ["{", "// only a comment\n", "[1,] // trailing", "{'a': 1}"])
+    def test_malformed_jsonc(self, root: Path, make_ctx: ContextFactory, body: str) -> None:
+        write(root / "bad.jsonc", body)
+        with pytest.raises(ParseError, match="invalid JSON"):
+            peek(make_ctx, root / "bad.jsonc")
+
     def test_top_level_array_and_scalar(self, root: Path, make_ctx: ContextFactory) -> None:
         write(root / "a.json", "[1, 2, 3]")
         write(root / "s.json", "42")
@@ -111,6 +140,14 @@ class TestJson:
         write(root / "bad.json", body)
         with pytest.raises(ParseError, match="invalid JSON"):
             peek(make_ctx, root / "bad.json")
+
+    def test_deep_nesting_with_comment_is_rejected(
+        self, root: Path, make_ctx: ContextFactory
+    ) -> None:
+        # Too deep for json.loads and for the tree walk of the comment-tolerant parser.
+        write(root / "deep.jsonc", "// deep\n" + "[" * 10_000 + "]" * 10_000)
+        with pytest.raises(ParseError, match="invalid JSON"):
+            peek(make_ctx, root / "deep.jsonc")
 
     def test_deep_nesting_is_bounded(self, root: Path, make_ctx: ContextFactory) -> None:
         write(root / "deep.json", "[" * 100_000 + "]" * 100_000)
