@@ -12,12 +12,16 @@ cli.py ──► server.py ──► tools/*  (thin MCP adapters: schema, descri
                           config.py (immutable Settings)
 ```
 
-Dependencies only point downwards. `core`, `security` and `audit` never import `mcp`, so
-they can be unit-tested and reused (e.g. from a CLI or another protocol) without a server.
+Dependencies only point downwards (`config`, `errors` and `audit` are leaves; `security`
+uses `errors`; `core` uses `security`, `config` and `errors`). `core`, `security` and
+`audit` never import `mcp`, so they can be unit-tested and reused (e.g. from a CLI or
+another protocol) without a server. Both rules are enforced by
+`tests/unit/test_import_boundaries.py`.
 
 | Module | Responsibility |
 |---|---|
 | `config.Settings` | Frozen configuration from CLI flags, `MCP_FS_*` env vars and defaults. |
+| `errors.FsError` | Base of every agent-facing error; subclasses name the condition (`NotFoundError`, `StaleFileError`, ...) and messages say what to do next. |
 | `security.PathGuard` | The single choke point for agent-supplied paths: root confinement, symlink resolution, deny policy. |
 | `security.AccessPolicy` | Case-insensitive, gitignore-style deny list. |
 | `security.regex` | `compile_pattern` / `SafePattern`: regexes evaluated against a shared `Deadline`. |
@@ -43,6 +47,9 @@ they can be unit-tested and reused (e.g. from a CLI or another protocol) without
 | `audit.AuditLog` | Optional JSON Lines audit log writer (no `mcp` imports); `tools._common.audited` wraps every exposed tool to record into it when enabled, and `server.FileSystemServer.call_tool` records the calls the SDK rejects before a tool runs (schema failures, unknown tools). |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
 | `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting, error translation and audit wrapping. |
+| `context.AppContext` | Composition root: builds every service from `Settings` (`from_settings`), with injection points for a search backend and an outline registry; `EditHistory` only when `undo_last_edit` is exposed (writes enabled and not hidden by the `tools` allowlist). |
+| `server` | `create_server()` builds the transport-agnostic MCP server and its instructions text; `FileSystemServer.call_tool` audits calls the SDK rejects before a tool runs. |
+| `cli` | Argument parsing with `MCP_FS_*` fallback, building `Settings` (whose validation rejects missing roots or an audit log inside them, exit code 2) and `server.run("stdio")`; `__main__` delegates to it. |
 
 ## Conventions
 
@@ -144,7 +151,6 @@ around `server.run("streamable-http", host=..., port=...)` and the checklist bel
 - per-session state: `ReadTracker` and `EditHistory` exist once per process today and
   must be keyed by session, or one client sees another's "already returned" notes and
   undo history,
-
 - authentication (bearer token or OAuth via the SDK's `auth`/`token_verifier` options),
 - binding to `127.0.0.1` behind a reverse proxy with TLS,
 - a container image that runs as a non-root user, with the workspace mounted (read-only
