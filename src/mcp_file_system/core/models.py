@@ -446,7 +446,10 @@ class OutlineResult(ToolResult):
             label = symbol.signature or f"{symbol.kind} {symbol.name}"
             rows.append(f"{span}  {'  ' * symbol.depth}{label}")
         if self.truncated:
-            rows.append("[Truncated: too many symbols for one response.]")
+            rows.append(
+                f"[Truncated at {len(self.symbols)} symbols. Use read_skeleton, or "
+                f"read_lines(start={self.symbols[-1].end_line + 1}) for the rest.]"
+            )
         return "\n".join(rows)
 
 
@@ -549,6 +552,11 @@ class EditResult(ToolResult):
     etag: str | None = Field(default=None, description="The file's etag after the edit.")
     diff: str
     created: bool = False
+    truncated: bool = Field(
+        default=False,
+        description="True if the diff was cut at max_output_chars; the edit itself is "
+        "complete. Re-read the changed lines with read_lines.",
+    )
 
     def render(self) -> str:  # noqa: D102
         if self.dry_run:
@@ -557,7 +565,12 @@ class EditResult(ToolResult):
             head = f"Created {self.path} (etag {self.etag})"
         else:
             head = f"Applied {self.changes} change(s) to {self.path} (new etag {self.etag})"
-        return f"{head}\n{self.diff}" if self.diff else f"{head}\n[No textual changes]"
+        parts = [head, self.diff or "[No textual changes]"]
+        if self.truncated:
+            parts.append(
+                "[Diff truncated at the output limit; re-read the changed lines with read_lines.]"
+            )
+        return "\n".join(parts)
 
 
 class UndoResult(EditResult):
@@ -580,7 +593,12 @@ class UndoResult(EditResult):
             head = (
                 f"Restored {self.path} to the version before the last edit (new etag {self.etag})"
             )
-        return f"{head}\n{self.diff}" if self.diff else f"{head}\n[No textual changes]"
+        parts = [head, self.diff or "[No textual changes]"]
+        if self.truncated:
+            parts.append(
+                "[Diff truncated at the output limit; re-read the changed lines with read_lines.]"
+            )
+        return "\n".join(parts)
 
 
 class Replacement(BaseModel):

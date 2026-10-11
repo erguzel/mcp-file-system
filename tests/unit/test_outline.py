@@ -257,7 +257,10 @@ class TestOutliner:
         result = ctx.outliner.outline("many.py")
         assert len(result.symbols) == 2000
         assert result.truncated
-        assert "Truncated" in result.render()
+        # The cut says how to continue: the first line after the last listed symbol.
+        assert "[Truncated at 2000 symbols. Use read_skeleton, or read_lines(start=2001)" in (
+            result.render()
+        )
 
 
 class TestReadSymbol:

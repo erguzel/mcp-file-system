@@ -401,7 +401,7 @@ class FileEditor:
                 self._history.discard(resolved.path)
             return result
         before = snapshot.before.decode(document.fmt.encoding, errors="surrogateescape")
-        diff = self._diff(resolved.display, document.text, before, create=False)
+        diff, cut = self._diff(resolved.display, document.text, before, create=False)
         if dry_run:
             return UndoResult(
                 path=resolved.display,
@@ -410,6 +410,7 @@ class FileEditor:
                 changes=1,
                 etag=document.etag,
                 diff=diff,
+                truncated=cut,
             )
         ensure_etag(resolved, document.etag)
         atomic_write(resolved.path, snapshot.before)
@@ -421,6 +422,7 @@ class FileEditor:
             changes=1,
             etag=compute_etag(resolved.path.stat()),
             diff=diff,
+            truncated=cut,
         )
 
     def _undo_create(
@@ -431,7 +433,7 @@ class FileEditor:
         The new name is checked by :class:`PathGuard` like any path, and reserved with an
         exclusive create before the rename, so an existing file is never overwritten.
         """
-        diff = self._diff(resolved.display, document.text, "", create=False)
+        diff, cut = self._diff(resolved.display, document.text, "", create=False)
         target = self._soft_delete_target(resolved, reserve=not dry_run)
         if dry_run:
             return UndoResult(
@@ -441,6 +443,7 @@ class FileEditor:
                 changes=1,
                 etag=document.etag,
                 diff=diff,
+                truncated=cut,
                 renamed_to=target.display,
             )
         try:
@@ -455,6 +458,7 @@ class FileEditor:
             dry_run=False,
             changes=1,
             diff=diff,
+            truncated=cut,
             renamed_to=target.display,
         )
 
@@ -513,7 +517,7 @@ class FileEditor:
         dry_run: bool,
         create: bool = False,
     ) -> EditResult:
-        diff = self._diff(resolved.display, document.text, new_text, create=create)
+        diff, cut = self._diff(resolved.display, document.text, new_text, create=create)
         try:
             data = encode_text(new_text, document.fmt, errors="surrogateescape")
         except UnicodeEncodeError as exc:
@@ -534,6 +538,7 @@ class FileEditor:
                 etag=document.etag or None,
                 diff=diff,
                 created=False,
+                truncated=cut,
             )
         if create:
             if resolved.path.exists():  # appeared since the existence check
@@ -553,9 +558,11 @@ class FileEditor:
             etag=etag,
             diff=diff,
             created=create,
+            truncated=cut,
         )
 
-    def _diff(self, display: str, old: str, new: str, *, create: bool) -> str:
+    def _diff(self, display: str, old: str, new: str, *, create: bool) -> tuple[str, bool]:
+        """Unified diff of the change, cut to the output budget; the flag says whether it was."""
         diff = "\n".join(
             difflib.unified_diff(
                 split_lines(old),
@@ -567,5 +574,4 @@ class FileEditor:
         )
         # Undecodable bytes are carried as lone surrogates, which cannot be serialized.
         diff = diff.encode("utf-8", errors="replace").decode("utf-8")
-        text, _ = truncate_text(diff, self._settings.max_output_chars, "diff truncated")
-        return text
+        return truncate_text(diff, self._settings.max_output_chars, "diff truncated")
