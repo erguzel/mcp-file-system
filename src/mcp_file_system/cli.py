@@ -79,12 +79,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Append one JSON line per tool call to FILE (must be outside the roots).",
     )
     limits = parser.add_argument_group("limits")
-    limits.add_argument("--max-file-bytes", type=int, metavar="N")
-    limits.add_argument("--max-read-lines", type=int, metavar="N")
-    limits.add_argument("--max-output-chars", type=int, metavar="N")
-    limits.add_argument("--max-matches", type=int, metavar="N")
-    limits.add_argument("--max-results", type=int, metavar="N")
-    limits.add_argument("--search-timeout", dest="search_timeout_s", type=float, metavar="SEC")
+    limits.add_argument(
+        "--max-file-bytes",
+        type=int,
+        metavar="N",
+        help="Largest file loaded fully, e.g. for outline, peek or edits (default: 10 MiB).",
+    )
+    limits.add_argument(
+        "--max-read-lines", type=int, metavar="N", help="Most lines per read (default: 2000)."
+    )
+    limits.add_argument(
+        "--max-output-chars",
+        type=int,
+        metavar="N",
+        help="Text budget per tool result (default: 50000).",
+    )
+    limits.add_argument(
+        "--max-matches", type=int, metavar="N", help="Upper bound for grep hits (default: 500)."
+    )
+    limits.add_argument(
+        "--max-results",
+        type=int,
+        metavar="N",
+        help="Upper bound for listings, finds and log_summary templates (default: 1000).",
+    )
+    limits.add_argument(
+        "--search-timeout",
+        dest="search_timeout_s",
+        type=float,
+        metavar="SEC",
+        help="Wall-clock budget per search or regex operation, in seconds (default: 10).",
+    )
     parser.add_argument("--log-level", choices=get_args(LogLevel), help="Log level (stderr).")
     return parser
 

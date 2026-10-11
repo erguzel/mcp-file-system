@@ -98,6 +98,9 @@ All notable changes to this project are documented here. The format follows
 - Markdown outlines now use the tree-sitter grammar: setext headings are recognized and
   lines inside HTML blocks or indented code are no longer mistaken for headings. The
   regex provider remains as a fallback if a grammar cannot be loaded.
+- `--help` describes the limit options (`--max-file-bytes`, `--max-read-lines`,
+  `--max-output-chars`, `--max-matches`, `--max-results`, `--search-timeout`) and their
+  defaults.
 
 ### Fixed
 
