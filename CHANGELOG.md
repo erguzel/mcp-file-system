@@ -56,8 +56,8 @@ All notable changes to this project are documented here. The format follows
   `max_file_bytes`. JSON and YAML report the value's line span and tolerate syntax
   errors elsewhere in the file (with a note); YAML Helm templates are supported.
 - `peek` tool (full profile): the shape of a data file without its content. CSV/TSV (columns, guessed
-  types, row count, sample rows), JSON and TOML (key tree with types and array lengths,
-  no values), logs (time span, level counts), manifests (`pyproject.toml`,
+  types, row count, sample rows), JSON (comments and `.jsonc` included) and TOML (key
+  tree with types and array lengths, no values), logs (time span, level counts), manifests (`pyproject.toml`,
   `package.json`, `Cargo.toml`: name, version, dependencies) and Markdown (front matter,
   heading counts). CSV and logs are streamed with fixed scan budgets; JSON and TOML
   honor `max_file_bytes`.
@@ -111,8 +111,6 @@ All notable changes to this project are documented here. The format follows
 - The continuation hint after a cut `read_lines`, `read_between` or `read_symbol` carries
   the requested end line (`next_end`), so following it no longer reads on to the end of
   the file.
-- `peek` accepts `.jsonc` files and JSON with `//` or `/* */` comments (such as
-  `tsconfig.json`), as `outline` and `query` already did; syntax errors are still rejected.
 - Editing a file with text its encoding cannot store (e.g. `ş` or `€` in a legacy file
   read as Latin-1, or an unpaired surrogate) no longer fails with a generic tool error
   and a stack trace on stderr. All editing tools now report which encoding is involved

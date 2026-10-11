@@ -47,7 +47,7 @@ another protocol) without a server. Both rules are enforced by
 | `audit.AuditLog` | Optional JSON Lines audit log writer (no `mcp` imports); `tools._common.audited` wraps every exposed tool to record into it when enabled, and `server.FileSystemServer.call_tool` records the calls the SDK rejects before a tool runs (schema failures, unknown tools). |
 | `tools/*` | One module per tool group, each exposing `register(registry, ctx)`; `tools/lite.py` holds the `lite` profile. |
 | `tools._common.ToolRegistry` | Registers tools, applying the `tools` allowlist, the output-schema setting, error translation and audit wrapping. |
-| `context.AppContext` | Composition root: builds every service from `Settings` (`from_settings`), with injection points for a search backend and an outline registry; `EditHistory` only when `undo_last_edit` is exposed (writes enabled and not hidden by the `tools` allowlist). |
+| `context.AppContext` | Composition root: builds every service from `Settings` (`from_settings`), with injection points for a search backend and an outline registry; `EditHistory` only when `undo_last_edit` is exposed (full profile, writes enabled, not hidden by the `tools` allowlist). |
 | `server` | `create_server()` builds the transport-agnostic MCP server and its instructions text; `FileSystemServer.call_tool` audits calls the SDK rejects before a tool runs. |
 | `cli` | Argument parsing with `MCP_FS_*` fallback, building `Settings` (whose validation rejects missing roots or an audit log inside them, exit code 2) and `server.run("stdio")`; `__main__` delegates to it. |
 
