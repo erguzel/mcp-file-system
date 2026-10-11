@@ -257,10 +257,23 @@ class TestOutliner:
         result = ctx.outliner.outline("many.py")
         assert len(result.symbols) == 2000
         assert result.truncated
-        # The cut says how to continue: the first line after the last listed symbol.
-        assert "[Truncated at 2000 symbols. Use read_skeleton, or read_lines(start=2001)" in (
-            result.render()
+        assert result.next_line == 2001
+        assert result.render().endswith(
+            "[Truncated at 2000 symbols; the next one starts at line 2001. "
+            "Continue with read_lines(start=2001).]"
         )
+
+    def test_truncation_continues_inside_the_last_listed_symbol(
+        self, ctx: AppContext, root: Path
+    ) -> None:
+        # The 2000th symbol is a class whose methods were not listed: continue at its first
+        # method, not after the class (which here would also be past the end of the file).
+        source = "".join(f"def f{n}(): pass\n" for n in range(1999))
+        source += "class B:\n" + "".join(f"    def m{n}(self): pass\n" for n in range(10))
+        write(root / "nested.py", source)
+        result = ctx.outliner.outline("nested.py")
+        assert result.symbols[-1].qualified_name == "B"
+        assert result.next_line == 2001
 
 
 class TestReadSymbol:

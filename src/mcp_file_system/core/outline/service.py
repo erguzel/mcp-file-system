@@ -48,6 +48,9 @@ class Outliner:
             total_lines=len(lines),
             symbols=symbols[:MAX_SYMBOLS],
             truncated=len(symbols) > MAX_SYMBOLS,
+            # Symbols are listed parent first, so the first unlisted one is where to go on,
+            # even when it is a child of the last listed symbol.
+            next_line=symbols[MAX_SYMBOLS].start_line if len(symbols) > MAX_SYMBOLS else None,
         )
 
     def read_symbol(self, path: str, name: str, *, if_changed_since: str = "") -> LinesResult:
