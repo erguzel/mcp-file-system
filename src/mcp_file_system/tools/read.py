@@ -63,8 +63,8 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         Prefer this over reading whole files: locate the region with grep, outline or
         read_between first, then read only the lines you need. For a line number from a
         stack trace or grep hit, pass around=N instead of computing start/end. Output is
-        capped; if truncated, continue from `next_start`. To re-check lines you already
-        have, pass their etag as if_changed_since instead of reading them again.
+        capped; if truncated, continue with `next_start` and `next_end`. To re-check lines
+        you already have, pass their etag as if_changed_since instead of reading them again.
         """
         return to_call_result(
             reader.read_lines(

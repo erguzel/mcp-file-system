@@ -104,6 +104,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The continuation hint after a cut `read_lines`, `read_between` or `read_symbol` carries
+  the requested end line (`next_end`), so following it no longer reads on to the end of
+  the file.
 - `peek` accepts `.jsonc` files and JSON with `//` or `/* */` comments (such as
   `tsconfig.json`), as `outline` and `query` already did; syntax errors are still rejected.
 - Editing a file with text its encoding cannot store (e.g. `ş` or `€` in a legacy file

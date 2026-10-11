@@ -316,6 +316,7 @@ class FileReader:
             requested_last=requested_last,
             max_chars=self._settings.max_output_chars,
             note=note,
+            known_end=not cut,
         )
         return track_result(self._tracker, resolved.path, result)
 
@@ -340,6 +341,7 @@ class FileReader:
         requested_last: int,
         max_chars: int,
         note: str | None = None,
+        known_end: bool = True,
     ) -> LinesResult:
         content, first, last = number_lines(
             lines,
@@ -359,6 +361,7 @@ class FileReader:
             content=content,
             truncated=truncated,
             next_start=last + 1 if truncated else None,
+            next_end=min(requested_last, total) if truncated and known_end else None,
             note=note,
         )
 

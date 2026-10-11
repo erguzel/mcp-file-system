@@ -90,6 +90,11 @@ class LinesResult(ToolResult):
     next_start: int | None = Field(
         default=None, description="Pass as read_lines(start=...) to continue."
     )
+    next_end: int | None = Field(
+        default=None,
+        description="Last line of the requested range; pass as read_lines(end=...) together "
+        "with next_start. Absent when the end is unknown (a block cut before its end pattern).",
+    )
     unchanged: bool = Field(
         default=False,
         description="True if content was omitted because if_changed_since matched.",
@@ -99,15 +104,16 @@ class LinesResult(ToolResult):
     def render(self) -> str:  # noqa: D102
         parts = [self.render_block()]
         if self.truncated and self.next_start is not None:
-            hint = f"read_lines(path={self.path!r}, start={self.next_start})"
+            end = f", end={self.next_end}" if self.next_end is not None else ""
+            hint = f"read_lines(path={self.path!r}, start={self.next_start}{end})"
             parts.append(f"[Truncated. Continue with {hint}]")
         return "\n".join(parts)
 
     def render_block(self) -> str:
         """Header, content and note, without the continuation hint.
 
-        Batch reads use this and give one continuation for all ranges instead, because
-        the per-read hint does not carry the originally requested end line.
+        Batch reads use this and give one ``read_ranges`` continuation for all cut ranges
+        instead of one hint per read.
         """
         span = f"lines {self.start_line}-{self.end_line}" if self.end_line else "no lines"
         parts = [f"==> {self.path} ({span} of {self.total_lines}, etag {self.etag}) <=="]
