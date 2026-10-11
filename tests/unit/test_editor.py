@@ -136,10 +136,10 @@ class TestReplace:
     def test_huge_diff_is_cut_and_says_so(self, make_ctx: ContextFactory, root: Path) -> None:
         path = write(root / "big.txt", "".join(f"line {n}\n" for n in range(400)))
         ctx = make_ctx(max_output_chars=1000)
-        result = ctx.editor.replace("big.txt", "line", "LINE", expected_count=0)
+        result = ctx.editor.replace("big.txt", "line", "LINE", expected_count=None)
         assert result.applied
         assert result.truncated
-        assert len(result.diff) <= 1000
+        assert len(result.diff) <= 1000 + len("\n[diff truncated]")  # cut, then marked
         assert "[Diff truncated at the output limit; re-read the changed lines" in result.render()
         assert path.read_text().startswith("LINE 0\n")
         small = ctx.editor.replace("big.txt", "LINE 0", "line 0")
@@ -148,7 +148,7 @@ class TestReplace:
     def test_undo_diff_is_cut_and_says_so(self, make_ctx: ContextFactory, root: Path) -> None:
         write(root / "big.txt", "".join(f"line {n}\n" for n in range(400)))
         ctx = make_ctx(allow_write=True, max_output_chars=1000)
-        ctx.editor.replace("big.txt", "line", "LINE", expected_count=0)
+        ctx.editor.replace("big.txt", "line", "LINE", expected_count=None)
         result = ctx.editor.undo_last_edit("big.txt")
         assert result.truncated
         assert "[Diff truncated at the output limit" in result.render()
