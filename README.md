@@ -13,8 +13,10 @@ loading whole files into their context window.
   It honors `.gitignore` and skips binaries.
 - **Navigation:** depth-limited trees, glob finds, file metadata (lines, encoding, newline
   style).
-- **Guarded edits (opt-in):** unique-match replace, line-range edits and file creation.
-  Every edit checks an etag, returns a unified diff, supports dry runs and writes atomically.
+- **Guarded edits (opt-in):** unique-match replace (single or batched), line-range edits,
+  unified-diff patches, file creation and one-level undo. Every edit returns a unified diff
+  and writes atomically; `edit_lines`, `apply_patch` and overwrites require the file's
+  etag, replacements verify one when given. The full profile adds `dry_run`.
 - **Secure by default:**
   - access is confined to the configured roots, symlink escapes are rejected, and a deny list covers secrets
   - regular expressions run with a time budget, so a bad pattern cannot hang the server (no ReDoS)
@@ -58,8 +60,9 @@ mcp-file-system --root /path/to/project --allow-write    # enable editing tools
 mcp-file-system --root /path/to/project --profile lite   # small local models
 ```
 
-Without `--root`, the current working directory is the root. Repeat `--root` to allow
-several directories. Relative paths in tool calls resolve against the first root.
+Without `--root` (short: `-r`), the current working directory is the root. Repeat `--root`
+to allow several directories. Relative paths in tool calls resolve against the first root.
+`--version` prints the installed version.
 
 ### Claude Code
 
@@ -120,17 +123,17 @@ chat agents whose context window is tight.
 | `read_lines` | Numbered lines `start..end`. Negative values count from the end (`start=-50` is a tail). `around=N` (full profile) reads `N-radius..N+radius` instead (`radius` defaults to 10), for line numbers from stack traces or grep hits. Continues via `next_start`. `if_changed_since=<etag>` returns a one-line "unchanged" answer instead of lines you already have. |
 | `read_ranges` | Several `(path, start, end)` ranges, from one or more files, in one call (at most 20). The ranges share one output budget (`max_read_lines`, `max_output_chars`), spent in order; ranges cut by the budget are listed with a ready-made `read_ranges` call to continue. A failing range is reported without stopping the others. |
 | `read_between` | Lines from the Nth match of `start_pattern` to the next `end_pattern`, like `sed -n '/a/,/b/p'`. |
-| `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and four output modes. Hits show their enclosing symbol (`[Parser.parse]`, `[jobs.test.steps[0]]`), ready for `read_symbol`. `output_mode="collapsed"` (full profile) groups matching lines that differ only in numbers, hex values, UUIDs, IPs or timestamps into templates with counts and first/last location, e.g. `[x532] <TS> ERROR timeout after <N>ms to <IP>`. |
-| `list_directory` | Indented tree with sizes, depth-limited. |
-| `find_files` | Gitignore-style glob search for files or directories. |
+| `grep` | Regex or literal search in a file or directory tree, with context lines, `only_matching`, globs and four output modes. In `content` mode, hits show their enclosing symbol (`[Parser.parse]`, `[jobs.test.steps[0]]`), ready for `read_symbol`. `output_mode="collapsed"` (full profile) groups matching lines that differ only in numbers, hex values, UUIDs, IPs or timestamps into templates with counts and first/last location, e.g. `[x532] <TS> ERROR timeout after <N>ms to <IP>`. |
+| `list_directory` | Indented tree with sizes, depth-limited (`depth` 1–10). |
+| `find_files` | Gitignore-style glob search for files or directories; `max_depth` up to 64. |
 | `outline` | Code symbols with signatures (Python; JS/TS, Go, Java with `[code]`), shell functions, Dockerfile stages and instructions, Markdown headings (incl. setext), or key trees with inline scalar values (JSON, TOML, YAML incl. Helm templates), all with line spans. `Dockerfile`/`Containerfile` are recognized by name and extensionless scripts by their shebang. |
 | `read_skeleton` | A code file with function bodies folded (imports, signatures, docstrings and class structure stay); each fold shows its line range for `read_lines`. Python, shell, and JS/TS, Go, Java with `[code]`. |
-| `peek` | The *shape* of a data file instead of its content: CSV/TSV columns, guessed types, row count and 3 sample rows; JSON/TOML key trees with types and array lengths (`items: array[1532] of {id: int, name: str}`); log time span and level counts; name, version and dependencies of `pyproject.toml`, `package.json`, `Cargo.toml`; Markdown front matter and heading counts. |
+| `peek` | The *shape* of a data file instead of its content: CSV/TSV columns, guessed types, row count and 3 sample rows; JSON/TOML key trees with types and array lengths (`items: array[1532] of {id: int, name: str}`); log time span and level counts; name, version and dependencies of `pyproject.toml`, `package.json`, `Cargo.toml`; Markdown front matter and heading counts. Files are recognized by suffix (`.csv`, `.tsv`, `.json`, `.toml`, `.log`, `.md`, `.markdown`) or by manifest name. CSV/TSV scans stop after 50,000 rows and show 40 columns, logs after 200,000 lines; a cut scan says how far it got. |
 | `log_summary` | A log file as its most frequent line templates: numbers, hex values, UUIDs, IPs and timestamps are masked, so thousands of similar lines become one row such as `[x532] <TS> ERROR timeout after <N>ms to <IP>` with first and last line numbers. Streams the file within the search time budget; a partial summary names the `start` line to continue from. |
-| `query` | One value of a JSON (incl. comments), YAML (incl. multi-document and Helm templates) or TOML file by key path, e.g. `dependencies.react`, `jobs.test.steps[0]`, `"app.kubernetes.io/name"`, `[1].kind`. Nested values are shown to `depth` levels (default 2), deeper ones collapse to `{3 keys}` / `[40 items]`; every row uses the key-path syntax, so the agent can drill down. Works on minified files such as `package-lock.json`. YAML aliases are shown as written, not resolved. |
+| `query` | One value of a JSON (incl. comments), YAML (incl. multi-document and Helm templates) or TOML file by key path, e.g. `dependencies.react`, `jobs.test.steps[0]`, `"app.kubernetes.io/name"`, `[1].kind`. Nested values are shown to `depth` levels (default 2, at most 10), deeper ones collapse to `{3 keys}` / `[40 items]`; every row uses the key-path syntax, so the agent can drill down. Works on minified files such as `package-lock.json`. YAML aliases are shown as written, not resolved. |
 | `read_symbol` | The source of one symbol, e.g. `Parser.parse`, `Usage > Install`, `tool.ruff.lint` or `jobs.test.steps[0]`. Accepts `if_changed_since` like `read_lines`. |
-| `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1, 0 = any). |
-| `multi_replace`* | Several exact-text replacements in one file, applied in order and written once: all or none (full profile, at most 50). Each must match `expected_count` times (default 1, 0 = any); a failing edit leaves the file unchanged and is named in the error. |
+| `replace_in_file`* | Literal or regex replacement that must match exactly `expected_count` times (default 1; 0 = any number, but at least one). |
+| `multi_replace`* | Several exact-text replacements in one file, applied in order and written once: all or none (full profile, at most 50). Each must match `expected_count` times (default 1; 0 = any number, but at least one); a failing edit leaves the file unchanged and is named in the error. |
 | `edit_lines`* | Replace, insert or delete a line range. Requires the etag from the read that showed those lines. |
 | `apply_patch`* | Apply a unified diff to one file, all hunks or none (full profile). Requires the file's etag. Context and removed lines must match exactly; a hunk whose line numbers are off is placed at the nearest exact match and its offset reported, while missing or ambiguous context fails the patch and names the hunk. `dry_run=true` lists which hunks would fail and why. Header counts are recomputed from the hunk body; new files go through `write_file`. |
 | `write_file`* | Create a file (with parent directories), or overwrite one with `overwrite=true` and its etag. |
@@ -171,7 +174,7 @@ command line (see the table). CLI flags take precedence. Complex values in the e
 | `max_read_lines` | `--max-read-lines` | 2000 | Most lines per read. |
 | `max_output_chars` | `--max-output-chars` | 50000 | Text budget per tool result. |
 | `max_line_chars` | | 2000 | Longer lines are clipped (around the match, for grep). |
-| `max_matches` | `--max-matches` | 500 | Upper bound for grep hits. |
+| `max_matches` | `--max-matches` | 500 | Upper bound for grep hits. A `grep` call returns at most 100 unless its own `max_matches` parameter (full profile) asks for more, up to this setting. |
 | `max_results` | `--max-results` | 1000 | Upper bound for listings and finds. |
 | `max_pattern_length` | | 1000 | Longest accepted regex. |
 | `search_timeout_s` | `--search-timeout` | 10 | Wall-clock budget per search or regex operation. |
@@ -235,9 +238,10 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
   explicit path.
 - Regular expressions use the `regex` engine with a time budget. Pathological patterns
   stop with partial results instead of hanging the server.
-- Writes are off by default. When enabled, they are confined like reads, checked against
-  etags (re-verified immediately before writing) and written atomically. They preserve
-  encoding, BOM, newline style and permissions.
+- Writes are off by default. When enabled, they are confined like reads and written
+  atomically. `edit_lines`, `apply_patch` and overwrites require the file's etag,
+  replacements verify one when given, and the etag is re-checked immediately before the
+  write. Edits preserve encoding, BOM, newline style and permissions.
 
 ## Development
 
