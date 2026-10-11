@@ -178,7 +178,7 @@ command line (see the table). CLI flags take precedence. Complex values in the e
 | `max_line_chars` | | 2000 | Longer lines are clipped (around the match, for grep). |
 | `max_matches` | `--max-matches` | 500 | Upper bound for grep hits. A `grep` call returns at most 100 unless its own `max_matches` parameter (full profile) asks for more, up to this setting. |
 | `max_results` | `--max-results` | 1000 | Upper bound for listings and finds. |
-| `max_pattern_length` | | 1000 | Longest accepted regex. |
+| `max_pattern_length` | | 1000 | Longest accepted regex or glob. |
 | `search_timeout_s` | `--search-timeout` | 10 | Wall-clock budget per search or regex operation. |
 | `log_level` | `--log-level` | `WARNING` | Logs always go to stderr. |
 | `profile` | `--profile` | `full` | Tool set: `full` or `lite` (see [Profiles](#profiles-full-and-lite)). |

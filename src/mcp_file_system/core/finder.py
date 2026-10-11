@@ -39,14 +39,21 @@ class GlobMatcher:
     """Matches start-relative paths against one gitignore-style glob.
 
     A glob without a slash matches at any depth (``*.py``); a glob with a slash is
-    anchored to the start directory (``src/**/*.py``).
+    anchored to the start directory (``src/**/*.py``). The glob is agent input that
+    pathspec compiles into a stdlib regex, so its length is capped like a regex pattern
+    (``max_length``, the ``max_pattern_length`` setting); there is no deadline on matching.
     """
 
-    def __init__(self, pattern: str) -> None:
+    def __init__(self, pattern: str, *, max_length: int) -> None:
         if not pattern.strip():
             raise InvalidArgumentError("glob must not be empty.")
         if pattern.startswith("!"):
             raise InvalidArgumentError("glob must not start with '!'.")
+        if len(pattern) > max_length:
+            raise InvalidArgumentError(
+                f"glob is {len(pattern)} characters; at most {max_length} characters are "
+                "accepted (max_pattern_length)."
+            )
         self._spec = GitIgnoreSpec.from_lines([pattern])
 
     def matches(self, relative: str, *, is_dir: bool = False) -> bool:
@@ -153,6 +160,9 @@ class FileFinder:
         self._walker = walker
         self._settings = settings
 
+    def _matcher(self, glob: str) -> GlobMatcher:
+        return GlobMatcher(glob, max_length=self._settings.max_pattern_length)
+
     def iter_files(
         self, path: str, *, glob: str | None = None, include_hidden: bool = False
     ) -> Iterator[ResolvedPath]:
@@ -162,7 +172,7 @@ class FileFinder:
             yield start
             return
         start = self._guard.resolve_dir(path)
-        matcher = GlobMatcher(glob) if glob else None
+        matcher = self._matcher(glob) if glob else None
         for entry in self._walker.walk(start, include_hidden=include_hidden):
             if entry.is_dir:
                 continue
@@ -184,7 +194,7 @@ class FileFinder:
             raise InvalidArgumentError("max_depth must be >= 1.")
         limit = min(max_results or self._settings.max_results, self._settings.max_results)
         start = self._guard.resolve_dir(path)
-        matcher = GlobMatcher(glob)
+        matcher = self._matcher(glob)
         found: list[str] = []
         truncated = False
         for entry in self._walker.walk(start, max_depth=max_depth, include_hidden=include_hidden):

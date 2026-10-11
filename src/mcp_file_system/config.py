@@ -113,7 +113,7 @@ class Settings(BaseSettings):
         default=1000, gt=0, description="Upper bound for paths returned by listings and finds."
     )
     max_pattern_length: int = Field(
-        default=1000, gt=0, description="Longest accepted regular expression."
+        default=1000, gt=0, description="Longest accepted regular expression or glob."
     )
     search_timeout_s: float = Field(
         default=10.0, gt=0, description="Wall-clock budget for one search or regex operation."

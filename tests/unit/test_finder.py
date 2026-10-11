@@ -31,24 +31,29 @@ def listing_paths(ctx: AppContext, **kwargs: object) -> list[str]:
 
 class TestGlobMatcher:
     def test_unanchored_glob_matches_any_depth(self) -> None:
-        matcher = GlobMatcher("*.py")
+        matcher = GlobMatcher("*.py", max_length=1000)
         assert matcher.matches("a.py")
         assert matcher.matches("src/pkg/a.py")
         assert not matcher.matches("a.pyc")
 
     def test_anchored_glob(self) -> None:
-        matcher = GlobMatcher("src/**/*.py")
+        matcher = GlobMatcher("src/**/*.py", max_length=1000)
         assert matcher.matches("src/pkg/a.py")
         assert not matcher.matches("other/src/a.py")
 
     def test_directory_matching(self) -> None:
-        assert GlobMatcher("pkg").matches("src/pkg", is_dir=True)
-        assert GlobMatcher("pkg/").matches("src/pkg", is_dir=True)
+        assert GlobMatcher("pkg", max_length=1000).matches("src/pkg", is_dir=True)
+        assert GlobMatcher("pkg/", max_length=1000).matches("src/pkg", is_dir=True)
 
     @pytest.mark.parametrize("pattern", ["", "   ", "!x"])
     def test_invalid_globs(self, pattern: str) -> None:
         with pytest.raises(InvalidArgumentError):
-            GlobMatcher(pattern)
+            GlobMatcher(pattern, max_length=1000)
+
+    def test_glob_length_is_capped(self) -> None:
+        assert GlobMatcher("x" * 20, max_length=20).matches("x" * 20)
+        with pytest.raises(InvalidArgumentError, match="at most 20 characters"):
+            GlobMatcher("x" * 21, max_length=20)
 
 
 class TestListDirectory:
