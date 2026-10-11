@@ -52,7 +52,10 @@ class LogSummarizer:
                 last = number
                 if line.strip():
                     tally.add(line[:width], resolved.display, number)
-        groups, note = self._top_groups(tally, min(limit, self._settings.max_results))
+        capped = limit > self._settings.max_results
+        groups, note = self._top_groups(
+            tally, min(limit, self._settings.max_results), server_capped=capped
+        )
         return LogSummaryResult(
             path=resolved.display,
             total_lines=total,
@@ -67,12 +70,20 @@ class LogSummarizer:
             note=note,
         )
 
-    def _top_groups(self, tally: TemplateTally, limit: int) -> tuple[list[TemplateGroup], str]:
-        """The most frequent templates, bounded by ``limit`` and the output budget."""
+    def _top_groups(
+        self, tally: TemplateTally, limit: int, *, server_capped: bool
+    ) -> tuple[list[TemplateGroup], str]:
+        """The most frequent templates, bounded by ``limit`` and the output budget.
+
+        ``server_capped`` means ``limit`` is already the server's ``max_results``, so the
+        note must not tell the agent to raise it.
+        """
         groups: list[TemplateGroup] = []
         chars = 0
         for template, stats in tally.most_common():
             if len(groups) >= limit:
+                if server_capped:
+                    return groups, "server limit (max_results) reached"
                 return groups, "raise limit for more"
             chars += len(template) + 40
             if groups and chars > self._settings.max_output_chars:
