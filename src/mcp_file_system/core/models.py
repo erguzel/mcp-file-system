@@ -609,7 +609,9 @@ class Replacement(BaseModel):
     pattern: str = Field(min_length=1, description="Exact text to find.")
     replacement: str = Field(description="Replacement text.")
     expected_count: int = Field(
-        default=1, ge=0, description="Fail unless exactly this many matches (0 = any)."
+        default=1,
+        ge=0,
+        description="Fail unless exactly this many matches (0 = any number, at least one).",
     )
 
 

@@ -10,9 +10,9 @@ from mcp_file_system.core.models import GrepMode, GrepResult, LogSummaryResult
 from mcp_file_system.core.search import MAX_CONTEXT_LINES
 from mcp_file_system.tools._common import (
     READ_ONLY,
-    DirArg,
     IncludeHiddenArg,
     PathArg,
+    SearchPathArg,
     ToolRegistry,
     to_call_result,
     unset_str,
@@ -30,7 +30,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
     @registry.tool(READ_ONLY)
     def grep(
         pattern: Annotated[str, Field(description="Regular expression (Python syntax).")],
-        path: DirArg = ".",
+        path: SearchPathArg = ".",
         glob: Annotated[
             str,
             Field(
@@ -53,13 +53,18 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             GrepMode,
             Field(
                 description="'content': matching lines; 'files_with_matches': paths only; "
-                "'count': matches per file; 'collapsed': matching lines grouped into "
+                "'count': matching lines per file (matches with only_matching); "
+                "'collapsed': matching lines grouped into "
                 "templates with counts (numbers, hex, UUIDs, IPs, timestamps masked)."
             ),
         ] = "content",
         max_matches: Annotated[
             int,
-            Field(ge=1, description="Maximum hits (files or templates, in the other modes)."),
+            Field(
+                ge=1,
+                description="Maximum hits (files or templates, in the other modes). Capped by "
+                "the server's max_matches setting.",
+            ),
         ] = DEFAULT_MAX_MATCHES,
         include_hidden: IncludeHiddenArg = False,
     ) -> Annotated[CallToolResult, GrepResult]:
