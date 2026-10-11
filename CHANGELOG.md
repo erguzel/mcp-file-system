@@ -104,6 +104,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `read_symbol` with an ambiguous plain name lists at most 15 candidates instead of every
+  match, so the error stays small on files such as `package-lock.json`.
 - The continuation hint after a cut `read_lines`, `read_between` or `read_symbol` carries
   the requested end line (`next_end`), so following it no longer reads on to the end of
   the file.

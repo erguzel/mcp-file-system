@@ -65,9 +65,12 @@ class Outliner:
         if not matches:
             matches = [s for s in symbols if s.name == name]
             if len({s.qualified_name for s in matches}) > 1:
-                listed = ", ".join(f"{s.qualified_name} (line {s.start_line})" for s in matches)
+                shown = matches[:_MAX_LISTED_CANDIDATES]
+                listed = ", ".join(f"{s.qualified_name} (line {s.start_line})" for s in shown)
+                more = f" (+{len(matches) - len(shown)} more)" if len(matches) > len(shown) else ""
                 raise SymbolNotFoundError(
-                    f"{name!r} is ambiguous in {resolved.display}: {listed}. Pass a qualified name."
+                    f"{name!r} is ambiguous in {resolved.display}: {listed}{more}. "
+                    "Pass a qualified name (see outline)."
                 )
         if not matches:
             available = ", ".join(s.qualified_name for s in symbols[:_MAX_LISTED_CANDIDATES])
