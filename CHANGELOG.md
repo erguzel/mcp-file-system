@@ -105,6 +105,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `log_summary` no longer tells the agent to raise `limit` when the server's
+  `max_results` cut the list; the note names the server limit instead.
 - `write_file` with `overwrite=true` and an etag no longer creates a new file when the
   file was deleted or moved since the etag was read; it fails as stale.
 - `read_symbol` with an ambiguous plain name lists at most 15 candidates instead of every

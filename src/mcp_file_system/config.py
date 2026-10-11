@@ -110,7 +110,9 @@ class Settings(BaseSettings):
     )
     max_matches: int = Field(default=500, gt=0, description="Upper bound for search hits.")
     max_results: int = Field(
-        default=1000, gt=0, description="Upper bound for paths returned by listings and finds."
+        default=1000,
+        gt=0,
+        description="Upper bound for listings, finds and log_summary templates.",
     )
     max_pattern_length: int = Field(
         default=1000, gt=0, description="Longest accepted regular expression or glob."
