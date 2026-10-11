@@ -17,10 +17,12 @@ Security is the core feature, not an add-on.
    `src/mcp_file_system/security/` needs a new test in `tests/security/`.
 3. Keep `src/mcp_file_system/core/` and `src/mcp_file_system/security/` free of `mcp`
    imports. Only `tools/`, `server.py`, and `cli.py` may import `mcp`. A test enforces
-   this (`tests/unit/test_import_boundaries.py`).
+   this, and the layer direction under "Code conventions"
+   (`tests/unit/test_import_boundaries.py`).
 4. Implement `ROADMAP.md` items **in order**, one item per change. The next item is the
-   first unticked one whose status does not defer it. Do not start any other item unless
-   the human asks.
+   first unticked one whose status does not defer it; an item whose status says its
+   remaining part is deferred counts as deferred even if part of it shipped. Do not start
+   any other item unless the human asks.
 
 ## Commands
 
@@ -66,7 +68,7 @@ A change is finished only when **all** of these are true:
 
 | Path | Purpose |
 |---|---|
-| `src/mcp_file_system/cli.py` | Command-line entry point (`mcp-file-system`). |
+| `src/mcp_file_system/cli.py` | Command-line entry point (`mcp-file-system`); `__main__.py` makes `python -m mcp_file_system` run it. |
 | `src/mcp_file_system/server.py` | `create_server()`: builds the MCP server (transport-agnostic); `FileSystemServer` audits calls rejected before a tool runs. |
 | `src/mcp_file_system/context.py` | `AppContext`: wires settings and services together. |
 | `src/mcp_file_system/config.py` | `Settings` (CLI flags + `MCP_FS_*` env vars), `DEFAULT_DENY_GLOBS`. |
@@ -74,15 +76,19 @@ A change is finished only when **all** of these are true:
 | `src/mcp_file_system/security/` | `PathGuard`, `AccessPolicy` (deny list), safe regex with deadlines. |
 | `src/mcp_file_system/audit.py` | Optional audit log writer (one JSON line per tool call; content arguments as lengths only). |
 | `src/mcp_file_system/core/` | Domain logic: reading (`reader`, `textio`, `tracking`, `etag`), search (`search`, `finder`, `ignore`, `templates`, `logsummary`), structure (`outline`, `skeleton`, `peek`, `query`), editing (`editor`, `patch`, `history`), results (`models`, `render`). |
-| `src/mcp_file_system/tools/` | Thin MCP tool adapters, one module per group, each with `register()`. |
+| `src/mcp_file_system/tools/` | Thin MCP tool adapters, one module per group, each with `register()`; `_common.py` holds the `ToolRegistry`, shared parameter types and the audit wrapper. |
 | `tests/unit/`, `tests/security/`, `tests/integration/` | Tests; shared helpers in `tests/conftest.py`. |
 | `docs/ARCHITECTURE.md` | Layers, conventions, and how to extend (read before larger changes). |
 | `ROADMAP.md` | Ordered list of planned work. |
 
 ## Code conventions
 
-- **Layers:** `cli/server → tools → core → security → config`. Dependencies point
-  downwards only.
+- **Layers:** `cli → server → tools → core → security`, with `context` as the
+  composition root between `server`/`tools` and the services. `config`, `errors` and
+  `audit` are leaves: `security` uses `errors`; `core` uses `security`, `config` and
+  `errors`; `context` and `tools` may also use `audit`. Dependencies point downwards
+  only (diagram in `docs/ARCHITECTURE.md`; enforced by
+  `tests/unit/test_import_boundaries.py`).
 - **Errors:** raise a subclass of `errors.FsError` with a message that tells the agent
   what to do next (e.g. "Use read_lines instead"). Never put paths outside the allowed
   roots, file contents of denied files, or stack traces in messages. A hint that a `lite`
@@ -125,7 +131,10 @@ def my_tool(
    or `WRITE_TOOLSETS` in `tools/__init__.py`. Write tools go only in `WRITE_TOOLSETS`.
 4. **Never** use `X | None = None` for tool parameters (it becomes an `anyOf` schema that
    small models handle poorly). Use `""` or `0` for "unset" and convert with
-   `unset_str` / `unset_int` from `tools/_common.py`. A test enforces this.
+   `unset_str` / `unset_int` from `tools/_common.py`. A test
+   (`test_input_schemas_have_no_nullable_unions` in `tests/integration/test_profiles.py`)
+   checks that no input schema contains `anyOf`; it does not check how the sentinel is
+   converted.
 5. Do **not** add the tool to the `lite` profile (`tools/lite.py`) unless the human asks;
    `lite` must stay small.
 
