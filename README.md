@@ -99,8 +99,10 @@ every request. Large models handle the full set easily. Small local models (roug
 | Output schemas | published | omitted (results still carry structured content) |
 | Tool listing size* | ~12k tokens; ~6k with `--no-output-schema` | ~2k tokens, about a sixth of `full` |
 
-\* Rough sizes with editing enabled (characters / 4). They grow with every tool added to
-`full`; `lite` stays small by design (a test keeps it under half of `full`).
+\* Rough sizes with editing enabled (characters / 4), measured on 2026-10-11 with
+`uv run pytest -k listing_is_much_smaller --log-cli-level=INFO`, which logs the current
+values. They grow with every tool added to `full`; `lite` stays small by design (the same
+test keeps it under half of `full`).
 
 `lite` is narrow but complete: it still covers navigating, searching, sizing up, reading
 parts of files and editing, so a small model never needs detours. Its `grep` searches
@@ -213,8 +215,8 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
   `{"type": "UnknownToolError", "message": "Unknown tool"}`. Arguments are raw here, so
   only declared arguments that passed validation and hold a single value are logged as is;
   the rest, and every argument of an unknown tool, are logged as their size.
-- **Cost:** about 25 µs and 200 bytes per call (≈1 MB per 5,000 calls). Each record is
-  appended and the file closed again, so external log rotation is safe.
+- **Cost:** about 200 bytes per call (≈1 MB per 5,000 calls). Each record is appended and
+  the file closed again, so external log rotation is safe.
 - **Failure handling:** if the log cannot be written (e.g. a full disk), the tool call still
   succeeds and a warning goes to stderr.
 
