@@ -32,6 +32,21 @@ def test_creates_parent_directory_and_file(tmp_path: Path) -> None:
     assert log.path.read_text() == ""
 
 
+def test_example_record_is_about_200_bytes(tmp_path: Path) -> None:
+    # README, Audit log: "about 200 bytes per call", shown with this example record.
+    log = make_log(tmp_path)
+    log.record(
+        tool="read_lines",
+        arguments={"path": "src/a.py", "start": 10, "end": 40, "if_changed_since": ""},
+        duration_ms=2.5,
+        result_chars=1240,
+        truncated=False,
+        error=None,
+    )
+    line = log.path.read_bytes()
+    assert 150 <= len(line) <= 250, len(line)
+
+
 def test_unwritable_location_fails_at_startup(tmp_path: Path) -> None:
     write(tmp_path / "blocker", "a file, not a directory")
     # The parent "directory" exists as a regular file.
