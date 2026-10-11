@@ -34,7 +34,7 @@ asks for, it cannot:
 | Tampering with the audit trail | The optional audit log must be outside the roots (startup fails otherwise), so the agent can neither read nor edit it. Content-carrying arguments are reduced to their length; error messages are logged (at most 500 characters): domain errors as the agent sees them, which can include short excerpts such as key or symbol names, and filesystem errors with the full OS message and absolute path, which only the operator can read. Calls rejected before a tool runs (arguments that fail the schema, unknown or disabled tools) are logged too, with field names and lengths instead of the rejected values. |
 | Accidental writes | Editing tools are not even registered unless writes are enabled. |
 | Information leakage in errors | Unexpected `OSError`s are reduced to their description. Other unexpected exceptions reach the client only as a generic failure (behavior of the `mcp` 2.x SDK). |
-| Supply chain | Locked dependencies (`uv.lock`), CI installs with `--locked`, `pip-audit` on every run, Dependabot, actions pinned by commit SHA, least-privilege workflow permissions. |
+| Supply chain | Locked dependencies (`uv.lock`), CI syncs and runs with `UV_LOCKED=1` (the wheel smoke test resolves fresh by design), `pip-audit` on every run, Dependabot, actions pinned by commit SHA, least-privilege workflow permissions. |
 
 ### Known limitations
 
@@ -49,5 +49,6 @@ asks for, it cannot:
   defaults instead of adding to them. A `--deny '!PATTERN'` re-allows what the defaults
   block (the last matching pattern wins), so review such patterns as carefully as the
   list itself.
-- **HTTP transport** is not exposed yet. Before serving over a network, add
-  authentication and TLS (see `docs/ARCHITECTURE.md`).
+- **HTTP transport** is not exposed yet. Before serving over a network, work through
+  the checklist in `docs/ARCHITECTURE.md`: authentication, TLS, per-session state and a
+  re-check of lone surrogates in arguments.
