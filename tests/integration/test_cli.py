@@ -123,3 +123,15 @@ def test_profile_tools_and_output_schema_flags(root: Path) -> None:
 def test_unknown_tool_exits_with_code_2(root: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["--root", str(root), "--tools", "nope"]) == cli.EXIT_CONFIG_ERROR
     assert "Unknown tool(s)" in capsys.readouterr().err
+
+
+def test_every_option_has_help_text() -> None:
+    """Operators read --help first; an option without text hides its default and meaning."""
+    parser = cli.build_parser()
+    missing = [action.option_strings[0] for action in parser._actions if not action.help]
+    assert missing == []
+
+
+def test_help_explains_deny_precedence() -> None:
+    # CHANGELOG: the --deny help says that the last matching pattern wins.
+    assert "matching pattern wins" in cli.build_parser().format_help()
