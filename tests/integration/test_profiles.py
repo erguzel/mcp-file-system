@@ -1,6 +1,7 @@
 """Tool profiles, the tool allowlist, output-schema control and schema slimming."""
 
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -198,13 +199,22 @@ async def test_lite_hints_name_only_lite_tools(make_settings: SettingsFactory, r
 
 
 async def test_lite_listing_is_much_smaller(make_settings: SettingsFactory) -> None:
+    """Keeps lite under half of full; logs the sizes README quotes (chars / 4 as tokens)."""
+
     def size(tools: dict[str, Tool]) -> int:
         return len(
             json.dumps([t.model_dump(mode="json", exclude_none=True) for t in tools.values()])
         )
 
     full_tools = await list_tools(make_settings, allow_write=True)
+    full_no_schema = await list_tools(make_settings, allow_write=True, output_schema=False)
     lite_tools = await list_tools(make_settings, profile="lite", allow_write=True)
+    logging.getLogger(__name__).info(
+        "tool listing size, chars/4 as tokens: full=%d, full --no-output-schema=%d, lite=%d",
+        size(full_tools) // 4,
+        size(full_no_schema) // 4,
+        size(lite_tools) // 4,
+    )
     assert size(lite_tools) < size(full_tools) / 2
 
 
