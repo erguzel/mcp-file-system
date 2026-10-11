@@ -98,9 +98,9 @@ A change is finished only when **all** of these are true:
   `tests/integration/test_profiles.py` check this).
 - **Raises sections:** if a docstring has a `Raises:` section, it lists every `FsError`
   subclass that can propagate out of the function: raised directly, re-raised, or raised
-  at any depth by a callee and not handled. Other exceptions that are part of the contract
-  (e.g. `ValueError` for bad configuration, `OSError` at startup) are listed too;
-  incidental `OSError` from filesystem races need not be.
+  at any depth by a callee and not handled. Other exceptions are listed when a caller is
+  expected to handle them, such as configuration errors at startup (`ValueError`,
+  `OSError`); `OSError` from reading or writing the files a tool call asked for is not.
 - **Results:** services return a `core.models.ToolResult` subclass. Its `render()` returns
   compact text for the model; the model itself is the structured output.
 - **Limits:** every result must be bounded, by a setting (`max_read_lines`,
@@ -108,8 +108,9 @@ A change is finished only when **all** of these are true:
   `max_pattern_length`, `search_timeout_s`) or, for a fixed per-call cap, by a named module
   constant (e.g. `MAX_BATCH_RANGES`, `MAX_EDITS`). When output is cut, say so and say how
   to continue (for example `next_start`), with a next step that works in every profile
-  that can return it and for every file type the tool accepts. Tests check only the lite
-  part of this (see Errors); other profiles and file types are not tested.
+  that can return it and for every file type the tool accepts. Tests check only that some
+  of `lite`'s cut-output hints name no full-only tools or parameters (see Errors); whether
+  the next step works, in any profile or for any file type, is not tested.
 - **Lines:** a line ends at `\n`, `\r\n`, or a lone `\r`. Use the helpers in
   `core/textio.py` (`split_lines`, `open_lines`, `count_lines`); do not use
   `str.splitlines()`, which also splits on other characters
