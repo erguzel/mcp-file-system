@@ -150,8 +150,15 @@ class TestReadLines:
         result = ctx.reader.read_lines("f.txt", 5)
         assert (result.start_line, result.end_line) == (5, 14)
         assert result.truncated
-        assert result.next_start == 15
-        assert "start=15" in result.render()
+        assert (result.next_start, result.next_end) == (15, 50)
+        assert "read_lines(path='f.txt', start=15, end=50)" in result.render()
+
+    def test_requested_end_survives_truncation(self, make_ctx: ContextFactory, root: Path) -> None:
+        # Following the hint must not read past the end the caller asked for.
+        write(root / "f.txt", numbered(50))
+        result = make_ctx(max_read_lines=10).reader.read_lines("f.txt", 1, 30)
+        assert (result.next_start, result.next_end) == (11, 30)
+        assert "start=11, end=30)" in result.render()
 
     def test_output_budget_truncates(self, make_ctx: ContextFactory, root: Path) -> None:
         write(root / "f.txt", "".join("x" * 400 + "\n" for _ in range(20)))
@@ -399,8 +406,17 @@ class TestReadBetween:
         assert (result.start_line, result.end_line) == (1, 5)
         assert result.truncated
         assert result.next_start == 6
+        assert result.next_end is None  # the block's end is unknown: no end in the hint
+        assert "start=6)" in result.render()
         assert result.note is not None
         assert "not reached within 5 lines" in result.note
+
+    def test_budget_cut_keeps_the_block_end(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "f.txt", "BEGIN\n" + "".join("x" * 300 + "\n" for _ in range(20)) + "END\n")
+        result = make_ctx(max_output_chars=1000).reader.read_between("f.txt", "BEGIN", "END")
+        assert result.truncated
+        assert result.next_end == 22
+        assert f"start={result.next_start}, end=22)" in result.render()
 
     def test_empty_exclusive_block(self, ctx: AppContext, root: Path) -> None:
         write(root / "f.txt", "BEGIN\nEND\n")

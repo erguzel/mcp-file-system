@@ -111,6 +111,7 @@ class Outliner:
             content=content,
             truncated=truncated,
             next_start=last + 1 if truncated else None,
+            next_end=end if truncated else None,
             note=_describe(matches),
         )
         return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)

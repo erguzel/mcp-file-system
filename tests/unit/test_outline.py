@@ -313,4 +313,5 @@ class TestReadSymbol:
         result = make_ctx(max_read_lines=10).outliner.read_symbol("long.py", "f")
         assert (result.start_line, result.end_line) == (1, 10)
         assert result.truncated
-        assert result.next_start == 11
+        assert (result.next_start, result.next_end) == (11, 51)
+        assert "start=11, end=51)" in result.render()

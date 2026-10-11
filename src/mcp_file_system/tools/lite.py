@@ -130,7 +130,7 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
         end: Annotated[int, Field(description="Last line, inclusive (-1 = last line).")] = -1,
         if_changed_since: IfChangedSinceArg = "",
     ) -> Annotated[CallToolResult, LinesResult]:
-        """Read numbered lines. If truncated, continue from next_start."""
+        """Read numbered lines. If truncated, continue with next_start and next_end."""
         return to_call_result(
             reader.read_lines(path, start, end, if_changed_since=if_changed_since)
         )
