@@ -132,6 +132,8 @@ All notable changes to this project are documented here. The format follows
 - The server instructions follow the `--tools` allowlist: they name only exposed tools,
   and say the server is read-only when `--allow-write` is set but no editing tool is
   exposed.
+- `apply_patch` accepts at most 500 hunks per call, and its error and dry-run report name
+  at most 15 failing hunks and count the rest, so neither grows with the patch.
 
 ### Security
 

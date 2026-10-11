@@ -25,7 +25,13 @@ from pathlib import Path
 from mcp_file_system.config import Settings
 from mcp_file_system.core.etag import compute_etag, ensure_etag
 from mcp_file_system.core.history import EditHistory
-from mcp_file_system.core.models import EditResult, PatchResult, Replacement, UndoResult
+from mcp_file_system.core.models import (
+    MAX_LISTED_FAILURES,
+    EditResult,
+    PatchResult,
+    Replacement,
+    UndoResult,
+)
 from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
@@ -295,7 +301,7 @@ class FileEditor:
 
         Hunks are placed as described in :mod:`~mcp_file_system.core.patch`. If any hunk
         fails, a dry run returns the per-hunk report and a real run raises without
-        writing, naming every failed hunk.
+        writing, naming the first failed hunks.
         """
         if len(diff) > self._settings.max_file_bytes:
             raise InvalidArgumentError(
@@ -316,11 +322,13 @@ class FileEditor:
                     diff="",
                     hunks=outcome.reports,
                 )
+            failed = [report for report in outcome.reports if not report.applied]
+            shown = failed[:MAX_LISTED_FAILURES]
             failures = "; ".join(
-                f"hunk {report.index} ({report.header}): {report.reason}"
-                for report in outcome.reports
-                if not report.applied
+                f"hunk {report.index} ({report.header}): {report.reason}" for report in shown
             )
+            if len(failed) > len(shown):
+                failures += f" (+{len(failed) - len(shown)} more)"
             raise NoMatchError(
                 f"Patch not applied to {resolved.display}; nothing was changed. {failures}. "
                 "Re-read the target lines and fix those hunks, or check with dry_run=true."

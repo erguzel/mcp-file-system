@@ -18,6 +18,7 @@ from mcp_file_system.core.models import HunkReport
 from mcp_file_system.core.textio import split_lines, strip_eol
 from mcp_file_system.errors import InvalidArgumentError
 
+MAX_HUNKS = 500
 _HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 _NO_NEWLINE = "\\"
 
@@ -81,8 +82,8 @@ def parse_patch(diff: str) -> list[Hunk]:
     accepted and their paths ignored: the target file is given separately.
 
     Raises:
-        InvalidArgumentError: The text holds no hunk, more than one file, a file
-            creation, or a line that does not belong to a hunk.
+        InvalidArgumentError: The text holds no hunk, more than :data:`MAX_HUNKS` hunks,
+            more than one file, a file creation, or a line that does not belong to a hunk.
     """
     rows = split_lines(diff)
     hunks: list[Hunk] = []
@@ -120,6 +121,10 @@ def parse_patch(diff: str) -> list[Hunk]:
         i += 1  # preamble such as "diff --git" or "index", or a blank separator
     if not hunks:
         raise InvalidArgumentError("The patch contains no hunk (a line starting with '@@ -').")
+    if len(hunks) > MAX_HUNKS:
+        raise InvalidArgumentError(
+            f"The patch has {len(hunks)} hunks; at most {MAX_HUNKS} hunks per call. Split it."
+        )
     return hunks
 
 

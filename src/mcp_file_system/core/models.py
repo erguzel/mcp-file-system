@@ -608,6 +608,10 @@ class HunkReport(BaseModel):
     reason: str = Field(default="", description="Why the hunk does not apply.")
 
 
+# Failed hunks named in an apply_patch error or dry-run report; the rest are counted.
+MAX_LISTED_FAILURES = 15
+
+
 class PatchResult(EditResult):
     """Outcome of apply_patch, with one report per hunk."""
 
@@ -621,7 +625,10 @@ class PatchResult(EditResult):
                 "nothing would be applied."
             )
             rows = [head]
-            rows.extend(f"[hunk {h.index} {h.header}: {h.reason}]" for h in failed)
+            shown = failed[:MAX_LISTED_FAILURES]
+            rows.extend(f"[hunk {h.index} {h.header}: {h.reason}]" for h in shown)
+            if len(failed) > len(shown):
+                rows.append(f"[+{len(failed) - len(shown)} more failing hunks]")
             return "\n".join(rows)
         rows = [super().render()]
         rows.extend(
