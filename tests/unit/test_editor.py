@@ -133,6 +133,26 @@ class TestReplace:
             ctx.editor.multi_replace("a.txt", [edit("caf", replacement)])
         assert path.read_bytes() == original
 
+    def test_huge_diff_is_cut_and_says_so(self, make_ctx: ContextFactory, root: Path) -> None:
+        path = write(root / "big.txt", "".join(f"line {n}\n" for n in range(400)))
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.editor.replace("big.txt", "line", "LINE", expected_count=0)
+        assert result.applied
+        assert result.truncated
+        assert len(result.diff) <= 1000
+        assert "[Diff truncated at the output limit; re-read the changed lines" in result.render()
+        assert path.read_text().startswith("LINE 0\n")
+        small = ctx.editor.replace("big.txt", "LINE 0", "line 0")
+        assert not small.truncated
+
+    def test_undo_diff_is_cut_and_says_so(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "big.txt", "".join(f"line {n}\n" for n in range(400)))
+        ctx = make_ctx(allow_write=True, max_output_chars=1000)
+        ctx.editor.replace("big.txt", "line", "LINE", expected_count=0)
+        result = ctx.editor.undo_last_edit("big.txt")
+        assert result.truncated
+        assert "[Diff truncated at the output limit" in result.render()
+
     def test_dry_run_does_not_write(self, ctx: AppContext, root: Path) -> None:
         path = write(root / "a.py", "x = 1\n")
         before = etag(path)
@@ -316,7 +336,7 @@ class TestEditLines:
         path = write(root / "f.txt", "a\n")
         original_diff = editor_module.FileEditor._diff
 
-        def diff_then_modify(self: object, *args: object, **kwargs: object) -> str:
+        def diff_then_modify(self: object, *args: object, **kwargs: object) -> tuple[str, bool]:
             write(path, "someone else wrote this\n")
             return original_diff(self, *args, **kwargs)  # type: ignore[arg-type]
 
@@ -606,7 +626,7 @@ class TestWrite:
     ) -> None:
         original_diff = editor_module.FileEditor._diff
 
-        def diff_then_create(self: object, *args: object, **kwargs: object) -> str:
+        def diff_then_create(self: object, *args: object, **kwargs: object) -> tuple[str, bool]:
             write(root / "n.txt", "raced\n")
             return original_diff(self, *args, **kwargs)  # type: ignore[arg-type]
 
