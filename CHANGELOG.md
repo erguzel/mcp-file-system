@@ -175,6 +175,8 @@ All notable changes to this project are documented here. The format follows
   `isdigit()`, which reads outside glibc's lookup table (e.g. `1` or `{` followed by an
   emoji). These grammars now parse a copy in which such characters are replaced with
   ASCII of the same byte length; symbol names still come from the original text.
+- Globs passed to `find_files` and `grep` are limited to `max_pattern_length` characters;
+  they are compiled by pathspec into stdlib regexes, which have no time budget.
 
 ### Changed
 

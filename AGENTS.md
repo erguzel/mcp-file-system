@@ -107,7 +107,9 @@ A change is finished only when **all** of these are true:
   `str.splitlines()`, which also splits on other characters
   (`tests/unit/test_conventions.py` scans `src/` for it).
 - **Regex from users:** always compile with `security.compile_pattern(...)` and a
-  `Deadline`. Never use the `re` module on agent-supplied patterns.
+  `Deadline`. Never use the `re` module on agent-supplied patterns. Globs are the one
+  exception: `core.finder.GlobMatcher` hands them to pathspec (stdlib `re`) with the
+  `max_pattern_length` cap but no deadline, so keep glob matching simple.
 - **Style:** type hints everywhere (`mypy --strict` must pass), line length 100, no
   `print()` (stdout carries the MCP protocol; log to stderr via `logging`).
 
