@@ -94,7 +94,7 @@ skeleton view (item 5). Plain text and logs have no grammar; items 6 and 8 cover
 **Done when:** each provider has unit tests including malformed input; JSON/TOML/YAML
 symbols resolve with correct line spans; the server starts and the core formats work when
 the `[code]` extra is not installed; CI stays green on Linux and Windows on every push
-and on macOS on manual dispatch (the matrix was trimmed).
+to main and every pull request, and on macOS on manual dispatch (the matrix was trimmed).
 
 ## 4. Change-aware reads and navigation hints
 

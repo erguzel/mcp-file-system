@@ -87,7 +87,7 @@ A change is finished only when **all** of these are true:
 - **Layers:** `cli → server → tools → core → security`, with `context` as the
   composition root between `server`/`tools` and the services. `config`, `errors` and
   `audit` are leaves: `security` uses `errors`; `core` uses `security`, `config` and
-  `errors`; `context` and `tools` may also use `audit`. Dependencies point downwards
+  `errors`; `context`, `tools` and `server` may also use `audit`. Dependencies point downwards
   only (diagram in `docs/ARCHITECTURE.md`; enforced by
   `tests/unit/test_import_boundaries.py`).
 - **Errors:** raise a subclass of `errors.FsError` with a message that tells the agent
