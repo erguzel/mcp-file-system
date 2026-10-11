@@ -70,7 +70,6 @@ All notable changes to this project are documented here. The format follows
 - `--audit-log FILE` (`MCP_FS_AUDIT_LOG`): one JSON line per tool call (tool, arguments,
   duration, result size, truncation, error type and message). File contents are never
   logged as arguments, and the file must be outside the roots.
-
 - Outlines for JSON, TOML and YAML: key trees with line spans and inline scalar values,
   so `read_symbol("tool.ruff.lint")` or `read_symbol("jobs.test.steps[0]")` returns just
   that section. TOML tables include their directly following sub-tables.
@@ -165,11 +164,12 @@ All notable changes to this project are documented here. The format follows
 
 - New core dependencies: `tree-sitter` (pinned `>=0.25.2,<0.26`: 0.26.0 crashes with heap
   corruption during tree walks) and the Markdown, JSON, TOML, YAML and Bash grammars.
-
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,
   `grep(glob="")`, `replace_in_file(expected_count=0)` for any count). Results are
   unchanged.
+- CI matrix trimmed: macOS runs on manual dispatch only and Windows on Python 3.12 and
+  3.14; Linux keeps 3.12 to 3.14.
 
 ## [0.1.0] - 2026-10-03
 
