@@ -17,15 +17,16 @@ All notable changes to this project are documented here. The format follows
 - `multi_replace` tool (full profile, `--allow-write`): up to 50 exact-text replacements
   in one file, applied in order and written once, so either all apply or none. Each
   edit must match its `expected_count` (default 1, 0 = any number but at least one); a
-  failing edit leaves the
-  file unchanged and the error names it (`edit 2 of 3: ...`). The growing text is
+  failing edit leaves the file unchanged and the error names it (`edit 2 of 3: ...`).
+  The growing text is
   checked against `max_file_bytes` before every edit. The edits are logged as their
   count and total length only.
 - `apply_patch` tool (full profile, `--allow-write`): applies a unified diff to one file,
   all hunks or none, guarded by the file's etag. Context and removed lines must match
   exactly; hunks whose line numbers are off are placed at the nearest exact match (no
   fuzz) and the offset is reported. Missing or ambiguous context fails the patch and the
-  error names each failed hunk; `dry_run=true` reports which hunks would fail and why.
+  error names the failed hunks (the first 15, the rest counted); `dry_run=true` reports
+  which hunks would fail and why.
   Untouched lines keep their own line endings. The diff is logged as its length only.
 - `read_ranges` tool (full profile): reads up to 20 `(path, start, end)` ranges from one
   or more files in one call, saving round trips. The ranges share one budget
@@ -56,11 +57,11 @@ All notable changes to this project are documented here. The format follows
   list the keys that exist; output honors `max_output_chars`, `max_line_chars` and
   `max_file_bytes`. JSON and YAML report the value's line span and tolerate syntax
   errors elsewhere in the file (with a note); YAML Helm templates are supported.
-- `peek` tool (full profile): the shape of a data file without its content. CSV/TSV (columns, guessed
-  types, row count, sample rows), JSON (comments and `.jsonc` included) and TOML (key
-  tree with types and array lengths, no values), logs (time span, level counts), manifests (`pyproject.toml`,
-  `package.json`, `Cargo.toml`: name, version, dependencies) and Markdown (front matter,
-  heading counts). CSV and logs are streamed with fixed scan budgets; JSON and TOML
+- `peek` tool (full profile): the shape of a data file without its content. CSV/TSV
+  (columns, guessed types, row count, sample rows), JSON (comments and `.jsonc` included)
+  and TOML (key tree with types and array lengths, no values), logs (time span, level
+  counts), manifests (`pyproject.toml`, `package.json`, `Cargo.toml`: name, version,
+  dependencies) and Markdown (front matter, heading counts). CSV and logs are streamed with fixed scan budgets; JSON and TOML
   honor `max_file_bytes`.
 - Tool profiles: `--profile lite` exposes a small but complete tool set with essential
   parameters and short descriptions for small local models (the tool listing shrinks to
@@ -107,13 +108,14 @@ All notable changes to this project are documented here. The format follows
 
 - `log_summary` no longer tells the agent to raise `limit` when the server's
   `max_results` cut the list; the note names the server limit instead.
-- `write_file` with `overwrite=true` and an etag no longer creates a new file when the
-  file was deleted or moved since the etag was read; it fails as stale.
+- `write_file` with an etag no longer creates a new file when the file was deleted or
+  moved since the etag was read; it fails as stale (also as a dry run).
 - `read_symbol` with an ambiguous plain name lists at most 15 candidates instead of every
   match, so the error stays small on files such as `package-lock.json`.
 - The continuation hint after a cut `read_lines`, `read_between` or `read_symbol` carries
-  the requested end line (`next_end`), so following it no longer reads on to the end of
-  the file.
+  the requested end line (`next_end`) whenever that end is known, so following it no
+  longer reads on to the end of the file. A `read_between` block cut before its end
+  pattern has no known end and keeps the start-only hint.
 - Editing a file with text its encoding cannot store (e.g. `ş` or `€` in a legacy file
   read as Latin-1, or an unpaired surrogate) no longer fails with a generic tool error
   and a stack trace on stderr. All editing tools now report which encoding is involved
@@ -135,8 +137,9 @@ All notable changes to this project are documented here. The format follows
 - The server instructions follow the `--tools` allowlist: they name only exposed tools,
   and say the server is read-only when `--allow-write` is set but no editing tool is
   exposed.
-- `apply_patch` accepts at most 500 hunks per call, and its error and dry-run report name
-  at most 15 failing hunks and count the rest, so neither grows with the patch.
+- `apply_patch` accepts at most 500 hunks per call, and the text of its error and dry-run
+  report names at most 15 failing hunks and counts the rest, so neither grows with the
+  patch (the structured dry-run result still lists every hunk).
 - A cut `outline` names the line where the first unlisted symbol starts (`next_line`) and
   says to continue with `read_lines` from there, instead of only that it was cut.
 - Edit results report `truncated` when the diff was cut at the output limit and give the
@@ -189,8 +192,7 @@ All notable changes to this project are documented here. The format follows
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,
   `grep(glob="")`, `replace_in_file(expected_count=0)` for any number of matches, at
-  least one). Results are
-  unchanged.
+  least one). Results are unchanged.
 - CI matrix trimmed: macOS runs on manual dispatch only and Windows on Python 3.12 and
   3.14; Linux keeps 3.12 to 3.14.
 

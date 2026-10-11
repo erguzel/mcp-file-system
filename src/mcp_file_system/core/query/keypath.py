@@ -15,7 +15,7 @@ Segment = str | int
 
 _SYNTAX_HINT = (
     "Use keys separated by '.', indexes like [0] or [-1], and JSON quotes for keys "
-    'containing dots or brackets, e.g. tool.ruff, steps[0].uses, "a.b".c'
+    'containing dots, brackets or double quotes, e.g. tool.ruff, steps[0].uses, "a.b".c'
 )
 _DECODER = json.JSONDecoder()
 _INDEX = re.compile(r"\[(-?[0-9]{1,9})\]")

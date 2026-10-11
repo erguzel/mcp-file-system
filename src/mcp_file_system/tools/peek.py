@@ -35,8 +35,8 @@ def register(registry: ToolRegistry, ctx: AppContext) -> None:
             Field(
                 description="Keys joined by '.', indexes as [0] or [-1], e.g. "
                 "'dependencies.react', 'jobs.test.steps[0]', '[1].kind' (YAML document 1). "
-                "Quote keys containing dots or brackets: '\"a.b\".c'. Empty: the whole "
-                "document."
+                "Quote keys containing dots, brackets or double quotes: '\"a.b\".c'. "
+                "Empty: the whole document."
             ),
         ] = "",
         depth: Annotated[
