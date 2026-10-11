@@ -17,7 +17,8 @@ asks for, it cannot:
 2. read or modify secrets inside the roots that match the deny list,
 3. learn whether paths outside the roots, or denied paths inside them, exist,
 4. exhaust the server with expensive patterns or huge outputs,
-5. modify files at all unless the operator passed `--allow-write`.
+5. modify files at all unless the operator enabled writes (`--allow-write` or
+   `MCP_FS_ALLOW_WRITE`).
 
 ### Controls
 
@@ -33,7 +34,7 @@ asks for, it cannot:
 | Stale or racing edits | Edits require (or verify) an etag, re-checked immediately before an atomic replace. |
 | Tampering with the audit trail | The optional audit log must be outside the roots (startup fails otherwise), so the agent can neither read nor edit it. Content-carrying arguments are reduced to their length; error messages are logged (at most 500 characters): domain errors as the agent sees them, which can include short excerpts such as key or symbol names, and filesystem errors with the full OS message and absolute path, which only the operator can read. Calls rejected before a tool runs (arguments that fail the schema, unknown or disabled tools) are logged too, with field names and lengths instead of the rejected values. |
 | Accidental writes | Editing tools are not even registered unless writes are enabled. |
-| Information leakage in errors | Unexpected `OSError`s are reduced to their description. Other unexpected exceptions reach the client only as a generic failure. |
+| Information leakage in errors | Unexpected `OSError`s are reduced to their description. Other unexpected exceptions reach the client only as a generic failure (behavior of the `mcp` 2.x SDK). |
 | Supply chain | Locked dependencies (`uv.lock`), CI installs with `--locked`, `pip-audit` on every run, Dependabot, actions pinned by commit SHA, least-privilege workflow permissions. |
 
 ### Known limitations
