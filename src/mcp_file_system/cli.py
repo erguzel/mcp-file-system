@@ -22,7 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mcp-file-system",
         description="MCP filesystem server with fine-grained, partial-read tools (stdio).",
-        epilog="Every option can also be set via an MCP_FS_<NAME> environment variable.",
+        epilog=(
+            "Options can also be set via MCP_FS_<SETTING> environment variables named after "
+            "the settings (see README, Configuration), e.g. MCP_FS_ROOTS (a JSON list) or "
+            "MCP_FS_DENY_GLOBS (replaces the default deny list, unlike --deny)."
+        ),
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(

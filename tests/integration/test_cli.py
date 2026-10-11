@@ -135,3 +135,11 @@ def test_every_option_has_help_text() -> None:
 def test_help_explains_deny_precedence() -> None:
     # CHANGELOG: the --deny help says that the last matching pattern wins.
     assert "matching pattern wins" in cli.build_parser().format_help()
+
+
+def test_help_names_the_real_environment_variables() -> None:
+    # Env names follow the settings, not the flags (--root -> MCP_FS_ROOTS).
+    text = cli.build_parser().format_help()
+    assert "MCP_FS_ROOTS" in text
+    assert "MCP_FS_DENY_GLOBS" in text
+    assert "MCP_FS_<NAME>" not in text

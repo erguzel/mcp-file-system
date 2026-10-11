@@ -99,7 +99,8 @@ class Settings(BaseSettings):
     max_file_bytes: int = Field(
         default=10 * MIB,
         gt=0,
-        description="Largest file that is loaded fully into memory (outline, symbols, edits).",
+        description="Largest file that is loaded fully into memory (outline, skeleton, "
+        "symbols, peek and query of structured files, edits and patch size).",
     )
     max_read_lines: int = Field(default=2000, gt=0, description="Most lines returned per read.")
     max_line_chars: int = Field(
