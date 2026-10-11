@@ -85,8 +85,9 @@ another protocol) without a server. Both rules are enforced by
 2. Create `tools/<group>.py` with `register(registry, ctx)`. In it, define a sync function
    decorated with `@registry.tool(READ_ONLY)` (or `WRITES`). Its return type is
    `Annotated[CallToolResult, YourResult]` and its body returns `to_call_result(...)`.
-   Describe parameters with `Annotated[..., Field(description=...)]` (a profile test fails on an undescribed parameter); the docstring
-   becomes the tool description. Use concrete defaults, not `None`.
+   Describe parameters with `Annotated[..., Field(description=...)]` (a profile test
+   fails on an undescribed parameter); the docstring becomes the tool description. Use
+   concrete defaults, not `None`.
 3. Add `register` to the `full` entry of `READ_TOOLSETS` or `WRITE_TOOLSETS` in
    `tools/__init__.py`. Add a `lite` variant only if the tool is essential for small
    models (keep `lite` small).

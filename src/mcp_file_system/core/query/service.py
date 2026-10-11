@@ -158,7 +158,7 @@ def _missing_key(node: DataNode, key: str, here: str, display: str, *, damaged: 
     syntax = " The file has syntax errors, which may hide keys." if damaged else ""
     return SymbolNotFoundError(
         f"No key {format_key(key)} in {here} of {display}. Keys there: {listed}. "
-        f'Write keys containing dots or brackets in quotes, e.g. "a.b".{syntax}'
+        f'Write keys containing dots, brackets or double quotes in quotes, e.g. "a.b".{syntax}'
     )
 
 

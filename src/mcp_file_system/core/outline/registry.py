@@ -66,10 +66,11 @@ class OutlineRegistry:
             self._by_filename[pattern.lower()] = provider
 
     def providers(self) -> tuple[OutlineProvider, ...]:
-        """Every registered provider once, in registration order.
+        """Every provider that some suffix, interpreter or file name currently selects, once.
 
-        Lets tests and tooling enumerate what the registry serves instead of keeping a
-        second, hand-maintained list of providers.
+        Fallbacks shadowed by a later registration for all their keys (the regex Markdown
+        provider once tree-sitter Markdown loads) are not included. Lets tests and tooling
+        enumerate what the registry serves instead of keeping a hand-maintained list.
         """
         seen: dict[int, OutlineProvider] = {}
         for provider in (

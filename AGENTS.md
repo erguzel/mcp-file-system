@@ -60,7 +60,8 @@ A change is finished only when **all** of these are true:
       updated in the same commit: search `*.md`, `docs/`, docstrings and test names for
       the names and numbers involved. A new module under `core/`, `security/` or `tools/`
       also gets a row in the project map below and in `docs/ARCHITECTURE.md`
-      (`tests/unit/test_conventions.py` checks both).
+      (`tests/unit/test_conventions.py` checks the ARCHITECTURE table and the project
+      map's top-level entries).
 - [ ] Exact measured figures (listing sizes, savings, timings) appear only in `README.md`;
       `CHANGELOG.md` and `ROADMAP.md` may give an approximate ratio (e.g. "about half")
       but no exact numbers.
