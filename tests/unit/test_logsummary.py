@@ -69,6 +69,13 @@ def test_limit_is_capped_by_max_results(make_ctx: ContextFactory, root: Path) ->
     assert "raise limit" not in result.render()
 
 
+def test_limit_equal_to_max_results_is_the_server_cap(make_ctx: ContextFactory, root: Path) -> None:
+    # limit == max_results: raising limit cannot return more, so the note names the cap.
+    write(root / "app.log", "".join(f"event{chr(97 + i)}\n" for i in range(5)))
+    result = make_ctx(max_results=2).log_summarizer.summarize("app.log", limit=2)
+    assert result.note == "server limit (max_results) reached"
+
+
 def test_output_budget_bounds_the_groups(make_ctx: ContextFactory, root: Path) -> None:
     write(
         root / "app.log", "".join(f"{'x' * 900} {chr(97 + i % 26) * (i + 1)}\n" for i in range(40))

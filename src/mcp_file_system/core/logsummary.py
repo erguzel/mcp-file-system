@@ -52,7 +52,7 @@ class LogSummarizer:
                 last = number
                 if line.strip():
                     tally.add(line[:width], resolved.display, number)
-        capped = limit > self._settings.max_results
+        capped = limit >= self._settings.max_results
         groups, note = self._top_groups(
             tally, min(limit, self._settings.max_results), server_capped=capped
         )
