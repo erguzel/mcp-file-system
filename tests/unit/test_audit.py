@@ -9,6 +9,7 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
+from conftest import write
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog, sanitize_arguments
 from mcp_file_system.core.models import Replacement
 from mcp_file_system.errors import StaleFileError
@@ -32,7 +33,7 @@ def test_creates_parent_directory_and_file(tmp_path: Path) -> None:
 
 
 def test_unwritable_location_fails_at_startup(tmp_path: Path) -> None:
-    (tmp_path / "blocker").write_text("a file, not a directory")
+    write(tmp_path / "blocker", "a file, not a directory")
     # The parent "directory" exists as a regular file.
     with pytest.raises(FileExistsError):
         AuditLog(tmp_path / "blocker" / "audit.jsonl", profile="full")

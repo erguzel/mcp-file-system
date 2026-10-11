@@ -53,7 +53,7 @@ def test_cli_flag_and_unwritable_location(
     )
     assert cli.settings_from_args(args).audit_log == (tmp_path / "a.log").resolve()
 
-    (tmp_path / "blocker").write_text("file")
+    write(tmp_path / "blocker", "file")
     code = cli.main(["--root", str(root), "--audit-log", str(tmp_path / "blocker" / "a.log")])
     assert code == cli.EXIT_CONFIG_ERROR
     assert "invalid configuration" in capsys.readouterr().err
