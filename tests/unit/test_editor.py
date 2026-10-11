@@ -153,6 +153,28 @@ class TestReplace:
         assert result.truncated
         assert "[Diff truncated at the output limit" in result.render()
 
+    def test_cut_preview_says_nothing_was_written(
+        self, make_ctx: ContextFactory, root: Path
+    ) -> None:
+        write(root / "big.txt", "".join(f"line {n}\n" for n in range(400)))
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.editor.replace("big.txt", "line", "LINE", expected_count=None, dry_run=True)
+        assert result.truncated
+        assert result.render().endswith(
+            "[Diff preview truncated at the output limit; nothing was written.]"
+        )
+        assert "re-read" not in result.render()
+
+    def test_creation_undo_cut_has_no_lines_to_re_read(
+        self, make_ctx: ContextFactory, root: Path
+    ) -> None:
+        ctx = make_ctx(allow_write=True, max_output_chars=1000)
+        ctx.editor.write("new.txt", "".join(f"line {n}\n" for n in range(400)))
+        result = ctx.editor.undo_last_edit("new.txt")
+        assert result.renamed_to is not None
+        assert result.truncated
+        assert result.render().endswith("[Diff truncated at the output limit.]")
+
     def test_dry_run_does_not_write(self, ctx: AppContext, root: Path) -> None:
         path = write(root / "a.py", "x = 1\n")
         before = etag(path)

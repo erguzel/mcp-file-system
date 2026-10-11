@@ -139,8 +139,9 @@ All notable changes to this project are documented here. The format follows
   at most 15 failing hunks and count the rest, so neither grows with the patch.
 - A cut `outline` names the line where the first unlisted symbol starts (`next_line`) and
   says to continue with `read_lines` from there, instead of only that it was cut.
-- Edit results report `truncated` when the diff was cut at the output limit and say to
-  re-read the changed lines; the audit log records the flag.
+- Edit results report `truncated` when the diff was cut at the output limit and give the
+  next step that fits: re-read the changed lines after an applied edit; nothing to do
+  after a dry run or the undo of a creation. The audit log records the flag.
 
 ### Security
 
