@@ -213,3 +213,51 @@ async def test_partial_read_then_guarded_edit_flow(writer: Client, root: Path) -
     created = await call(writer, "write_file", path="pkg/new.py", content="x = 1\n")
     assert not created.is_error
     assert (root / "pkg" / "new.py").read_text() == "x = 1\n"
+
+
+# One call per exposed tool with a path argument; the guard must reject it before any
+# filesystem access (AGENTS.md hard rule 1). A new tool must be added here to be listed.
+PATH_CALLS: dict[str, dict[str, Any]] = {
+    "file_info": {},
+    "read_lines": {},
+    "read_ranges": {"ranges": [{"path": "<path>", "start": 1, "end": 1}]},
+    "read_between": {"start_pattern": "x"},
+    "grep": {"pattern": "x"},
+    "list_directory": {},
+    "find_files": {"glob": "*"},
+    "outline": {},
+    "read_symbol": {"name": "x"},
+    "read_skeleton": {},
+    "peek": {},
+    "query": {},
+    "log_summary": {},
+    "replace_in_file": {"pattern": "x", "replacement": "y"},
+    "multi_replace": {"edits": [{"pattern": "x", "replacement": "y"}]},
+    "edit_lines": {"start": 1, "end": 1, "new_text": "x", "expected_etag": "x"},
+    "apply_patch": {"diff": "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n", "expected_etag": "x"},
+    "write_file": {"content": "x"},
+    "undo_last_edit": {},
+}
+
+
+def _with_path(arguments: dict[str, Any], path: str) -> dict[str, Any]:
+    if "ranges" in arguments:
+        return {"ranges": [{**r, "path": path} for r in arguments["ranges"]]}
+    return {**arguments, "path": path}
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [("../x", "outside the allowed roots"), (".env", "denied by policy")],
+)
+async def test_every_tool_rejects_outside_and_denied_paths(
+    writer: Client, root: Path, path: str, expected: str
+) -> None:
+    write(root / ".env", "SECRET=1\n")
+    listed = {tool.name for tool in (await writer.list_tools()).tools}
+    assert listed == set(PATH_CALLS)
+    for name, arguments in PATH_CALLS.items():
+        result = await call(writer, name, **_with_path(arguments, path))
+        assert expected in text_of(result), (name, text_of(result))
+        # read_ranges reports a failing range inside a normal result; every other tool errors.
+        assert result.is_error or name == "read_ranges", name
