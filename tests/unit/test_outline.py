@@ -280,6 +280,29 @@ class TestReadSymbol:
         with pytest.raises(SymbolNotFoundError, match=r"ambiguous.*A\.run.*B\.run"):
             ctx.outliner.read_symbol("two.py", "run")
 
+    def test_ambiguous_name_lists_a_bounded_number_of_candidates(
+        self, ctx: AppContext, root: Path
+    ) -> None:
+        # 40 classes each define run(); the error must not grow with the file.
+        source = "".join(f"class C{i}:\n    def run(self): pass\n" for i in range(40))
+        write(root / "many.py", source)
+        with pytest.raises(SymbolNotFoundError) as info:
+            ctx.outliner.read_symbol("many.py", "run")
+        message = str(info.value)
+        assert message.count("(line ") == 15
+        assert "(+25 more)" in message
+        assert "Pass a qualified name" in message
+        assert len(message) < 1500
+
+    def test_ambiguous_json_key_is_bounded_too(self, ctx: AppContext, root: Path) -> None:
+        # Objects have no item cap in the tree-sitter view, so this path must cap itself.
+        body = ",".join(f'"p{i}": {{"version": {i}}}' for i in range(40))
+        write(root / "lock.json", "{" + body + "}")
+        with pytest.raises(SymbolNotFoundError) as info:
+            ctx.outliner.read_symbol("lock.json", "version")
+        assert str(info.value).count("(line ") == 15
+        assert "(+25 more)" in str(info.value)
+
     def test_exact_qualified_name_wins_over_plain_matches(
         self, ctx: AppContext, root: Path
     ) -> None:
