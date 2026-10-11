@@ -83,10 +83,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - name: Export pinned runtime dependencies
-        run: uv export --no-dev --no-emit-project --format requirements-txt --output-file requirements.txt
-      - name: Audit for known vulnerabilities
-        run: uvx pip-audit --strict --disable-pip --require-hashes --requirement requirements.txt
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Export pinned runtime dependencies, including the [code] extra
+        run: uv export --no-dev --no-emit-project --extra code --format requirements-txt --output-file requirements.txt
+      - name: Audit for known vulnerabilities (pip-audit pinned by uv.lock)
+        run: uv run pip-audit --strict --disable-pip --require-hashes --requirement requirements.txt
 
   build:
     name: Build & install smoke test
