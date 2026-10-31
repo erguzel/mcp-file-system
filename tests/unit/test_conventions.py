@@ -19,6 +19,16 @@ TESTS = REPO / "tests"
 ZERO_IS_A_VALUE = {"context", "context_before", "context_after"}
 # Tool parameters forwarded as ``""`` because the service itself treats ``""`` as unset.
 EMPTY_PASSES_THROUGH = {"if_changed_since", "key_path"}
+# The Markdown files in git; a glob would also read local, ignored notes.
+TRACKED_DOCS = (
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "docs/ARCHITECTURE.md",
+)
 # Filesystem helpers tests must not call directly (AGENTS.md, test conventions).
 DIRECT_FS_CALLS = {"write_text", "write_bytes", "symlink_to", "symlink", "CreateJunction"}
 
@@ -158,8 +168,8 @@ def _without_fences(text: str) -> str:
 
 
 def test_markdown_links_and_anchors_resolve() -> None:
-    """Docs point at each other and at files; a rename must not leave a dead link behind."""
-    documents = [*REPO.glob("*.md"), *REPO.glob("docs/*.md")]
+    """A rename must not leave a dead Markdown link; paths in code spans are not checked."""
+    documents = [REPO / name for name in TRACKED_DOCS]
     anchors = {
         path.resolve(): {
             _github_slug(heading)

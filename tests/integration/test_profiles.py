@@ -11,7 +11,7 @@ import pytest
 from mcp.client import Client
 from mcp.types import CallToolResult, TextContent, Tool
 
-from conftest import SettingsFactory, numbered, write
+from conftest import SettingsFactory, list_tools, numbered, write
 from mcp_file_system.context import AppContext
 from mcp_file_system.core.etag import compute_etag
 from mcp_file_system.server import build_instructions, create_server
@@ -56,11 +56,6 @@ LITE_PARAMETERS = {
     "edit_lines": {"path", "start", "end", "new_text", "expected_etag"},
     "write_file": {"path", "content"},
 }
-
-
-async def list_tools(make_settings: SettingsFactory, **overrides: Any) -> dict[str, Tool]:
-    async with Client(create_server(make_settings(**overrides))) as client:
-        return {tool.name: tool for tool in (await client.list_tools()).tools}
 
 
 @pytest.fixture
@@ -183,21 +178,26 @@ def descriptions(schema: Any) -> list[str]:
     return []
 
 
-async def test_read_only_listing_names_no_write_tools(make_settings: SettingsFactory) -> None:
-    # A read-only server must not point the model at tools it does not offer.
-    read_only = await list_tools(make_settings)
-    writable = await list_tools(make_settings, allow_write=True)
+@pytest.mark.parametrize("profile", ["full", "lite"])
+async def test_read_only_listing_names_no_write_tools(
+    make_settings: SettingsFactory, profile: str
+) -> None:
+    # A read-only server must not name the write tools or parameters it does not offer.
+    read_only = await list_tools(make_settings, profile=profile, output_schema=True)
+    writable = await list_tools(make_settings, profile=profile, allow_write=True)
     read_params = {p for tool in read_only.values() for p in tool.input_schema["properties"]}
     write_tools = {name: tool for name, tool in writable.items() if name not in read_only}
     write_params = {p for tool in write_tools.values() for p in tool.input_schema["properties"]}
-    names = set(write_tools) | {p for p in write_params - read_params if "_" in p}
-    forbidden = re.compile(r"\b(?:" + "|".join(sorted(names)) + r")(?!\w)")
+    # One-word parameters (overwrite, content) are ordinary words unless written as name=.
+    terms = {name + r"(?!\w)" for name in write_tools}
+    terms |= {p + r"(?!\w)" if "_" in p else p + "=" for p in write_params - read_params}
+    forbidden = re.compile(r"\b(?:" + "|".join(sorted(terms)) + ")")
     for name, tool in read_only.items():
         texts = [tool.description or "", *descriptions(tool.input_schema)]
         texts += descriptions(tool.output_schema)
         for text in texts:
             assert not forbidden.search(text), (name, text)
-    assert not forbidden.search(build_instructions(make_settings()))
+    assert not forbidden.search(build_instructions(make_settings(profile=profile)))
 
 
 async def test_lite_listing_names_only_lite_tools(make_settings: SettingsFactory) -> None:
