@@ -183,6 +183,23 @@ def descriptions(schema: Any) -> list[str]:
     return []
 
 
+async def test_read_only_listing_names_no_write_tools(make_settings: SettingsFactory) -> None:
+    # A read-only server must not point the model at tools it does not offer.
+    read_only = await list_tools(make_settings)
+    writable = await list_tools(make_settings, allow_write=True)
+    read_params = {p for tool in read_only.values() for p in tool.input_schema["properties"]}
+    write_tools = {name: tool for name, tool in writable.items() if name not in read_only}
+    write_params = {p for tool in write_tools.values() for p in tool.input_schema["properties"]}
+    names = set(write_tools) | {p for p in write_params - read_params if "_" in p}
+    forbidden = re.compile(r"\b(?:" + "|".join(sorted(names)) + r")(?!\w)")
+    for name, tool in read_only.items():
+        texts = [tool.description or "", *descriptions(tool.input_schema)]
+        texts += descriptions(tool.output_schema)
+        for text in texts:
+            assert not forbidden.search(text), (name, text)
+    assert not forbidden.search(build_instructions(make_settings()))
+
+
 async def test_lite_listing_names_only_lite_tools(make_settings: SettingsFactory) -> None:
     forbidden = await full_only_names(make_settings)
     settings = make_settings(profile="lite", allow_write=True, output_schema=True)
