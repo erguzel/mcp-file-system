@@ -144,3 +144,42 @@ def test_agents_project_map_names_every_top_level_entry() -> None:
         if path.name not in ("__init__.py", "py.typed", "__pycache__")
     ]
     assert [name for name in entries if name not in text] == []
+
+
+def _github_slug(heading: str) -> str:
+    """The anchor GitHub generates for a heading."""
+    plain = re.sub(r"[^\w\- ]", "", heading.strip().lower())
+    return plain.replace(" ", "-")
+
+
+def _without_fences(text: str) -> str:
+    """``text`` without fenced code blocks, whose ``#`` lines are not headings."""
+    return re.sub(r"^```.*?^```", "", text, flags=re.M | re.S)
+
+
+def test_markdown_links_and_anchors_resolve() -> None:
+    """Docs point at each other and at files; a rename must not leave a dead link behind."""
+    documents = [*REPO.glob("*.md"), *REPO.glob("docs/*.md")]
+    anchors = {
+        path.resolve(): {
+            _github_slug(heading)
+            for heading in re.findall(
+                r"^#+\s+(.+)$", _without_fences(path.read_text(encoding="utf-8")), re.M
+            )
+        }
+        for path in documents
+    }
+    dead = []
+    for path in documents:
+        text = _without_fences(path.read_text(encoding="utf-8"))
+        links = re.findall(r"\]\(([^)\s]+)\)", re.sub(r"`[^`\n]*`", "", text))
+        for link in links:
+            if link.startswith(("http://", "https://", "mailto:")):
+                continue
+            target, _, anchor = link.partition("#")
+            resolved = (path.parent / target).resolve() if target else path.resolve()
+            if not resolved.exists() or (
+                anchor and resolved.suffix == ".md" and anchor not in anchors.get(resolved, set())
+            ):
+                dead.append(f"{path.relative_to(REPO)}: {link}")
+    assert dead == []
