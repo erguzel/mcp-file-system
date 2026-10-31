@@ -6,9 +6,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from mcp.client import Client
+from mcp.types import Tool
 
 from mcp_file_system.config import Settings
 from mcp_file_system.context import AppContext
+from mcp_file_system.server import create_server
 
 SettingsFactory = Callable[..., Settings]
 ContextFactory = Callable[..., AppContext]
@@ -56,6 +59,12 @@ def make_ctx(make_settings: SettingsFactory) -> ContextFactory:
 @pytest.fixture
 def ctx(make_ctx: ContextFactory) -> AppContext:
     return make_ctx()
+
+
+async def list_tools(make_settings: SettingsFactory, **overrides: Any) -> dict[str, Tool]:
+    """The tools a server built with these settings lists, by name."""
+    async with Client(create_server(make_settings(**overrides))) as client:
+        return {tool.name: tool for tool in (await client.list_tools()).tools}
 
 
 def write(path: Path, content: str | bytes) -> Path:

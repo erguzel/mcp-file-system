@@ -55,7 +55,10 @@ A change is finished only when **all** of these are true:
 - [ ] User-visible changes have a `CHANGELOG.md` entry under `## [Unreleased]`.
 - [ ] If a `ROADMAP.md` item was completed, its status checkbox is ticked and its **What**
       matches what shipped.
-- [ ] User-visible changes (tools, flags, settings) are documented in `README.md`.
+- [ ] User-visible changes (tools, flags, settings) are documented in `README.md`
+      (`tests/integration/test_readme_matches_code.py` checks tool names and write marks,
+      the profiles row's tool counts, the limits it lists, and setting names, defaults and
+      flags; not descriptions).
 - [ ] Every doc that mentions what the change renames, adds, removes or re-measures is
       updated in the same commit: search `*.md`, `docs/`, docstrings and test names for
       the names and numbers involved. A new module under `core/`, `security/` or `tools/`
