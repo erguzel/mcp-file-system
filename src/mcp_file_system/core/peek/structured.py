@@ -58,6 +58,7 @@ def _to_value(node: Node, source: bytes) -> Any:
 
     Raises:
         ParseError: A string or number value cannot be decoded.
+        RecursionError: The nesting is too deep for this walk; ``parse_json`` handles it.
     """
     if node.type == "object":
         pairs = (
@@ -78,7 +79,7 @@ def _to_value(node: Node, source: bytes) -> Any:
         except ValueError:
             # The decoder's own position is relative to the token, not to the file.
             raise ParseError(
-                f"invalid JSON (the {node.type} at line {start_line(node)} cannot be decoded)"
+                f"the JSON {node.type} at line {start_line(node)} cannot be decoded"
             ) from None
     # In an error-free tree the only other value nodes are the three literals.
     return _JSON_LITERALS[node.type]
