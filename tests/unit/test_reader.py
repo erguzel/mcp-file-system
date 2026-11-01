@@ -371,6 +371,25 @@ class TestReadRanges:
         assert pending == []
         assert returned == [("a.txt", 1), ("a.txt", 2), ("a.txt", 3), ("b.txt", 1)]
 
+    def test_first_row_returned_may_follow_an_empty_file(
+        self, make_ctx: ContextFactory, root: Path
+    ) -> None:
+        write(root / "empty.txt", "")
+        write(root / "a.txt", "y" * 1500 + "\n")
+        ctx = make_ctx(max_line_chars=2000, max_output_chars=1000)
+        result = ctx.reader.read_ranges([LineRange(path="empty.txt"), LineRange(path="a.txt")])
+        assert [(r.path, r.end_line) for r in result.reads] == [("empty.txt", 0), ("a.txt", 1)]
+        assert result.cut == []
+
+    def test_stale_line_count_is_not_cut_forever(
+        self, ctx: AppContext, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write(root / "a.txt", numbered(2))
+        monkeypatch.setattr("mcp_file_system.core.reader.count_lines", lambda *_: 9)
+        result = ctx.reader.read_ranges([LineRange(path="a.txt", start=5)])
+        assert result.reads[0].note == "No lines selected."
+        assert result.cut == []
+
     def test_failing_range_does_not_stop_the_others(
         self, ctx: AppContext, root: Path, outside: Path
     ) -> None:
