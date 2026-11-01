@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from conftest import ContextFactory, write
 from mcp_file_system.core.peek import structured, tabular, text
@@ -14,6 +16,10 @@ from mcp_file_system.errors import (
     InvalidArgumentError,
     ParseError,
 )
+
+JSON_SYNTAX = ["{", "}", "[", "]", ":", ",", " ", "\n", "\r", "// c\n", "/*c*/"]
+JSON_TOKENS = ['"a"', '"\t"', '"\\u"', '"\\q"', '"\x01"', "1", "1.", "-", "1e", "null", "true"]
+JSON_PIECES = [*JSON_SYNTAX, *JSON_TOKENS]
 
 
 def peek(ctx_factory: ContextFactory, path: Path, **settings: int) -> str:
@@ -140,6 +146,49 @@ class TestJson:
         write(root / "bad.json", body)
         with pytest.raises(ParseError, match="invalid JSON"):
             peek(make_ctx, root / "bad.json")
+
+    @pytest.mark.parametrize(
+        "token",
+        [
+            '"SECRET\tVALUE"',  # raw control character
+            '"\\u"',  # bare \u
+            '"\\u12"',  # short \u
+            "1.",  # the grammar's number is wider than JSON's
+            "9" * 5000,  # longer than Python converts to an int
+        ],
+    )
+    @pytest.mark.parametrize("wrap", ['{{"a": {}}}', '// comment\n{{"a": {}}}'])
+    def test_token_the_grammar_accepts_but_json_rejects(
+        self, root: Path, make_ctx: ContextFactory, token: str, wrap: str
+    ) -> None:
+        write(root / "bad.jsonc", wrap.format(token))
+        with pytest.raises(ParseError, match="invalid JSON") as error:
+            peek(make_ctx, root / "bad.jsonc")
+        assert "SECRET" not in str(error.value)
+
+    @pytest.mark.parametrize(
+        ("text", "line"),
+        [
+            ('// c\n{\n  "a": "x\ty"\n}', 3),
+            ('// c\r\n{\r\n  "a": "x\ty"\r\n}', 3),
+            ('// c\r{\r  "a": "x\ty"\r}', 3),
+        ],
+    )
+    def test_bad_token_error_names_its_line(self, text: str, line: int) -> None:
+        with pytest.raises(ParseError, match=rf"\bline {line}\b"):
+            structured.parse_json(text)
+
+    @given(
+        st.lists(
+            st.sampled_from(JSON_PIECES),
+            max_size=12,
+        ).map("".join)
+    )
+    def test_every_failure_is_a_parse_error(self, text: str) -> None:
+        try:
+            structured.parse_json(text)
+        except ParseError:
+            return  # refusing is allowed; any other exception fails the test
 
     def test_deep_nesting_with_comment_is_rejected(
         self, root: Path, make_ctx: ContextFactory

@@ -64,7 +64,8 @@ All notable changes to this project are documented here. The format follows
   and TOML (key tree with types and array lengths, no values), logs (time span, level
   counts), manifests (`pyproject.toml`, `package.json`, `Cargo.toml`: name, version,
   dependencies) and Markdown (front matter, heading counts). CSV and logs are streamed
-  with fixed scan budgets; JSON and TOML honor `max_file_bytes`.
+  with fixed scan budgets; JSON and TOML honor `max_file_bytes`. A JSON string or number
+  that cannot be decoded gives a parse error naming its line.
 - Tool profiles: `--profile lite` exposes a small but complete tool set with essential
   parameters and short descriptions for small local models (the tool listing shrinks to
   about a sixth of `full`'s). `lite`'s `grep` searches invalid regexes literally.
