@@ -92,6 +92,31 @@ class TestPythonProvider:
         names = [s.name for s in PythonOutlineProvider().outline(PY)]
         assert "helper" not in names
 
+    @pytest.mark.parametrize("keyword", ["except", "except*"])
+    def test_try_blocks_are_listed_in_source_order(self, keyword: str) -> None:
+        source = (
+            "try:\n"
+            "    def in_try(): ...\n"
+            f"{keyword} ValueError:\n"
+            "    def first_handler(): ...\n"
+            f"{keyword} KeyError:\n"
+            "    def second_handler(): ...\n"
+            "else:\n"
+            "    def in_else(): ...\n"
+            "finally:\n"
+            "    def in_finally(): ...\n"
+        )
+        symbols = PythonOutlineProvider().outline(source)
+        assert [s.name for s in symbols] == [
+            "in_try",
+            "first_handler",
+            "second_handler",
+            "in_else",
+            "in_finally",
+        ]
+        starts = [s.start_line for s in symbols]
+        assert starts == sorted(starts)
+
     def test_long_signatures_are_clipped(self) -> None:
         params = ", ".join(f"p{n}: int" for n in range(60))
         symbol = PythonOutlineProvider().outline(f"def f({params}): pass\n")[0]
@@ -274,6 +299,23 @@ class TestOutliner:
         result = ctx.outliner.outline("nested.py")
         assert result.symbols[-1].qualified_name == "B"
         assert result.next_line == 2001
+
+    def test_truncation_inside_a_try_block_skips_no_symbol(
+        self, ctx: AppContext, root: Path
+    ) -> None:
+        source = "".join(f"def f{n}(): pass\n" for n in range(1999))
+        source += (
+            "try:\n"  # line 2000
+            "    def in_try(): pass\n"
+            "except ValueError:\n"
+            "    def in_except(): pass\n"  # line 2003
+            "else:\n"
+            "    def in_else(): pass\n"
+        )
+        write(root / "cut.py", source)
+        result = ctx.outliner.outline("cut.py")
+        assert result.symbols[-1].qualified_name == "in_try"
+        assert result.next_line == 2003
 
 
 class TestReadSymbol:

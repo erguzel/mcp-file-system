@@ -61,6 +61,7 @@ class PythonOutlineProvider:
         in_class: bool,
         out: list[Symbol],
     ) -> None:
+        """Append the definitions in ``body`` to ``out`` in source order, parents first."""
         for node in body:
             if isinstance(node, _Definition):
                 qualified = f"{prefix}{node.name}"
@@ -73,8 +74,12 @@ class PythonOutlineProvider:
                 for block in (node.body, node.orelse):
                     self._visit(block, prefix=prefix, depth=depth, in_class=in_class, out=out)
             elif isinstance(node, ast.Try | ast.TryStar):
-                blocks = [node.body, node.orelse, node.finalbody]
-                blocks.extend(handler.body for handler in node.handlers)
+                blocks = [
+                    node.body,
+                    *(handler.body for handler in node.handlers),
+                    node.orelse,
+                    node.finalbody,
+                ]
                 for block in blocks:
                     self._visit(block, prefix=prefix, depth=depth, in_class=in_class, out=out)
 
