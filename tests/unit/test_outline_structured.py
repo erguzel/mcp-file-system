@@ -101,6 +101,23 @@ class TestJson:
         assert symbol.signature.endswith("…")
         assert len(symbol.signature) < 100
 
+    @pytest.mark.parametrize("number", ["1e+5", "1E+5", "1.5e+3", "-1e+5"])
+    def test_exponent_with_plus_is_one_number(self, number: str) -> None:
+        symbols = JsonOutlineProvider().outline(f'{{\n  "a": {number},\n  "z": 3\n}}\n')
+        assert table(symbols) == [("a", 2, 2, 0), ("z", 3, 3, 0)]
+        assert symbols[0].signature == f"a: {number}"
+        assert symbols[0].kind == "number"
+
+    def test_exponent_with_plus_keeps_array_indexes(self) -> None:
+        symbols = JsonOutlineProvider().outline('[1.5E+3, {"k": "after"}]')
+        assert [s.qualified_name for s in symbols] == ["[1]", "[1].k"]
+
+    def test_plus_exponent_in_key_and_string_stays_as_written(self) -> None:
+        symbol = JsonOutlineProvider().outline('{"1e+5": "2e+5"}')[0]
+        assert symbol.name == "1e+5"
+        assert symbol.qualified_name == '"1e+5"'
+        assert symbol.signature == '"1e+5": "2e+5"'
+
     def test_array_elements_are_capped(self) -> None:
         text = json.dumps({"items": [{"i": n} for n in range(MAX_ITEMS_PER_ARRAY + 50)]})
         names = [s.qualified_name for s in JsonOutlineProvider().outline(text)]

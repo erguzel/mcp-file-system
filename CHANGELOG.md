@@ -109,6 +109,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `query` and `outline` read a JSON number with `+` in its exponent, such as `1e+5`, as one
+  number. The grammar stopped at the `e`, so on valid JSON `query` returned `1` and said the value
+  parsed cleanly, and later array elements got too high an index. `peek` no longer rejects such a
+  number in a file with comments.
 - `peek` rejects a JSON file with several top-level values, such as newline-delimited JSON. It
   used to summarize the first value as if it were the whole file, with no note, and bad tokens
   in the later values went unreported. This covers `package.json` too.

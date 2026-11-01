@@ -105,6 +105,28 @@ class TestJson:
         assert result.note is None
         assert "lines 3-5 of 6" in result.render()
 
+    @pytest.mark.parametrize("number", ["1e+5", "1E+5", "1.5e+3", "-1e+5"])
+    def test_exponent_with_plus_is_one_number(
+        self, root: Path, ctx: AppContext, number: str
+    ) -> None:
+        write(root / "n.json", f'{{"a": {number}, "z": 3}}')
+        assert query(ctx, root / "n.json", "a").content == number
+        whole = query(ctx, root / "n.json")
+        assert whole.content == f"a: {number}\nz: 3"
+        assert whole.note is None
+
+    def test_exponent_with_plus_keeps_array_indexes(self, root: Path, ctx: AppContext) -> None:
+        write(root / "a.json", '[1.5E+3, {"k": "after"}]')
+        assert query(ctx, root / "a.json").size == 2
+        assert query(ctx, root / "a.json", "[0]").content == "1.5E+3"
+        assert query(ctx, root / "a.json", "[1].k").content == '"after"'
+
+    def test_plus_exponent_in_key_and_string_stays_as_written(
+        self, root: Path, ctx: AppContext
+    ) -> None:
+        write(root / "s.json", '{"1e+5": "2e+5"}')
+        assert query(ctx, root / "s.json", '"1e+5"').content == '"2e+5"'
+
     def test_array_indexes(self, root: Path, ctx: AppContext) -> None:
         write(root / "a.json", '{"items": [10, {"id": 2}, [true, null]]}')
         assert query(ctx, root / "a.json", "items[0]").content == "10"

@@ -50,10 +50,12 @@ the code, not by running it, so reproduce it first.
   in `core/peek/structured.py` took `values[0]` and ignored the rest, so `{"a": 1}\n{"b": 2}`
   showed only `a: int` with no note, and newline-delimited JSON looked like one record. Bad tokens
   in the later values went unreported too. Now such a file is rejected with `ParseError`.
-- [ ] **`peek` rejects an exponent with `+` once strict parsing fails (D-2).** `// c\n{"a": 1e+5}`
-  gives `ParseError` because the tree-sitter grammar flags `1e+5` as an error, although it is
-  valid JSON; `1e5`, `1e-5`, and `1e+5` without a comment pass. Reproduced by running it.
-  `outline` and `query` use the same grammar and were not checked.
+- [x] **JSON numbers with `+` in the exponent are misread (D-2).** The tree-sitter grammar reads
+  `1e+5` as `1` and an error, although it is valid JSON. `// c\n{"a": 1e+5}` gave `ParseError` in
+  `peek`; on any JSON file `outline` showed `a: 1`, and `query` returned `1` with a note that the
+  value parsed cleanly, and later array elements got too high an index. Reproduced by running it.
+  Now `JsonOutlineProvider._prepare` shows the grammar such a `+` as `-`, and values are read from
+  the original text.
 - [ ] **A non-UTF-8 file name may stop the server (E-1).** On Linux such a name should reach
   `PathGuard.display` with a lone surrogate; `list_directory`, `find_files`, `grep` and the read
   tools all show that text. With `display` patched to return a surrogate, a `read_lines` call over
