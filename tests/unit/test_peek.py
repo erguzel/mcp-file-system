@@ -156,6 +156,7 @@ class TestJson:
             "1.",  # the grammar's number is wider than JSON's
             "9" * 5000,  # longer than Python converts to an int
         ],
+        ids=["control-char", "bare-u", "short-u", "trailing-dot", "long-int"],
     )
     @pytest.mark.parametrize("wrap", ['{{"a": {}}}', '// comment\n{{"a": {}}}'])
     def test_token_the_grammar_accepts_but_json_rejects(
@@ -174,16 +175,16 @@ class TestJson:
         assert "invalid" not in str(error.value).lower()
 
     @pytest.mark.parametrize(
-        ("text", "line"),
+        ("content", "line"),
         [
             ('// c\n{\n  "a": "x\ty"\n}', 3),
             ('// c\r\n{\r\n  "a": "x\ty"\r\n}', 3),
             ('// c\r{\r  "a": "x\ty"\r}', 3),
         ],
     )
-    def test_bad_token_error_names_its_line(self, text: str, line: int) -> None:
+    def test_bad_token_error_names_its_line(self, content: str, line: int) -> None:
         with pytest.raises(ParseError, match=rf"\bline {line}\b"):
-            structured.parse_json(text)
+            structured.parse_json(content)
 
     @given(
         st.lists(
@@ -191,9 +192,9 @@ class TestJson:
             max_size=12,
         ).map("".join)
     )
-    def test_every_failure_is_a_parse_error(self, text: str) -> None:
+    def test_every_failure_is_a_parse_error(self, content: str) -> None:
         try:
-            structured.parse_json(text)
+            structured.parse_json(content)
         except ParseError:
             return  # refusing is allowed; any other exception fails the test
 
