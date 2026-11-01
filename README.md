@@ -207,6 +207,8 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
   `read_symbol`) or a value cut to 40 characters (`query`). Filesystem errors (`OSError`) carry the full
   operating-system message, including the absolute path the agent is not shown.
   Unexpected exceptions are logged as their type with the message `"unexpected error"`.
+  A failing range of `read_ranges` does not fail the call, so its record has `error: null`
+  and the reason is not logged.
 - **Rejected calls:** calls refused before the tool runs are logged too, with
   `result_chars` and `truncated` set to `null`. Arguments that fail the input schema
   give `{"type": "ValidationError", "message": "expected_count: Input should be a valid
@@ -222,7 +224,7 @@ cannot read it: the file must be outside the allowed roots (startup fails otherw
 
 ```bash
 jq -r .tool audit.jsonl | sort | uniq -c | sort -rn   # most used tools
-jq 'select(.error != null)' audit.jsonl               # failed calls
+jq 'select(.error != null)' audit.jsonl               # failed calls, not failing read_ranges ranges
 ```
 
 ## Security model
