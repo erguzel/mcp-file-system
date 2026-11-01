@@ -109,6 +109,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `peek` rejects a JSON file with several top-level values, such as newline-delimited JSON. It
+  used to summarize the first value as if it were the whole file, with no note, and bad tokens
+  in the later values went unreported. This covers `package.json` too.
 - `outline` lists Python definitions in a `try` block in source order. Those in `except`
   blocks used to come after `else` and `finally`, so the line named after a cut could skip one.
 - `read_ranges` reports an unreadable file as a failing range. A filesystem error such as

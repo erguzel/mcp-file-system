@@ -46,11 +46,10 @@ not by running it, so reproduce it first.
   `core/outline/python.py` visited `except` bodies after `else` and `finally`, so
   `OutlineResult.next_line` could skip a symbol when the cut fell inside one. Now it visits
   `try`, `except`, `else` and `finally` in that order.
-- [ ] **`peek` summarizes only the first of several JSON values (D-1).** `_parse_with_comments`
-  in `core/peek/structured.py` takes `values[0]` and ignores the rest, so `{"a": 1}\n{"b": 2}`
-  shows only `a: int` with no note, and newline-delimited JSON looks like one record. Bad tokens
-  in the later values go unreported too. Reproduced by running it. Decide whether to reject such
-  a file or to say that the rest was not read.
+- [x] **`peek` summarizes only the first of several JSON values (D-1).** `_parse_with_comments`
+  in `core/peek/structured.py` took `values[0]` and ignored the rest, so `{"a": 1}\n{"b": 2}`
+  showed only `a: int` with no note, and newline-delimited JSON looked like one record. Bad tokens
+  in the later values went unreported too. Now such a file is rejected with `ParseError`.
 - [ ] **`peek` rejects an exponent with `+` once strict parsing fails (D-2).** `// c\n{"a": 1e+5}`
   gives `ParseError` because the tree-sitter grammar flags `1e+5` as an error, although it is
   valid JSON; `1e5`, `1e-5`, and `1e+5` without a comment pass. Reproduced by running it.
