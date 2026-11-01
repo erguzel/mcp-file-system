@@ -117,6 +117,27 @@ class TestPythonProvider:
         starts = [s.start_line for s in symbols]
         assert starts == sorted(starts)
 
+    def test_blocks_in_a_class_keep_source_order_and_scope(self) -> None:
+        source = (
+            "class K:\n"
+            "    if a:\n"
+            "        def in_if(self): ...\n"
+            "    else:\n"
+            "        def in_else(self): ...\n"
+            "    try:\n"
+            "        def in_try(self): ...\n"
+            "    except ValueError:\n"
+            "        def in_except(self): ...\n"
+        )
+        symbols = PythonOutlineProvider().outline(source)
+        assert [(s.qualified_name, s.kind, s.depth) for s in symbols] == [
+            ("K", "class", 0),
+            ("K.in_if", "method", 1),
+            ("K.in_else", "method", 1),
+            ("K.in_try", "method", 1),
+            ("K.in_except", "method", 1),
+        ]
+
     def test_long_signatures_are_clipped(self) -> None:
         params = ", ".join(f"p{n}: int" for n in range(60))
         symbol = PythonOutlineProvider().outline(f"def f({params}): pass\n")[0]
