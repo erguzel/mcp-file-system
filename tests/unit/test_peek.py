@@ -148,6 +148,47 @@ class TestJson:
             peek(make_ctx, root / "bad.json")
 
     @pytest.mark.parametrize(
+        ("body", "count"),
+        [
+            ('{"a": 1}\n{"b": 2}\n', 2),
+            ('{"a": 1}\r\n{"b": 2}\r\n{"c": 3}\r\n', 3),
+            ('{"a": 1}{"b": 2}', 2),
+            ('// comment\n{"a": 1}\n{"b": 2}\n', 2),
+            ("1\n2\n", 2),
+        ],
+        ids=["newline-delimited", "crlf", "side-by-side", "comment-first", "scalars"],
+    )
+    def test_several_top_level_values_are_rejected(
+        self, root: Path, make_ctx: ContextFactory, body: str, count: int
+    ) -> None:
+        write(root / "several.json", body)
+        with pytest.raises(ParseError, match="Cannot parse") as error:
+            peek(make_ctx, root / "several.json")
+        assert str(count) in str(error.value)
+
+    def test_bad_token_in_a_later_value_is_not_ignored(
+        self, root: Path, make_ctx: ContextFactory
+    ) -> None:
+        write(root / "several.json", '{"a": 1}\n{"b": "SECRET\tVALUE"}\n')
+        with pytest.raises(ParseError) as error:
+            peek(make_ctx, root / "several.json")
+        assert "SECRET" not in str(error.value)
+
+    def test_manifest_with_several_values_is_rejected(
+        self, root: Path, make_ctx: ContextFactory
+    ) -> None:
+        write(root / "package.json", '{"name": "first"}\n{"name": "second"}\n')
+        with pytest.raises(ParseError, match="Cannot parse"):
+            peek(make_ctx, root / "package.json")
+
+    @pytest.mark.parametrize("body", ['{"a": 1} // trailing\n', '/* before */ {"a": 1}\n'])
+    def test_comments_do_not_count_as_values(
+        self, root: Path, make_ctx: ContextFactory, body: str
+    ) -> None:
+        write(root / "one.jsonc", body)
+        assert "a: int" in peek(make_ctx, root / "one.jsonc")
+
+    @pytest.mark.parametrize(
         "token",
         [
             '"SECRET\tVALUE"',  # raw control character

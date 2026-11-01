@@ -28,7 +28,8 @@ def parse_json(text: str) -> Any:
     Strict JSON goes through :func:`json.loads`. Text it rejects is parsed once more with
     the tree-sitter grammar that ``outline`` and ``query`` use, so comments (``//`` and
     ``/* */``, as in ``.jsonc`` or ``tsconfig.json``) are accepted; anything the grammar
-    flags as an error (for example a trailing comma) is still rejected.
+    flags as an error (for example a trailing comma) is still rejected, and so is more than
+    one top-level value.
     """
     try:
         return json.loads(text)
@@ -46,6 +47,11 @@ def _parse_with_comments(text: str) -> Any:
     values = [child for child in root.named_children if child.type != "comment"]
     if root.has_error or not values:
         raise ParseError("invalid JSON (comments are allowed, syntax errors are not)")
+    if len(values) > 1:
+        raise ParseError(
+            f"it holds {len(values)} top-level JSON values, and one document is expected "
+            "(newline-delimited JSON, for example)"
+        )
     return _to_value(values[0], source)
 
 
