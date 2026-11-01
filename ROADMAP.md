@@ -37,9 +37,10 @@ noted, an entry was confirmed by reading the code, not by running it, so reprodu
   `chars_left` usually stays above zero and `number_lines` always emits one row, so later
   ranges still return lines: output can exceed `max_output_chars` and short ranges miss `cut`.
   Now a range that is cut or whose first row does not fit waits in `cut` with every later range.
-- [ ] **One unreadable file aborts `read_ranges` (B-F2).** Only `FsError` is caught per range,
-  so a `PermissionError` ends the whole batch, although the docstring says a failing range
-  does not stop the others.
+- [x] **One unreadable file aborts `read_ranges` (B-F2).** Only `FsError` was caught per range,
+  so a `PermissionError` ended the whole batch, although the docstring says a failing range
+  does not stop the others. Now an `OSError` gives that range an entry in `errors`, with its
+  description and no path.
 - [ ] **Python outlines are out of source order in `try` blocks (A-R1).** `_visit` in
   `core/outline/python.py` visits `except` bodies after `else` and `finally`, so
   `OutlineResult.next_line` can skip a symbol when the cut falls inside one.

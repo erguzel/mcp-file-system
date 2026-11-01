@@ -94,6 +94,26 @@ async def test_calls_are_recorded_without_file_contents(
 
 
 @pytest.mark.anyio
+async def test_failing_read_ranges_range_is_not_a_failed_call(
+    make_settings: SettingsFactory,
+    root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def denied(*_args: object) -> None:
+        raise PermissionError(13, "Permission denied", "/very/secret/location")
+
+    log_path = tmp_path / "audit.jsonl"
+    write(root / "a.txt", "x\n")
+    monkeypatch.setattr("mcp_file_system.core.reader.require_text", denied)
+    async with Client(create_server(make_settings(audit_log=log_path))) as client:
+        result = await client.call_tool("read_ranges", {"ranges": [{"path": "a.txt"}]})
+    assert not result.is_error
+    assert read_log(log_path)[0]["error"] is None
+    assert "Permission denied" not in log_path.read_text()
+
+
+@pytest.mark.anyio
 async def test_patches_are_recorded_without_content(
     make_settings: SettingsFactory, root: Path, tmp_path: Path
 ) -> None:

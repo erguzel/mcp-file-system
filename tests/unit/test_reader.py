@@ -9,6 +9,7 @@ from mcp_file_system.context import AppContext
 from mcp_file_system.core.etag import compute_etag
 from mcp_file_system.core.models import LineRange
 from mcp_file_system.core.reader import MAX_BATCH_RANGES
+from mcp_file_system.core.textio import TextFormat, require_text
 from mcp_file_system.core.tracking import ALREADY_RETURNED
 from mcp_file_system.errors import (
     BinaryFileError,
@@ -17,11 +18,23 @@ from mcp_file_system.errors import (
     NoMatchError,
     PathTypeError,
 )
+from mcp_file_system.security.paths import ResolvedPath
 
 
 def body(content: str) -> list[str]:
     """Strip line numbers from a LinesResult.content block."""
     return [row.split("\t", 1)[1] for row in content.splitlines()]
+
+
+def deny_reading(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    """Make opening one file fail as the OS does, with a path in the exception."""
+
+    def fake(resolved: ResolvedPath) -> TextFormat:
+        if resolved.path.name == name:
+            raise PermissionError(13, "Permission denied", "/very/secret/location")
+        return require_text(resolved)
+
+    monkeypatch.setattr("mcp_file_system.core.reader.require_text", fake)
 
 
 class TestInfo:
@@ -413,6 +426,63 @@ class TestReadRanges:
         assert "[missing.txt lines 1..-1: " in rendered
         assert "top secret" not in rendered
         assert result.cut == []
+
+    def test_os_error_does_not_stop_the_others(
+        self, ctx: AppContext, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write(root / "a.txt", numbered(2))
+        write(root / "locked.txt", "x\n")
+        write(root / "b.txt", numbered(2))
+        deny_reading(monkeypatch, "locked.txt")
+        result = ctx.reader.read_ranges(
+            [LineRange(path="a.txt"), LineRange(path="locked.txt"), LineRange(path="b.txt")]
+        )
+        assert [r.path for r in result.reads] == ["a.txt", "b.txt"]
+        assert [e.path for e in result.errors] == ["locked.txt"]
+        assert "Permission denied" in result.errors[0].message
+        assert "/very/secret" not in result.errors[0].message
+        assert "/very/secret" not in result.render()
+        assert result.cut == []
+
+    def test_os_error_spends_no_budget(
+        self, make_ctx: ContextFactory, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write(root / "locked.txt", "x\n")
+        write(root / "a.txt", ("y" * 200 + "\n") * 5)
+        rows = make_ctx().reader.read_lines("a.txt").content
+        ctx = make_ctx(max_read_lines=5, max_output_chars=len(rows) + 1)
+        deny_reading(monkeypatch, "locked.txt")
+        result = ctx.reader.read_ranges([LineRange(path="locked.txt"), LineRange(path="a.txt")])
+        assert [(r.start_line, r.end_line) for r in result.reads] == [(1, 5)]
+        assert result.cut == []
+
+    def test_first_row_returned_may_follow_an_os_error(
+        self, make_ctx: ContextFactory, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write(root / "locked.txt", "x\n")
+        write(root / "a.txt", "y" * 1500 + "\n")
+        ctx = make_ctx(max_line_chars=2000, max_output_chars=1000)
+        deny_reading(monkeypatch, "locked.txt")
+        result = ctx.reader.read_ranges([LineRange(path="locked.txt"), LineRange(path="a.txt")])
+        assert [(r.path, r.end_line) for r in result.reads] == [("a.txt", 1)]
+        assert result.cut == []
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission semantics")
+    def test_unreadable_file_is_a_failing_range(  # pragma: no cover
+        self, ctx: AppContext, root: Path
+    ) -> None:
+        path = write(root / "locked.txt", "x\n")
+        write(root / "a.txt", numbered(2))
+        path.chmod(0)
+        try:
+            if os.access(path, os.R_OK):
+                pytest.skip("running with elevated privileges")
+            result = ctx.reader.read_ranges([LineRange(path="locked.txt"), LineRange(path="a.txt")])
+        finally:
+            path.chmod(0o644)
+        assert [r.path for r in result.reads] == ["a.txt"]
+        assert [e.path for e in result.errors] == ["locked.txt"]
+        assert str(root) not in result.errors[0].message
 
     def test_empty_file(self, ctx: AppContext, root: Path) -> None:
         write(root / "empty.txt", "")

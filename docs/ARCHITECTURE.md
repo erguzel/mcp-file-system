@@ -57,8 +57,9 @@ another protocol) without a server. Both rules are enforced by
   and a trailing terminator does not create an empty last line (`core.textio`).
 - **Errors:** services raise subclasses of `errors.FsError` with agent-facing,
   actionable messages. `tools._common.translate_errors` turns them (and sanitized
-  `OSError`s) into MCP tool errors. Any other exception is reported by the SDK as a
-  generic failure and logged with its traceback to stderr.
+  `OSError`s) into MCP tool errors. `FileReader.read_ranges` catches both per range and
+  reports them in its result instead, with the same text. Any other exception is reported
+  by the SDK as a generic failure and logged with its traceback to stderr.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
   `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.

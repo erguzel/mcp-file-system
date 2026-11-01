@@ -18,7 +18,13 @@ from mcp_file_system.core.models import (
 from mcp_file_system.core.render import number_lines
 from mcp_file_system.core.textio import count_lines, detect_format, open_lines, require_text
 from mcp_file_system.core.tracking import ReadTracker, track_result, unchanged_result
-from mcp_file_system.errors import FsError, InvalidArgumentError, NoMatchError, PathTypeError
+from mcp_file_system.errors import (
+    FsError,
+    InvalidArgumentError,
+    NoMatchError,
+    PathTypeError,
+    describe_os_error,
+)
 from mcp_file_system.security.paths import PathGuard, ResolvedPath
 from mcp_file_system.security.regex import Deadline, SafePattern, compile_pattern
 
@@ -221,9 +227,10 @@ class FileReader:
         so that a continuation always moves forward. A range cut by the budget, or whose
         first row does not fit, is listed in ``cut`` with the lines still to read, and so
         is every range after it, unread and as requested. A range that fails (missing
-        file, denied path, invalid range) is reported in ``errors`` and does not stop the
-        others; a range waiting in ``cut`` is not tried, so its failure is reported by the
-        call that continues.
+        file, denied path, invalid range, unreadable file) is reported in ``errors`` and
+        does not stop the others; a range waiting in ``cut`` is not tried, so its failure
+        is reported by the call that continues. An exception other than ``FsError`` or
+        ``OSError`` still ends the call.
         """
         if len(ranges) > MAX_BATCH_RANGES:
             raise InvalidArgumentError(
@@ -254,6 +261,9 @@ class FileReader:
                 )
             except FsError as exc:
                 errors.append(RangeError(**spec.model_dump(), message=str(exc)))
+                continue
+            except OSError as exc:
+                errors.append(RangeError(**spec.model_dump(), message=describe_os_error(exc)))
                 continue
             if not always_emit and result.total_lines and not result.end_line:
                 cut.append(spec)

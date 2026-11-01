@@ -8,7 +8,8 @@ with it through this server.
 Arguments that carry file content (replacement text, new lines, whole files) are reduced
 to their length. Error messages are kept (cut to ``MAX_ARGUMENT_CHARS``): for domain
 errors the agent-facing text, which can name keys or symbols of a file, and for
-filesystem errors the full OS message, including paths the agent is not shown.
+filesystem errors the full OS message, including paths the agent is not shown. A failing
+range of ``read_ranges`` does not fail the call, so its record has no error.
 
 Calls the SDK rejects before the tool runs (arguments that fail the input schema, unknown
 tool names) are recorded too. Their arguments are raw, so only the declared scalar

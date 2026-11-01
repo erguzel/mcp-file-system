@@ -109,6 +109,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `read_ranges` reports an unreadable file as a failing range. A filesystem error such as
+  `PermissionError` on one range used to end the whole call, and the other ranges were lost.
+  Like any failing range, it does not fail the call, so the audit log records `error: null`.
 - `read_ranges` keeps its numbered lines within `max_output_chars`, and only the first row
   of a call may exceed it. A later range used to return a row that did not fit, and a short
   range after a cut was still read. Now a range that is cut or does not fit waits in `cut`
