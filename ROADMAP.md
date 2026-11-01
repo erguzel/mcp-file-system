@@ -15,8 +15,8 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entry from the review of the B-F2 plan. Unless noted, an entry was confirmed by reading the code,
-not by running it, so reproduce it first.
+entries from the reviews of the B-F2 and D-1 plans. Unless noted, an entry was confirmed by reading
+the code, not by running it, so reproduce it first.
 
 **Behavior bugs**
 
@@ -61,6 +61,11 @@ not by running it, so reproduce it first.
   `server/stdio.py` raises `PydanticSerializationError` on the JSON-RPC message, outside any tool,
   so `translate_errors` never sees it. Not run with a real file name, which APFS refuses: reproduce
   it on Linux first.
+- [ ] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
+  `core/query/service.py` takes `values[0]`, so on `{"a": 1}\n{"b": 2}` the whole document is
+  `a: 1` with no note, and `b` gives `No key b` although the file holds it. Reproduced by running
+  it. `query` returns values from damaged files on purpose, so decide whether to reject such a
+  file or to say that the rest was not read.
 
 **Lower priority**
 
@@ -461,6 +466,11 @@ and `re2` was not requested.
   Latin-1, so a Windows-1254 file shows `þ ð ý` instead of `ş ğ ı`. Writing characters
   Latin-1 cannot store is reported as an error and changes nothing. Better detection
   needs a heuristic or a dependency; start only when such files actually come up.
+- **Newline-delimited JSON in `peek`:** `.ndjson` and `.jsonl` have no preview, and a `.json` file
+  with several top-level values is rejected. Summarize them with a scan budget, as CSV and logs do,
+  and merge the fields as for an array of objects (`a?: int`). `peek` has no format parameter, so a
+  `.json` file with one value per line should be recognized automatically; values side by side or
+  spanning lines stay rejected.
 
 ## Deferred until requested
 
