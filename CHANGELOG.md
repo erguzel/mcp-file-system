@@ -27,7 +27,9 @@ All notable changes to this project are documented here. The format follows
   fuzz) and the offset is reported. Missing or ambiguous context fails the patch and the
   error names the failed hunks (the first 15, the rest counted); `dry_run=true` reports
   which hunks would fail and why.
-  Untouched lines keep their own line endings. The diff is logged as its length only.
+  Untouched lines keep their own line endings. An insertion with a `\ No newline at end of
+  file` marker fails unless it is at the end of the file. The diff is logged as its length
+  only.
 - `read_ranges` tool (full profile): reads up to 20 `(path, start, end)` ranges from one
   or more files in one call, saving round trips. The ranges share one budget
   (`max_read_lines`, `max_output_chars`), spent in the given order; ranges cut by it

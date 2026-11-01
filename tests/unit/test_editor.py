@@ -403,6 +403,21 @@ class TestApplyPatch:
         assert path.read_text() == "a\nb\nc\nd\n"
         assert etag(path) == before
 
+    def test_marked_insertion_away_from_end_changes_nothing(
+        self, ctx: AppContext, root: Path
+    ) -> None:
+        path = write(root / "f.txt", "a\nb\nc\n")
+        before = etag(path)
+        diff = "@@ -1,0 +2,1 @@\n+added-line\n\\ No newline at end of file\n"
+        report = ctx.editor.apply_patch("f.txt", diff, expected_etag=before, dry_run=True)
+        assert not report.applied
+        assert [hunk.applied for hunk in report.hunks] == [False]
+        with pytest.raises(NoMatchError) as error:
+            ctx.editor.apply_patch("f.txt", diff, expected_etag=before)
+        assert "added-line" not in str(error.value)
+        assert path.read_bytes() == b"a\nb\nc\n"
+        assert etag(path) == before
+
     def test_many_failing_hunks_are_listed_in_part(self, ctx: AppContext, root: Path) -> None:
         # The error and the dry-run report must not grow with the number of failed hunks.
         path = write(root / "f.txt", "a\n")

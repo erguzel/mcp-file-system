@@ -4,7 +4,9 @@ Agents produce unified diffs fluently, but their line numbers and hunk counts ar
 off. The rules here follow ``git apply`` without fuzz: context and removed lines must
 match the file exactly, a hunk whose position is off is placed at the nearest exact
 match, and an ambiguous or missing match fails that hunk. Header counts are recomputed
-from the hunk body; only the start line is used, as a position hint.
+from the hunk body; only the start line is used, as a position hint. One rule is stricter
+than ``git apply --unidiff-zero``, which joins the next line onto a marked added line: an
+insertion with a ``\\ No newline`` marker fails unless it is at the end of the file.
 
 Reports and errors never quote lines of the file or the patch, because they reach the
 audit log. Hunk headers are rebuilt without the section text git appends (often a
@@ -245,11 +247,9 @@ def _hint(hunk: Hunk) -> int:
 def _locate(stripped: list[str], hunk: Hunk, has_final_newline: bool) -> tuple[int | None, str]:
     """Find where the hunk applies: ``(start, "")`` or ``(None, reason)``."""
     old = hunk.old_lines
-    hint = _hint(hunk)
     if not old:
-        if hint > len(stripped):
-            return None, f"insertion point is past the end of the file ({len(stripped)} lines)"
-        return hint, ""
+        return _locate_insertion(len(stripped), hunk)
+    hint = _hint(hunk)
     if hunk.at_eof and hunk.old_no_newline == has_final_newline:
         return None, "the end-of-file newline does not match the file"
     width = len(old)
@@ -269,6 +269,23 @@ def _locate(stripped: list[str], hunk: Hunk, has_final_newline: bool) -> tuple[i
         first, second = sorted((nearest, twin))
         return None, f"ambiguous: matches at lines {first + 1} and {second + 1}"
     return nearest, ""
+
+
+def _locate_insertion(line_count: int, hunk: Hunk) -> tuple[int | None, str]:
+    """Place a pure insertion at its header's line; it has no context to search for.
+
+    A marker ties the insertion to the end of the file. It is not moved there, because
+    the header and the marker contradict each other and either could be the mistake.
+    """
+    hint = _hint(hunk)
+    if hint > line_count:
+        return None, f"insertion point is past the end of the file ({line_count} lines)"
+    if hunk.at_eof and hint < line_count:
+        return None, (
+            "a '\\ No newline' marker ties an insertion to the end of the file; "
+            f"use '@@ -{line_count},0' to append, or drop the marker"
+        )
+    return hint, ""
 
 
 def _splice(hunk: Hunk, lines: list[str], start: int, newline: str) -> list[str]:

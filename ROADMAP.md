@@ -19,7 +19,7 @@ it, so reproduce it first.
 
 **Behavior bugs**
 
-- [ ] **`apply_patch` misplaces a marked insertion (B-F18).** A hunk with only added lines
+- [x] **`apply_patch` misplaces a marked insertion (B-F18).** A hunk with only added lines
   and a `\ No newline at end of file` marker is placed at its header's line instead of being
   tied to the end of the file, and the file loses its final newline: `a\nb\nc\n` with
   `@@ -1,0 +2,1 @@`, `+x` and the marker becomes `a\nx\nb\nc`. Silent data change, reproduced

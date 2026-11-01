@@ -1,4 +1,6 @@
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from mcp_file_system.core.models import HunkReport
 from mcp_file_system.core.patch import MAX_HUNKS, PatchOutcome, apply_hunks, parse_patch
@@ -6,6 +8,7 @@ from mcp_file_system.core.textio import split_lines_keepends
 from mcp_file_system.errors import InvalidArgumentError
 
 FILE = "".join(f"line {n}\n" for n in range(1, 11))
+MARKER = "\\ No newline at end of file\n"
 
 
 def patch(text: str, diff: str, newline: str = "\n") -> PatchOutcome:
@@ -152,6 +155,45 @@ class TestLineEndings:
     )
     def test_empty_file(self, diff: str, expected: str) -> None:
         assert patch("", diff).text == expected
+
+
+class TestMarkedInsertion:
+    def test_away_from_end_of_file_fails(self) -> None:
+        report = failure(patch("a\nb\nc\n", f"@@ -1,0 +2,1 @@\n+x\n{MARKER}"))
+        assert report.index == 1
+        assert report.line == 0
+        assert "-3,0" in report.reason  # names the header that would apply
+
+    def test_the_header_the_reason_names_applies(self) -> None:
+        text = "a\nb\nc\n"
+        assert patch(text, f"@@ -3,0 +4,1 @@\n+x\n{MARKER}").text == "a\nb\nc\nx"
+
+    def test_past_the_end_keeps_its_own_reason(self) -> None:
+        reason = failure(patch("a\n", f"@@ -2,0 +3,1 @@\n+x\n{MARKER}")).reason
+        assert "past the end" in reason
+
+    @given(
+        count=st.integers(min_value=0, max_value=6),
+        point=st.integers(min_value=0, max_value=8),
+        final_newline=st.booleans(),
+        newline=st.sampled_from(["\n", "\r\n"]),
+        marked=st.booleans(),
+    )
+    def test_every_insertion_point(
+        self, count: int, point: int, final_newline: bool, newline: str, marked: bool
+    ) -> None:
+        names = [f"line {n}" for n in range(count)]
+        text = newline.join(names) + (newline if names and final_newline else "")
+        diff = f"@@ -{point},0 +{point + 1},1 @@\n+new\n{MARKER if marked else ''}"
+
+        outcome = patch(text, diff, newline)
+
+        if point > count or (marked and point != count):
+            assert failure(outcome).reason
+            return
+        rows = [*names[:point], "new", *names[point:]]
+        ends_with_newline = not marked and (final_newline or not names)
+        assert outcome.text == newline.join(rows) + (newline if ends_with_newline else "")
 
 
 class TestParse:
