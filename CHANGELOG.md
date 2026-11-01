@@ -34,8 +34,8 @@ All notable changes to this project are documented here. The format follows
   or more files in one call, saving round trips. The ranges share one budget
   (`max_read_lines`, `max_output_chars`), spent in the given order; ranges cut by it
   are listed with the lines still to read and a ready-made `read_ranges` call to
-  continue. A failing range (missing file, denied path, invalid range) is reported
-  without stopping the others.
+  continue. A failing range (missing file, denied path, invalid range, unreadable file)
+  is reported without stopping the others.
 - `read_lines(around=N, radius=R)` (full profile): reads the lines around one line
   number, e.g. from a stack trace or grep hit, without computing `start`/`end`. The
   window is clamped to the file; `radius` defaults to 10 and is shrunk (with a note) when
