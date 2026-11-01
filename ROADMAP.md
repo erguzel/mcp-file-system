@@ -24,7 +24,9 @@ it, so reproduce it first.
   tied to the end of the file, and the file loses its final newline: `a\nb\nc\n` with
   `@@ -1,0 +2,1 @@`, `+x` and the marker becomes `a\nx\nb\nc`. Silent data change, reproduced
   by running it. `_locate` in `core/patch.py` returns before its `at_eof` checks. Reject such
-  a hunk unless the insertion point is the end of the file.
+  a hunk unless the insertion point is the end of the file. The same loss came from a hunk
+  after a marked one (`+x` and the marker, then `+y`, both at the end, gave `a\nb\nc\nx\ny`),
+  so any hunk after one whose new side carries the marker is rejected too.
 - [ ] **`peek` raises a raw error on some JSON that strict parsing rejects (C-5).** When
   `json.loads` rejects a file, `_to_value` in `core/peek/structured.py` calls `json.loads` on
   the string and number tokens the tree-sitter grammar accepted, and only `RecursionError` is

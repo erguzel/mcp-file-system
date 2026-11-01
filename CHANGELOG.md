@@ -28,8 +28,8 @@ All notable changes to this project are documented here. The format follows
   error names the failed hunks (the first 15, the rest counted); `dry_run=true` reports
   which hunks would fail and why.
   Untouched lines keep their own line endings. An insertion with a `\ No newline at end of
-  file` marker fails unless it is at the end of the file. The diff is logged as its length
-  only.
+  file` marker fails unless it is at the end of the file, and so does any hunk after one
+  whose new side carries that marker. The diff is logged as its length only.
 - `read_ranges` tool (full profile): reads up to 20 `(path, start, end)` ranges from one
   or more files in one call, saving round trips. The ranges share one budget
   (`max_read_lines`, `max_output_chars`), spent in the given order; ranges cut by it
