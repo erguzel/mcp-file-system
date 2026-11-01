@@ -162,9 +162,16 @@ class TestJson:
         self, root: Path, make_ctx: ContextFactory, token: str, wrap: str
     ) -> None:
         write(root / "bad.jsonc", wrap.format(token))
-        with pytest.raises(ParseError, match="invalid JSON") as error:
+        with pytest.raises(ParseError, match="Cannot parse") as error:
             peek(make_ctx, root / "bad.jsonc")
         assert "SECRET" not in str(error.value)
+
+    def test_long_integer_is_not_called_invalid(self, root: Path, make_ctx: ContextFactory) -> None:
+        # Valid JSON that Python refuses to convert: the file is not malformed.
+        write(root / "long.json", '{"a": ' + "9" * 5000 + "}")
+        with pytest.raises(ParseError) as error:
+            peek(make_ctx, root / "long.json")
+        assert "invalid" not in str(error.value).lower()
 
     @pytest.mark.parametrize(
         ("text", "line"),

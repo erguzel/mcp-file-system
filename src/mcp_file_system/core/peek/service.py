@@ -48,7 +48,8 @@ class Peeker:
 
         Raises:
             InvalidArgumentError: The file type has no preview.
-            ParseError: The file is malformed for its type.
+            ParseError: The file is malformed for its type, or holds a JSON number too long
+                to convert.
         """
         resolved = self._guard.resolve_file(path)
         name = resolved.path.name.lower()

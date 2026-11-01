@@ -29,7 +29,7 @@ it, so reproduce it first.
   so any hunk after one whose new side carries the marker is rejected too.
 - [x] **`peek` raises a raw error on some JSON that strict parsing rejects (C-5).** When
   `json.loads` rejects a file, `_to_value` in `core/peek/structured.py` calls `json.loads` on
-  the string and number tokens the tree-sitter grammar accepted, and only `RecursionError` is
+  the string and number tokens the tree-sitter grammar accepted, and only `RecursionError` was
   caught. A raw control character in a string, a bare `\u`, `1.` and an integer too long for
   Python all escaped as `ValueError` or `JSONDecodeError`, a generic tool error, instead of
   `ParseError`, reproduced by running it. `_to_value` now raises `ParseError` naming the line.
