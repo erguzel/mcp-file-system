@@ -307,6 +307,70 @@ class TestReadRanges:
             LineRange(path="c.txt", start=-4, end=-1),  # never read: kept as requested
         ]
 
+    def test_range_after_a_char_cut_waits(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "a.txt", ("y" * 400 + "\n") * 5)
+        write(root / "b.txt", "short\n")
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.reader.read_ranges([LineRange(path="a.txt"), LineRange(path="b.txt")])
+        assert [(r.path, r.start_line, r.end_line) for r in result.reads] == [("a.txt", 1, 2)]
+        assert result.cut == [LineRange(path="a.txt", start=3, end=5), LineRange(path="b.txt")]
+        assert sum(len(r.content) + 1 for r in result.reads) <= 1000
+
+    def test_row_that_does_not_fit_waits(self, make_ctx: ContextFactory, root: Path) -> None:
+        write(root / "a.txt", ("y" * 400 + "\n") * 2)
+        write(root / "b.txt", "z" * 300 + "\n")
+        write(root / "c.txt", "short\n")
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.reader.read_ranges(
+            [LineRange(path="a.txt"), LineRange(path="b.txt", start=-1), LineRange(path="c.txt")]
+        )
+        assert [(r.path, r.start_line, r.end_line) for r in result.reads] == [("a.txt", 1, 2)]
+        # Never read, so kept as requested; the short range behind it keeps its turn too.
+        assert result.cut == [LineRange(path="b.txt", start=-1), LineRange(path="c.txt")]
+        assert sum(len(r.content) + 1 for r in result.reads) <= 1000
+        assert ctx.reader.read_lines("b.txt").note is None  # not recorded as returned
+
+    def test_failure_after_a_cut_is_reported_by_the_continuation(
+        self, make_ctx: ContextFactory, root: Path
+    ) -> None:
+        write(root / "a.txt", ("y" * 400 + "\n") * 3)
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.reader.read_ranges([LineRange(path="a.txt"), LineRange(path="missing.txt")])
+        assert result.errors == []
+        assert result.cut[-1] == LineRange(path="missing.txt")
+        follow_up = ctx.reader.read_ranges(result.cut)
+        assert [e.path for e in follow_up.errors] == ["missing.txt"]
+        assert follow_up.cut == []
+
+    def test_empty_file_with_budget_left_is_a_read(
+        self, make_ctx: ContextFactory, root: Path
+    ) -> None:
+        write(root / "a.txt", "short\n")
+        write(root / "empty.txt", "")
+        ctx = make_ctx(max_output_chars=1000)
+        result = ctx.reader.read_ranges([LineRange(path="a.txt"), LineRange(path="empty.txt")])
+        assert result.reads[1].note == "File is empty."
+        assert result.cut == []
+
+    def test_continuations_finish_when_a_row_exceeds_the_budget(
+        self, make_ctx: ContextFactory, root: Path
+    ) -> None:
+        write(root / "a.txt", ("y" * 1500 + "\n") * 3)
+        write(root / "b.txt", "short\n")
+        ctx = make_ctx(max_line_chars=2000, max_output_chars=1000)
+        pending = [LineRange(path="a.txt"), LineRange(path="b.txt")]
+        returned: list[tuple[str, int]] = []
+        for _ in range(10):  # more calls than lines: a stuck continuation fails below
+            result = ctx.reader.read_ranges(pending)
+            returned += [
+                (r.path, line) for r in result.reads for line in range(r.start_line, r.end_line + 1)
+            ]
+            pending = result.cut
+            if not pending:
+                break
+        assert pending == []
+        assert returned == [("a.txt", 1), ("a.txt", 2), ("a.txt", 3), ("b.txt", 1)]
+
     def test_failing_range_does_not_stop_the_others(
         self, ctx: AppContext, root: Path, outside: Path
     ) -> None:

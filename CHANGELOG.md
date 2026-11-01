@@ -109,6 +109,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `read_ranges` keeps its numbered lines within `max_output_chars`, and only the first row
+  of a call may exceed it. A later range used to return a row that did not fit, and a short
+  range after a cut was still read. Now a range that is cut or does not fit waits in `cut`
+  with every range after it, unread, so a failing range among them is reported by the call
+  that continues.
 - `log_summary` no longer tells the agent to raise `limit` when the server's
   `max_results` cut the list; the note names the server limit instead.
 - `write_file` with an etag no longer creates a new file when the file was deleted or

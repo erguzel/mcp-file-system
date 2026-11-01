@@ -33,9 +33,10 @@ noted, an entry was confirmed by reading the code, not by running it, so reprodu
   caught. A raw control character in a string, a bare `\u`, `1.` and an integer too long for
   Python all escaped as `ValueError` or `JSONDecodeError`, a generic tool error, instead of
   `ParseError`, reproduced by running it. `_to_value` now raises `ParseError` naming the line.
-- [ ] **`read_ranges` overruns its character budget (B-F1).** After a range is cut,
+- [x] **`read_ranges` overruns its character budget (B-F1).** After a range is cut,
   `chars_left` usually stays above zero and `number_lines` always emits one row, so later
   ranges still return lines: output can exceed `max_output_chars` and short ranges miss `cut`.
+  Now a range that is cut or whose first row does not fit waits in `cut` with every later range.
 - [ ] **One unreadable file aborts `read_ranges` (B-F2).** Only `FsError` is caught per range,
   so a `PermissionError` ends the whole batch, although the docstring says a failing range
   does not stop the others.

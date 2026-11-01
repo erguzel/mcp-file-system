@@ -132,6 +132,7 @@ class FileReader:
             if_changed_since=if_changed_since,
             max_lines=self._settings.max_read_lines,
             max_chars=self._settings.max_output_chars,
+            always_emit=True,
         )
 
     def _read_lines(
@@ -145,11 +146,13 @@ class FileReader:
         if_changed_since: str,
         max_lines: int,
         max_chars: int,
+        always_emit: bool,
     ) -> LinesResult:
         """Implement :meth:`read_lines` within an explicit line and character budget.
 
         The budget is a parameter so that batch reads can share one budget across
-        several ranges.
+        several ranges. Without ``always_emit``, a first row that does not fit gives a
+        result with no lines instead of overrunning the budget.
         """
         if around is not None:
             _check_around(around, radius, start, end)
@@ -205,6 +208,7 @@ class FileReader:
                 requested_last=last,
                 max_chars=max_chars,
                 note=note,
+                always_emit=always_emit,
             )
         return track_result(self._tracker, resolved.path, result, if_changed_since=if_changed_since)
 
@@ -212,10 +216,14 @@ class FileReader:
         """Read several line ranges, from one or more files, within one shared budget.
 
         Ranges are read in the given order and together spend ``max_read_lines`` and
-        ``max_output_chars``. A range cut by the budget, and every range after it, is
-        listed in ``cut`` with the lines still to read. A range that fails (missing
-        file, denied path, invalid range) is reported in ``errors`` and does not stop
-        the others.
+        ``max_output_chars``. The character budget covers the numbered lines, not headers,
+        notes, errors or the continuation, and only the first row returned may exceed it,
+        so that a continuation always moves forward. A range cut by the budget, or whose
+        first row does not fit, is listed in ``cut`` with the lines still to read, and so
+        is every range after it, unread and as requested. A range that fails (missing
+        file, denied path, invalid range) is reported in ``errors`` and does not stop the
+        others; a range waiting in ``cut`` is not tried, so its failure is reported by the
+        call that continues.
         """
         if len(ranges) > MAX_BATCH_RANGES:
             raise InvalidArgumentError(
@@ -230,6 +238,8 @@ class FileReader:
             if lines_left <= 0 or chars_left <= 0:
                 cut.append(spec)
                 continue
+            # Nothing returned yet: the first row may overrun, so continuations move forward.
+            always_emit = lines_left == self._settings.max_read_lines
             try:
                 result = self._read_lines(
                     spec.path,
@@ -240,9 +250,14 @@ class FileReader:
                     if_changed_since="",
                     max_lines=lines_left,
                     max_chars=chars_left,
+                    always_emit=always_emit,
                 )
             except FsError as exc:
                 errors.append(RangeError(**spec.model_dump(), message=str(exc)))
+                continue
+            if not always_emit and result.total_lines and not result.end_line:
+                cut.append(spec)
+                chars_left = 0  # spent in order: later ranges wait for the continuation
                 continue
             reads.append(result)
             if result.end_line:
@@ -252,6 +267,7 @@ class FileReader:
                 total = result.total_lines
                 end = spec.end if spec.end > 0 else total + spec.end + 1
                 cut.append(LineRange(path=spec.path, start=result.next_start, end=min(end, total)))
+                chars_left = 0  # spent in order: later ranges wait for the continuation
         return BatchLinesResult(reads=reads, errors=errors, cut=cut)
 
     def read_between(
@@ -342,12 +358,14 @@ class FileReader:
         max_chars: int,
         note: str | None = None,
         known_end: bool = True,
+        always_emit: bool = True,
     ) -> LinesResult:
         content, first, last = number_lines(
             lines,
             width=len(str(total)),
             max_line_chars=self._settings.max_line_chars,
             max_chars=max_chars,
+            always_emit=always_emit,
         )
         if first is None or last is None:
             return self._empty(resolved, etag, note or "No lines selected.", total)
