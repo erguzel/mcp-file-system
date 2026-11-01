@@ -80,7 +80,7 @@ A change is finished only when **all** of these are true:
 | `src/mcp_file_system/server.py` | `create_server()`: builds the MCP server (transport-agnostic); `FileSystemServer` audits calls rejected before a tool runs. |
 | `src/mcp_file_system/context.py` | `AppContext`: wires settings and services together. |
 | `src/mcp_file_system/config.py` | `Settings` (CLI flags + `MCP_FS_*` env vars), `DEFAULT_DENY_GLOBS`. |
-| `src/mcp_file_system/errors.py` | `FsError` and its subclasses (agent-facing errors). |
+| `src/mcp_file_system/errors.py` | `FsError` and its subclasses (agent-facing errors); `describe_os_error` for an `OSError`. |
 | `src/mcp_file_system/security/` | `PathGuard`, `AccessPolicy` (deny list), safe regex with deadlines. |
 | `src/mcp_file_system/audit.py` | Optional audit log writer (one JSON line per tool call; content arguments as lengths only). |
 | `src/mcp_file_system/core/` | Domain logic: reading (`reader`, `textio`, `tracking`, `etag`), search (`search`, `finder`, `ignore`, `templates`, `logsummary`), structure (`outline`, `skeleton`, `peek`, `query`), editing (`editor`, `patch`, `history`), results (`models`, `render`). |

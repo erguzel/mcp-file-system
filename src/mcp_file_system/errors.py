@@ -1,10 +1,18 @@
-"""Domain errors.
+"""Domain errors, and the agent-facing text for unexpected filesystem errors.
 
 Every error raised deliberately by this package derives from :class:`FsError`. The
 tool layer converts these into MCP tool errors, so their messages are shown to the
 agent verbatim: they must be actionable and must never leak paths outside the
 configured roots.
 """
+
+
+def describe_os_error(exc: OSError) -> str:
+    """Reduce an ``OSError`` to agent-facing text: its description, never its path.
+
+    ``str(exc)`` would name the absolute path, which the agent must not be shown.
+    """
+    return f"Filesystem error: {exc.strerror or type(exc).__name__}"
 
 
 class FsError(Exception):
