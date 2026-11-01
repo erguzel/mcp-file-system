@@ -6,7 +6,7 @@ from typing import Any
 
 from tree_sitter import Node
 
-from mcp_file_system.core.outline.treesitter._base import node_text
+from mcp_file_system.core.outline.treesitter._base import node_text, start_line
 from mcp_file_system.core.outline.treesitter.structured import JsonOutlineProvider, unquote
 from mcp_file_system.errors import ParseError
 
@@ -50,6 +50,15 @@ def _parse_with_comments(text: str) -> Any:
 
 
 def _to_value(node: Node, source: bytes) -> Any:
+    """Turn a node of an error-free tree into a Python value.
+
+    The grammar's strings and numbers are wider than JSON's (a raw control character, a
+    bare ``\\u``, ``1.``), and an integer can be too long for Python to convert, so a token
+    the grammar accepted can still fail here.
+
+    Raises:
+        ParseError: A string or number value cannot be decoded.
+    """
     if node.type == "object":
         pairs = (
             (pair.child_by_field_name("key"), pair.child_by_field_name("value"))
@@ -64,7 +73,13 @@ def _to_value(node: Node, source: bytes) -> Any:
     if node.type == "array":
         return [_to_value(c, source) for c in node.named_children if c.type != "comment"]
     if node.type in ("string", "number"):
-        return json.loads(node_text(node, source))
+        try:
+            return json.loads(node_text(node, source))
+        except ValueError:
+            # The decoder's own position is relative to the token, not to the file.
+            raise ParseError(
+                f"invalid JSON (the {node.type} at line {start_line(node)} cannot be decoded)"
+            ) from None
     # In an error-free tree the only other value nodes are the three literals.
     return _JSON_LITERALS[node.type]
 

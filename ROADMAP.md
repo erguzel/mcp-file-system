@@ -27,12 +27,12 @@ it, so reproduce it first.
   a hunk unless the insertion point is the end of the file. The same loss came from a hunk
   after a marked one (`+x` and the marker, then `+y`, both at the end, gave `a\nb\nc\nx\ny`),
   so any hunk after one whose new side carries the marker is rejected too.
-- [ ] **`peek` raises a raw error on some JSON that strict parsing rejects (C-5).** When
+- [x] **`peek` raises a raw error on some JSON that strict parsing rejects (C-5).** When
   `json.loads` rejects a file, `_to_value` in `core/peek/structured.py` calls `json.loads` on
   the string and number tokens the tree-sitter grammar accepted, and only `RecursionError` is
-  caught. A raw control character in a string or a bare `\u` should escape as
-  `JSONDecodeError`, a generic tool error, instead of `ParseError`. The trigger rests on the
-  upstream grammar and was not run.
+  caught. A raw control character in a string, a bare `\u`, `1.` and an integer too long for
+  Python all escaped as `ValueError` or `JSONDecodeError`, a generic tool error, instead of
+  `ParseError`, reproduced by running it. `_to_value` now raises `ParseError` naming the line.
 - [ ] **`read_ranges` overruns its character budget (B-F1).** After a range is cut,
   `chars_left` usually stays above zero and `number_lines` always emits one row, so later
   ranges still return lines: output can exceed `max_output_chars` and short ranges miss `cut`.
