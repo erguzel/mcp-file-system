@@ -63,8 +63,9 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
 
     The grammar has no ``+`` in a number's exponent: it reads ``1e+5`` as ``1`` and an error.
     Such a ``+`` is shown to it as ``-``, which keeps the token whole and every byte offset, so
-    node text must be read from the original source. Inside a string or comment the swap changes
-    nothing the grammar cares about, so it need not know where it is.
+    node text must be read from the original source. In the strings and comments of an error-free
+    file the swap changes nothing, so the pattern need not know where it is; a damaged file can
+    recover differently, as it would with ``1e-5``.
     """
 
     language = "json"

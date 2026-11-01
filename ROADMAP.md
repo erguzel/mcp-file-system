@@ -52,10 +52,10 @@ the code, not by running it, so reproduce it first.
   in the later values went unreported too. Now such a file is rejected with `ParseError`.
 - [x] **JSON numbers with `+` in the exponent are misread (D-2).** The tree-sitter grammar reads
   `1e+5` as `1` and an error, although it is valid JSON. `// c\n{"a": 1e+5}` gave `ParseError` in
-  `peek`; on any JSON file `outline` showed `a: 1`, and `query` returned `1` with a note that the
-  value parsed cleanly, and later array elements got too high an index. Reproduced by running it.
-  Now `JsonOutlineProvider._prepare` shows the grammar such a `+` as `-`, and values are read from
-  the original text.
+  `peek`; on any JSON file `outline` showed `a: 1`, `query` gave `1` for that key with a note that
+  the value parsed cleanly, and later array elements got too high an index. Reproduced by running
+  it. Now `JsonOutlineProvider._prepare` shows the grammar such a `+` as `-`, and values are read
+  from the original text.
 - [ ] **A non-UTF-8 file name may stop the server (E-1).** On Linux such a name should reach
   `PathGuard.display` with a lone surrogate; `list_directory`, `find_files`, `grep` and the read
   tools all show that text. With `display` patched to return a surrogate, a `read_lines` call over
