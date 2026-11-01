@@ -172,6 +172,53 @@ class TestMarkedInsertion:
         reason = failure(patch("a\n", f"@@ -2,0 +3,1 @@\n+x\n{MARKER}")).reason
         assert "past the end" in reason
 
+    @pytest.mark.parametrize(
+        "first",
+        [
+            f"@@ -3,0 +4,1 @@\n+x\n{MARKER}",
+            f"@@ -3,1 +3,1 @@\n-c\n+x\n{MARKER}",
+        ],
+    )
+    @pytest.mark.parametrize("later_marker", ["", MARKER])
+    def test_no_hunk_may_follow_a_marked_line(self, first: str, later_marker: str) -> None:
+        report = failure(patch("a\nb\nc\n", f"{first}@@ -3,0 +5,1 @@\n+y\n{later_marker}"))
+        assert report.index == 2
+        assert "hunk 1" in report.reason
+
+    def test_context_marker_also_ends_the_file(self) -> None:
+        diff = f"@@ -1,2 +1,2 @@\n-a\n+x\n b\n{MARKER}@@ -2,0 +3,1 @@\n+y\n"
+        assert failure(patch("a\nb", diff)).index == 2
+
+    def test_marker_on_the_last_hunk_applies(self) -> None:
+        diff = f"@@ -3,0 +4,1 @@\n+x\n@@ -3,0 +5,1 @@\n+y\n{MARKER}"
+        assert patch("a\nb\nc\n", diff).text == "a\nb\nc\nx\ny"
+
+    def test_old_side_marker_does_not_end_the_file(self) -> None:
+        diff = f"@@ -2,1 +2,1 @@\n-b\n{MARKER}+c\n@@ -2,0 +3,1 @@\n+d\n"
+        assert patch("a\nb", diff).text == "a\nc\nd\n"
+
+    @given(
+        hunks=st.lists(
+            st.sampled_from(
+                [
+                    (f"@@ -3,0 +4,1 @@\n+x\n{MARKER}", "x"),
+                    (f"@@ -3,1 +3,1 @@\n-c\n+z\n{MARKER}", "z"),
+                    (f"@@ -1,0 +2,1 @@\n+w\n{MARKER}", "w"),
+                    ("@@ -3,0 +4,1 @@\n+y\n", ""),
+                ]
+            ),
+            min_size=1,
+            max_size=3,
+        ),
+        text=st.sampled_from(["a\nb\nc\n", "a\nb\nc"]),
+    )
+    def test_a_marked_line_stays_last(self, hunks: list[tuple[str, str]], text: str) -> None:
+        outcome = patch(text, "".join(diff for diff, _ in hunks))
+
+        if outcome.text is not None:
+            for _, marked in hunks:
+                assert not marked or outcome.text.endswith(f"\n{marked}")
+
     @given(
         count=st.integers(min_value=0, max_value=6),
         point=st.integers(min_value=0, max_value=8),

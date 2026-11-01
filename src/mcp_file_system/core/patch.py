@@ -5,8 +5,9 @@ off. The rules here follow ``git apply`` without fuzz: context and removed lines
 match the file exactly, a hunk whose position is off is placed at the nearest exact
 match, and an ambiguous or missing match fails that hunk. Header counts are recomputed
 from the hunk body; only the start line is used, as a position hint. One rule is stricter
-than ``git apply --unidiff-zero``, which joins the next line onto a marked added line: an
-insertion with a ``\\ No newline`` marker fails unless it is at the end of the file.
+than ``git apply --unidiff-zero``, which joins the next line onto a marked added line: a
+line with a ``\\ No newline`` marker on the new side must end up last, so a marked insertion
+away from the end of the file fails, and so does any hunk after a marked one.
 
 Reports and errors never quote lines of the file or the patch, because they reach the
 audit log. Hunk headers are rebuilt without the section text git appends (often a
@@ -136,7 +137,8 @@ def apply_hunks(lines: list[str], hunks: list[Hunk], newline: str) -> PatchOutco
     Every hunk is located in the original lines; located hunks must be in ascending
     order and must not overlap. Unchanged lines keep their own terminators; added lines
     get ``newline``. The file's final-newline state is kept unless a hunk carries a
-    ``\\ No newline`` marker, which ties it to the end of the file.
+    ``\\ No newline`` marker, which ties it to the end of the file; no hunk may follow
+    one whose new side carries the marker, since that line must stay last.
     """
     stripped = [strip_eol(line) for line in lines]
     has_final_newline = not lines or strip_eol(lines[-1]) != lines[-1]
@@ -147,6 +149,12 @@ def apply_hunks(lines: list[str], hunks: list[Hunk], newline: str) -> PatchOutco
         start, reason = _locate(stripped, hunk, has_final_newline)
         if start is not None and start < previous_end:
             start, reason = None, f"overlaps or precedes hunk {previous_index}"
+        elif start is not None and placed and placed[-1][0].new_no_newline:
+            start = None
+            reason = (
+                f"comes after hunk {previous_index}, whose '\\ No newline' marker ends the "
+                "file; put the marker on the last hunk"
+            )
         if start is None:
             reports.append(_report(hunk, reason=reason))
             continue
