@@ -15,7 +15,7 @@ from pydantic import Field, ValidationError
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.models import ToolResult
-from mcp_file_system.errors import FsError
+from mcp_file_system.errors import FsError, describe_os_error
 
 logger = logging.getLogger("mcp_file_system.tools")
 
@@ -87,7 +87,7 @@ def translate_errors[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
             raise ToolError(str(exc)) from exc
         except OSError as exc:
             logger.info("filesystem error in %s: %r", fn.__name__, exc)
-            raise ToolError(f"Filesystem error: {exc.strerror or type(exc).__name__}") from exc
+            raise ToolError(describe_os_error(exc)) from exc
 
     return wrapper
 

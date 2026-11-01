@@ -21,7 +21,7 @@ another protocol) without a server. Both rules are enforced by
 | Module | Responsibility |
 |---|---|
 | `config.Settings` | Frozen configuration from CLI flags, `MCP_FS_*` env vars and defaults. |
-| `errors.FsError` | Base of every agent-facing error; subclasses name the condition (`NotFoundError`, `StaleFileError`, ...) and messages say what to do next. |
+| `errors.FsError` | Base of every agent-facing error; subclasses name the condition (`NotFoundError`, `StaleFileError`, ...) and messages say what to do next. `errors.describe_os_error` gives an `OSError` its agent-facing text, without the path. |
 | `security.PathGuard` | The single choke point for agent-supplied paths: root confinement, symlink resolution, deny policy. |
 | `security.AccessPolicy` | Case-insensitive, gitignore-style deny list. |
 | `security.regex` | `compile_pattern` / `SafePattern`: regexes evaluated against a shared `Deadline`. |
