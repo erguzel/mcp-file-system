@@ -1,5 +1,7 @@
 import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -466,6 +468,27 @@ class TestReadRanges:
         result = ctx.reader.read_ranges([LineRange(path="locked.txt"), LineRange(path="a.txt")])
         assert [(r.path, r.end_line) for r in result.reads] == [("a.txt", 1)]
         assert result.cut == []
+
+    def test_os_error_mid_read_is_not_recorded_as_returned(
+        self, ctx: AppContext, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write(root / "a.txt", numbered(3))
+
+        @contextmanager
+        def failing(*_args: object) -> Iterator[Iterator[str]]:
+            def lines() -> Iterator[str]:
+                yield "line 1"
+                raise OSError(5, "Input/output error", "/very/secret/location")
+
+            yield lines()
+
+        with monkeypatch.context() as patch:
+            patch.setattr("mcp_file_system.core.reader.open_lines", failing)
+            failed = ctx.reader.read_ranges([LineRange(path="a.txt")])
+        assert failed.reads == []
+        assert [e.path for e in failed.errors] == ["a.txt"]
+        again = ctx.reader.read_ranges([LineRange(path="a.txt")])
+        assert again.reads[0].note is None
 
     @pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission semantics")
     def test_unreadable_file_is_a_failing_range(  # pragma: no cover
