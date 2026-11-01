@@ -127,6 +127,13 @@ class TestJson:
         write(root / "s.json", '{"1e+5": "2e+5"}')
         assert query(ctx, root / "s.json", '"1e+5"').content == '"2e+5"'
 
+    @pytest.mark.parametrize("body", ['{"a": +1}', "[+1]", "true+5", '{"a": 1+5}', '{"a": 1e+}'])
+    def test_other_plus_signs_stay_syntax_errors(
+        self, root: Path, ctx: AppContext, body: str
+    ) -> None:
+        write(root / "bad.json", body)
+        assert query(ctx, root / "bad.json").note is not None
+
     def test_array_indexes(self, root: Path, ctx: AppContext) -> None:
         write(root / "a.json", '{"items": [10, {"id": 2}, [true, null]]}')
         assert query(ctx, root / "a.json", "items[0]").content == "10"
