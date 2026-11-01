@@ -4,10 +4,10 @@ Agents produce unified diffs fluently, but their line numbers and hunk counts ar
 off. The rules here follow ``git apply`` without fuzz: context and removed lines must
 match the file exactly, a hunk whose position is off is placed at the nearest exact
 match, and an ambiguous or missing match fails that hunk. Header counts are recomputed
-from the hunk body; only the start line is used, as a position hint. One rule is stricter
-than ``git apply --unidiff-zero``, which joins the next line onto a marked added line: a
-line with a ``\\ No newline`` marker on the new side must end up last, so a marked insertion
-away from the end of the file fails, and so does any hunk after a marked one.
+from the hunk body; only the start line is used, as a position hint. Unlike
+``git apply --unidiff-zero``, which joins the next line onto a marked added line, a line
+with a ``\\ No newline`` marker on the new side must end up last: a marked insertion away
+from the end of the file fails, and so does any hunk after one whose new side is marked.
 
 Reports and errors never quote lines of the file or the patch, because they reach the
 audit log. Hunk headers are rebuilt without the section text git appends (often a
