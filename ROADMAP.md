@@ -42,9 +42,10 @@ not by running it, so reproduce it first.
   so a `PermissionError` ended the whole batch, although the docstring says a failing range
   does not stop the others. Now an `OSError` gives that range an entry in `errors`, with its
   description and no path.
-- [ ] **Python outlines are out of source order in `try` blocks (A-R1).** `_visit` in
-  `core/outline/python.py` visits `except` bodies after `else` and `finally`, so
-  `OutlineResult.next_line` can skip a symbol when the cut falls inside one.
+- [x] **Python outlines are out of source order in `try` blocks (A-R1).** `_visit` in
+  `core/outline/python.py` visited `except` bodies after `else` and `finally`, so
+  `OutlineResult.next_line` could skip a symbol when the cut fell inside one. Now it visits
+  `try`, `except`, `else` and `finally` in that order.
 - [ ] **`peek` summarizes only the first of several JSON values (D-1).** `_parse_with_comments`
   in `core/peek/structured.py` takes `values[0]` and ignores the rest, so `{"a": 1}\n{"b": 2}`
   shows only `a: int` with no note, and newline-delimited JSON looks like one record. Bad tokens

@@ -109,6 +109,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `outline` lists Python definitions in a `try` block in source order. Those in `except`
+  blocks used to come after `else` and `finally`, so the line named after a cut could skip one.
 - `read_ranges` reports an unreadable file as a failing range. A filesystem error such as
   `PermissionError` on one range used to end the whole call, and the other ranges were lost.
   Like any failing range, it does not fail the call, so the audit log records `error: null`.
