@@ -166,7 +166,7 @@ class TestJson:
             peek(make_ctx, root / "several.json")
         assert str(count) in str(error.value)
 
-    def test_bad_token_in_a_later_value_is_not_ignored(
+    def test_file_with_a_bad_token_in_a_later_value_is_rejected(
         self, root: Path, make_ctx: ContextFactory
     ) -> None:
         write(root / "several.json", '{"a": 1}\n{"b": "SECRET\tVALUE"}\n')

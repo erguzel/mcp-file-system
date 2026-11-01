@@ -42,15 +42,19 @@ def parse_json(text: str) -> Any:
 
 
 def _parse_with_comments(text: str) -> Any:
-    """Build Python values from the tree-sitter JSON tree, skipping comment nodes."""
+    """Build the Python value of a one-document tree-sitter JSON tree, skipping comment nodes.
+
+    Summarizing only the first of several values would pass it off as the whole file, so
+    more than one is a :class:`ParseError`.
+    """
     root, source = _JSON_TREE.parse(text)
     values = [child for child in root.named_children if child.type != "comment"]
     if root.has_error or not values:
         raise ParseError("invalid JSON (comments are allowed, syntax errors are not)")
     if len(values) > 1:
         raise ParseError(
-            f"it holds {len(values)} top-level JSON values, and one document is expected "
-            "(newline-delimited JSON, for example)"
+            f"it holds {len(values)} top-level JSON values (newline-delimited JSON, for example), "
+            "and one document is expected"
         )
     return _to_value(values[0], source)
 
