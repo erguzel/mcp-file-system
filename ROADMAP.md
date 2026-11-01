@@ -14,8 +14,8 @@ Fix the **Behavior bugs** before starting a numbered item below, in the order li
 change with a test that fails without the fix, and tick the box in the same change. The other
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
-original claim held. Unless noted, an entry was confirmed by reading the code, not by running
-it, so reproduce it first.
+original claim held. The D entries come from the review of the C-5 fix in November 2026. Unless
+noted, an entry was confirmed by reading the code, not by running it, so reproduce it first.
 
 **Behavior bugs**
 
@@ -42,6 +42,15 @@ it, so reproduce it first.
 - [ ] **Python outlines are out of source order in `try` blocks (A-R1).** `_visit` in
   `core/outline/python.py` visits `except` bodies after `else` and `finally`, so
   `OutlineResult.next_line` can skip a symbol when the cut falls inside one.
+- [ ] **`peek` summarizes only the first of several JSON values (D-1).** `_parse_with_comments`
+  in `core/peek/structured.py` takes `values[0]` and ignores the rest, so `{"a": 1}\n{"b": 2}`
+  shows only `a: int` with no note, and newline-delimited JSON looks like one record. Bad tokens
+  in the later values go unreported too. Reproduced by running it. Decide whether to reject such
+  a file or to say that the rest was not read.
+- [ ] **`peek` rejects an exponent with `+` once strict parsing fails (D-2).** `// c\n{"a": 1e+5}`
+  gives `ParseError` because the tree-sitter grammar flags `1e+5` as an error, although it is
+  valid JSON; `1e5`, `1e-5`, and `1e+5` without a comment pass. Reproduced by running it.
+  `outline` and `query` use the same grammar and were not checked.
 
 **Lower priority**
 
@@ -63,6 +72,13 @@ it, so reproduce it first.
   catches only `OSError`, so a lone surrogate in a logged value raises `UnicodeEncodeError`.
   Arguments cannot carry one over stdio, which is why this is on the HTTP checklist in
   `docs/ARCHITECTURE.md`; an OS error message naming a non-UTF-8 file might. Not run.
+- [ ] **Too deep JSON with a comment reports the wrong cause (D-3).** On `RecursionError`,
+  `parse_json` in `core/peek/structured.py` raises the strict error, so deep but valid JSONC gives
+  `Expecting value: line 1 column 1`, pointing at the comment instead of the nesting. Reproduced
+  by running it.
+- [ ] **`peek` accepts an undecodable JSON key (D-4).** `unquote` swallows the `ValueError`, so
+  `{"a\tb": 1}` and `{"\u": 1} // c` report the raw text as the key, while the same text as a
+  value is a `ParseError`. Reproduced by running it. Decide whether keys should be as strict.
 
 **Misleading docstrings**
 
