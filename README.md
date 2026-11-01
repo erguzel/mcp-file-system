@@ -256,8 +256,8 @@ uv run pre-commit install   # optional git hooks
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-which covers how to add tools, outline languages or search backends. Planned work is in
-[ROADMAP.md](ROADMAP.md). AI coding agents should follow [AGENTS.md](AGENTS.md).
+which covers how to add tools, outline languages or search backends. Known bugs and planned
+work are in [ROADMAP.md](ROADMAP.md). AI coding agents should follow [AGENTS.md](AGENTS.md).
 
 ## License
 

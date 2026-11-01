@@ -33,4 +33,4 @@ uv run pytest --cov        # fails below 90% coverage
 - Write test files with explicit bytes (see `tests/conftest.py::write`) so they behave
   the same on every OS.
 - Update `CHANGELOG.md` under "Unreleased".
-- Planned work lives in `ROADMAP.md`; AI-assisted contributions follow `AGENTS.md`.
+- Known bugs and planned work live in `ROADMAP.md`; AI-assisted contributions follow `AGENTS.md`.

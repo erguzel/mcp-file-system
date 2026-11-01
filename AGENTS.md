@@ -19,10 +19,12 @@ Security is the core feature, not an add-on.
    imports. Only `tools/`, `server.py`, and `cli.py` may import `mcp`. A test enforces
    this, and the layer direction under "Code conventions"
    (`tests/unit/test_import_boundaries.py`).
-4. Implement `ROADMAP.md` items **in order**, one item per change. The next item is the
-   first unticked one whose status does not defer it; an item whose status says its
-   remaining part is deferred counts as deferred even if part of it shipped. Do not start
-   any other item unless the human asks.
+4. `ROADMAP.md` is the single source of truth for open work. Fix its unticked "Behavior
+   bugs" first, in their order; then implement the numbered items **in order**. One entry or
+   item per change; the other groups under "Known bugs and cleanup" do not block numbered
+   items. The next numbered item is the first unticked one whose status does not defer it;
+   an item whose status says its remaining part is deferred counts as deferred even if part
+   of it shipped. Do not start any other entry or item unless the human asks.
 
 ## Commands
 
@@ -54,7 +56,8 @@ A change is finished only when **all** of these are true:
 - [ ] Public functions and classes have Google-style docstrings.
 - [ ] User-visible changes have a `CHANGELOG.md` entry under `## [Unreleased]`.
 - [ ] If a `ROADMAP.md` item was completed, its status checkbox is ticked and its **What**
-      matches what shipped.
+      matches what shipped; a fixed entry under "Known bugs and cleanup" is ticked too (a
+      docstring bullet is deleted).
 - [ ] User-visible changes (tools, flags, settings) are documented in `README.md`
       (`tests/integration/test_readme_matches_code.py` checks tool names and write marks,
       the profiles row's tool counts, the limits it lists, and setting names, defaults and
@@ -84,7 +87,7 @@ A change is finished only when **all** of these are true:
 | `src/mcp_file_system/tools/` | Thin MCP tool adapters, one module per group, each with `register()`; `_common.py` holds the `ToolRegistry`, shared parameter types and the audit wrapper. |
 | `tests/unit/`, `tests/security/`, `tests/integration/` | Tests; shared helpers in `tests/conftest.py`. |
 | `docs/ARCHITECTURE.md` | Layers, conventions, and how to extend (read before larger changes). |
-| `ROADMAP.md` | Ordered list of planned work. |
+| `ROADMAP.md` | Single source of truth for open work: known bugs first, then planned items in order. |
 
 ## Code conventions
 
