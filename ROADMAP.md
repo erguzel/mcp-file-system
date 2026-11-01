@@ -14,7 +14,8 @@ Fix the **Behavior bugs** before starting a numbered item below, in the order li
 change with a test that fails without the fix, and tick the box in the same change. The other
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
-original claim held. The D entries come from the review of the C-5 fix in November 2026. Unless
+original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
+entry from the review of the B-F2 plan. Unless
 noted, an entry was confirmed by reading the code, not by running it, so reproduce it first.
 
 **Behavior bugs**
@@ -81,6 +82,10 @@ noted, an entry was confirmed by reading the code, not by running it, so reprodu
 - [ ] **`peek` accepts an undecodable JSON key (D-4).** `unquote` swallows the `ValueError`, so
   `{"a\tb": 1}` and `{"\u": 1} // c` report the raw text as the key, while the same text as a
   value is a `ParseError`. Reproduced by running it. Decide whether keys should be as strict.
+- [ ] **A non-UTF-8 file name may fail a whole result (E-1).** On Linux such a name should reach
+  `ResolvedPath.display` with a lone surrogate, and `model_dump_json` on a result holding one raises
+  `PydanticSerializationError` (that part was run). The SDK's stdio writer shows no handler for it,
+  so this may end the session. Not reproduced end to end: APFS refuses such names, so try on Linux.
 
 **Misleading docstrings**
 
