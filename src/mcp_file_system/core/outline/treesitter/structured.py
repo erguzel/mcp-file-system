@@ -55,10 +55,17 @@ _JSON_SCALARS = {
     "false": "boolean",
     "null": "null",
 }
+_JSON_PLUS_EXPONENT = re.compile(rb"(?<=[0-9][eE])\+(?=[0-9])")
 
 
 class JsonOutlineProvider(TreeSitterOutlineProvider):
-    """Outlines JSON (comments tolerated) as a tree of keys and container elements."""
+    """Outlines JSON (comments tolerated) as a tree of keys and container elements.
+
+    The grammar has no ``+`` in a number's exponent: it reads ``1e+5`` as ``1`` and an error.
+    Such a ``+`` is shown to it as ``-``, which keeps the token whole and every byte offset, so
+    node text must be read from the original source. Inside a string or comment the swap changes
+    nothing the grammar cares about, so it need not know where it is.
+    """
 
     language = "json"
     extensions = frozenset({".json", ".jsonc"})
@@ -66,13 +73,18 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
     def _grammar(self) -> object:
         return tree_sitter_json.language()
 
+    def _prepare(self, source: bytes) -> bytes:
+        return _JSON_PLUS_EXPONENT.sub(b"-", source)
+
     def _extract(self, root: Node, source: bytes) -> list[Symbol]:
         out = SymbolCollector()
         for value in root.named_children:
-            self._children(value, "", 0, out)
+            self._children(value, source, "", 0, out)
         return out.symbols
 
-    def _children(self, node: Node, path: str, depth: int, out: SymbolCollector) -> None:
+    def _children(
+        self, node: Node, source: bytes, path: str, depth: int, out: SymbolCollector
+    ) -> None:
         if depth >= MAX_DEPTH:
             return
         if node.type == "object":
@@ -80,7 +92,7 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
                 key, value = pair.child_by_field_name("key"), pair.child_by_field_name("value")
                 if pair.type != "pair" or key is None or value is None:
                     continue
-                name = unquote(node_text(key))
+                name = unquote(node_text(key, source))
                 child_path = join_key(path, name)
                 out.add(
                     path=child_path,
@@ -88,9 +100,9 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
                     kind=_json_kind(value),
                     node=pair,
                     depth=depth,
-                    signature=f"{format_key(name)}: {_json_describe(value)}",
+                    signature=f"{format_key(name)}: {_json_describe(value, source)}",
                 )
-                self._children(value, child_path, depth + 1, out)
+                self._children(value, source, child_path, depth + 1, out)
         elif node.type == "array":
             elements = [c for c in node.named_children if c.type != "comment"]
             listed = 0
@@ -107,9 +119,9 @@ class JsonOutlineProvider(TreeSitterOutlineProvider):
                     kind=element.type,
                     node=element,
                     depth=depth,
-                    signature=f"[{index}]: {_json_describe(element)}",
+                    signature=f"[{index}]: {_json_describe(element, source)}",
                 )
-                self._children(element, child_path, depth + 1, out)
+                self._children(element, source, child_path, depth + 1, out)
 
 
 def _json_kind(value: Node) -> str:
@@ -118,9 +130,9 @@ def _json_kind(value: Node) -> str:
     )
 
 
-def _json_describe(value: Node) -> str:
+def _json_describe(value: Node, source: bytes) -> str:
     entries = [c for c in value.named_children if c.type != "comment"]
-    return _describe(_json_kind(value), len(entries), node_text(value))
+    return _describe(_json_kind(value), len(entries), node_text(value, source))
 
 
 # ---------------------------------------------------------------------------- TOML

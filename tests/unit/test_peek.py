@@ -18,7 +18,21 @@ from mcp_file_system.errors import (
 )
 
 JSON_SYNTAX = ["{", "}", "[", "]", ":", ",", " ", "\n", "\r", "// c\n", "/*c*/"]
-JSON_TOKENS = ['"a"', '"\t"', '"\\u"', '"\\q"', '"\x01"', "1", "1.", "-", "1e", "null", "true"]
+JSON_TOKENS = [
+    '"a"',
+    '"\t"',
+    '"\\u"',
+    '"\\q"',
+    '"\x01"',
+    "1",
+    "1.",
+    "-",
+    "1e",
+    "1e+",
+    "1e+5",
+    "null",
+    "true",
+]
 JSON_PIECES = [*JSON_SYNTAX, *JSON_TOKENS]
 
 
@@ -123,6 +137,15 @@ class TestJson:
         out = peek(make_ctx, root / "t.jsonc")
         for expected in ("a: int", "b: float", "c: str", "d: null", "e: bool"):
             assert expected in out
+
+    @pytest.mark.parametrize("number", ["1e+5", "1E+5", "1.5e+3", "-1e+5"])
+    def test_exponent_with_plus_and_comment(self, number: str) -> None:
+        assert structured.parse_json(f'// c\n{{"a": {number}}}') == {"a": float(number)}
+
+    @pytest.mark.parametrize("number", ["1e+", "1e+-5", "+1", "1.e+5", "1e+5e+5", "1e+5.5"])
+    def test_bad_exponent_with_comment_is_rejected(self, number: str) -> None:
+        with pytest.raises(ParseError):
+            structured.parse_json(f'// c\n{{"a": {number}}}')
 
     @pytest.mark.parametrize("body", ["{", "// only a comment\n", "[1,] // trailing", "{'a': 1}"])
     def test_malformed_jsonc(self, root: Path, make_ctx: ContextFactory, body: str) -> None:
