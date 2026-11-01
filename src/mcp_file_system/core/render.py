@@ -40,7 +40,7 @@ def number_lines(
         max_chars: Budget for the rows, counting one newline per row.
         always_emit: Emit the first row even if it exceeds ``max_chars``, so that a caller
             continuing from the last line always moves forward. Batch reads turn this off
-            for later ranges, whose budget is what earlier ranges left over.
+            once a row has been returned, since ``max_chars`` is then what is left over.
 
     Returns:
         The rendered block, the first and the last line number emitted (``None``
