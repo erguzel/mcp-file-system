@@ -29,13 +29,23 @@ def number_lines(
     width: int,
     max_line_chars: int,
     max_chars: int,
+    always_emit: bool = True,
 ) -> tuple[str, int | None, int | None]:
     """Render ``(line_number, text)`` pairs as ``"  12\\ttext"`` rows within a budget.
+
+    Args:
+        lines: The ``(line_number, text)`` pairs to render.
+        width: Width the line numbers are right-aligned to.
+        max_line_chars: Longer lines are clipped.
+        max_chars: Budget for the rows, counting one newline per row.
+        always_emit: Emit the first row even if it exceeds ``max_chars``, so that a caller
+            continuing from the last line always moves forward. Batch reads turn this off
+            for later ranges, whose budget is what earlier ranges left over.
 
     Returns:
         The rendered block, the first and the last line number emitted (``None``
         when nothing was emitted). Rendering stops before the row that would exceed
-        ``max_chars``, but at least one row is always emitted.
+        ``max_chars``.
     """
     rows: list[str] = []
     used = 0
@@ -43,7 +53,7 @@ def number_lines(
     last: int | None = None
     for number, text in lines:
         row = f"{number:>{width}}\t{clip_line(text, max_line_chars)}"
-        if rows and used + len(row) + 1 > max_chars:
+        if (rows or not always_emit) and used + len(row) + 1 > max_chars:
             break
         rows.append(row)
         used += len(row) + 1

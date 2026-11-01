@@ -51,6 +51,19 @@ def test_number_lines_respects_budget_but_emits_one_row() -> None:
     assert (first, last) == (1, 1)
 
 
+def test_number_lines_without_always_emit_stays_within_budget() -> None:
+    too_long = number_lines(
+        [(1, "y" * 500)], width=1, max_line_chars=1000, max_chars=10, always_emit=False
+    )
+    assert too_long == ("", None, None)
+    rows = [(n, "x" * 30) for n in range(1, 10)]
+    content, first, last = number_lines(
+        rows, width=1, max_line_chars=100, max_chars=70, always_emit=False
+    )
+    assert (first, last) == (1, 2)
+    assert len(content) + 1 <= 70
+
+
 def test_number_lines_clips_long_lines() -> None:
     content, _, _ = number_lines([(1, "z" * 100)], width=1, max_line_chars=10, max_chars=1000)
     assert content == "1\t" + "z" * 10 + " … [+90 chars]"

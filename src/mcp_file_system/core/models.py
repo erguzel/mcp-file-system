@@ -149,7 +149,7 @@ class BatchLinesResult(ToolResult):
 
     reads: list[LinesResult]
     errors: list[RangeError] = Field(
-        default_factory=list, description="Ranges that failed; the others were still read."
+        default_factory=list, description="Ranges that failed; they do not stop the others."
     )
     cut: list[LineRange] = Field(
         default_factory=list,
