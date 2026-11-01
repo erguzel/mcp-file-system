@@ -1,19 +1,21 @@
 # Roadmap
 
 Known bugs, then planned improvements **in implementation order**. Work on one item at a
-time; an item whose status defers it (until a condition is met) is skipped until then. Each item
-lands as its own focused change with tests and a `CHANGELOG.md` entry, and its checkbox is
-ticked in the same change.
+time; an item whose status defers it (until a condition is met) is skipped until then. Each
+numbered item lands as its own focused change with tests and a `CHANGELOG.md` entry, and its
+checkbox is ticked in the same change.
 
 Guiding constraint: every new tool or parameter makes tool calling harder for small local
 models. Item 1 introduces profiles so that later additions can be gated.
 
 ## Known bugs and cleanup
 
-Fix these before starting a numbered item below, most severe first, one per change with a
-test that fails without the fix; tick the box in the same change. They come from the
-documentation audits of October 2026. Unless noted, each was confirmed by reading the code,
-not by running it, so reproduce it first.
+Fix the **Behavior bugs** before starting a numbered item below, in the order listed, one per
+change with a test that fails without the fix, and tick the box in the same change. The other
+groups here do not block numbered items. They come from the documentation audits of October
+2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
+original claim held. Unless noted, an entry was confirmed by reading the code, not by running
+it, so reproduce it first.
 
 **Behavior bugs**
 
@@ -23,11 +25,12 @@ not by running it, so reproduce it first.
   `@@ -1,0 +2,1 @@`, `+x` and the marker becomes `a\nx\nb\nc`. Silent data change, reproduced
   by running it. `_locate` in `core/patch.py` returns before its `at_eof` checks. Reject such
   a hunk unless the insertion point is the end of the file.
-- [ ] **`peek` raises a raw error on some JSON with comments (C-5).** When `json.loads`
-  rejects a file, `_to_value` in `core/peek/structured.py` calls `json.loads` on tokens the
-  tree-sitter grammar accepted, and only `RecursionError` is caught. A raw control character
-  in a string or a bare `\u` should escape as `JSONDecodeError`, a generic tool error, instead
-  of `ParseError`. The trigger rests on the upstream grammar and was not run.
+- [ ] **`peek` raises a raw error on some JSON that strict parsing rejects (C-5).** When
+  `json.loads` rejects a file, `_to_value` in `core/peek/structured.py` calls `json.loads` on
+  the string and number tokens the tree-sitter grammar accepted, and only `RecursionError` is
+  caught. A raw control character in a string or a bare `\u` should escape as
+  `JSONDecodeError`, a generic tool error, instead of `ParseError`. The trigger rests on the
+  upstream grammar and was not run.
 - [ ] **`read_ranges` overruns its character budget (B-F1).** After a range is cut,
   `chars_left` usually stays above zero and `number_lines` always emits one row, so later
   ranges still return lines: output can exceed `max_output_chars` and short ranges miss `cut`.
@@ -37,23 +40,32 @@ not by running it, so reproduce it first.
 - [ ] **Python outlines are out of source order in `try` blocks (A-R1).** `_visit` in
   `core/outline/python.py` visits `except` bodies after `else` and `finally`, so
   `OutlineResult.next_line` can skip a symbol when the cut falls inside one.
-- [ ] **A file deleted after the read is not reported as stale (B-F5).** `ensure_etag` in
-  `core/etag.py` lets `FileNotFoundError` through, so the agent sees a filesystem error with
-  no next step, while `write_file` reports the same case as stale.
-- [ ] **Lower priority:** TOML `_table` and `_array` lack the `MAX_DEPTH` check, which may
-  also allow a `RecursionError` on deeply nested arrays (C-3, not run); a `[[bin]]` element's
-  span never covers a following `[bin.meta]` (C-4); one missing core grammar crashes the server
-  at import instead of skipping that format, since `treesitter/__init__.py` and
-  `peek/structured.py` load every grammar eagerly (C-1).
 
-Parked, not to fix now: lone surrogates in `AuditLog.record` cannot arrive over stdio; see the
-HTTP checklist in `docs/ARCHITECTURE.md`.
+**Lower priority**
+
+- [ ] **A deleted file gives different errors (B-F5).** A file deleted after the read gives
+  `NotFoundError` from `resolve_file` in the edit tools, a clear message, but `StaleFileError`
+  in `write_file`; decide whether they should match. Deleted within the call, the `stat` in
+  `FileEditor._load` or in `ensure_etag` (`core/etag.py`) lets a raw `FileNotFoundError` through.
+- [ ] **TOML depth limit (C-3).** `_table` and `_array` in
+  `core/outline/treesitter/structured.py` lack the `MAX_DEPTH` check, which may also allow a
+  `RecursionError` on deeply nested arrays. Not run.
+- [ ] **TOML array-table spans (C-4).** In `_extend_parent_tables`, a `[[bin]]` element is named
+  `bin[0]` while a following `[bin.meta]` is `bin.meta`, so the element's span never covers it.
+- [ ] **A missing core grammar stops the server (C-1).** The guarded import in
+  `registry._tree_sitter_factories` is not reached: `core/peek/structured.py`,
+  `core/query/service.py` and `core/query/nodes.py` import `outline.treesitter` at module level,
+  and its `__init__.py` loads every grammar, so the server fails at import instead of skipping
+  that format.
+- [ ] **The audit log can fail a tool call (A-D2).** `AuditLog.record` says it never raises, but
+  catches only `OSError`, so a lone surrogate in a logged value raises `UnicodeEncodeError`.
+  Arguments cannot carry one over stdio, which is why this is on the HTTP checklist in
+  `docs/ARCHITECTURE.md`; an OS error message naming a non-UTF-8 file might. Not run.
 
 **Misleading docstrings**
 
-- [ ] Fix these after the behavior bugs, so they describe the corrected behavior. The
-  Raises rule in `AGENTS.md` is also not yet met by `LogSummarizer.summarize`,
-  `FileEditor.write`, `DataQuery.query`, `Peeker.peek` and possibly
+- [ ] Fix these after the behavior bugs, so they describe the corrected behavior, and delete a
+  bullet here when it is fixed. Four also break the Raises rule in `AGENTS.md`, as may
   `AppContext.from_settings`; `docs/ARCHITECTURE.md`'s Budgets line does not mirror the
   continuation-hint rule in `AGENTS.md`.
   - A-D3 `config.py` DEFAULT_DENY_GLOBS "always blocked, even for direct access" — `--deny
@@ -68,6 +80,15 @@ HTTP checklist in `docs/ARCHITECTURE.md`.
   - C-8 `peek/__init__` and `Peeker` "without their content" — sample rows, timestamps,
     Markdown title, manifest name/version/deps are returned; TOML and Markdown missing from the
     list.
+  - B-F8 `FileEditor.write` Raises lists only StaleFileError (also PathTypeError,
+    AlreadyExistsError, InvalidArgumentError, FileTooLargeError, BinaryFileError) — also violates
+    the AGENTS.md Raises rule.
+  - B-F17 `LogSummarizer.summarize` Raises omits BinaryFileError and path errors; blank lines
+    skipped; limit capped — violates the Raises rule.
+  - C-6 `Peeker.peek` Raises omits BinaryFileError, FileTooLargeError, path errors — violates the
+    Raises rule.
+  - C-7 `DataQuery.query` Raises omits FileTooLargeError, BinaryFileError, path errors — violates
+    the Raises rule.
 
 <details>
 <summary>Cosmetic docstring findings: batch them with the above or leave them</summary>
@@ -88,15 +109,11 @@ HTTP checklist in `docs/ARCHITECTURE.md`.
 - A-C9 `search_timeout_s` "one search or regex operation" — also log_summary scan and
   read_between.
 - PARTIAL A-C1 `context.from_settings` Raises lists only OSError; YAML grammar ValueError can
-  arise in DataQuery (JSON/missing grammar fail earlier, at import — see C-1 in
-  [[security-backlog]]).
+  arise in DataQuery (JSON/missing grammar fail earlier, at import — see C-1 above).
 - B-F3 `reader._count_entries` / `FileInfo.entry_count` — not capped by max_results (unlike
   list_directory).
 - PARTIAL B-F7 `editor.py` "refuses to run against a stale view" — only when an etag is given
   (the pre-write re-check always runs).
-- B-F8 `FileEditor.write` Raises lists only StaleFileError (also PathTypeError,
-  AlreadyExistsError, InvalidArgumentError, FileTooLargeError, BinaryFileError) — also violates
-  the AGENTS.md Raises rule.
 - PARTIAL B-F9 `EditResult.etag` "after the edit" — wording loose on dry runs / undone creation
   (values are right).
 - B-F10 `EditResult.changes` — hunks for apply_patch, 1 for write/undo.
@@ -106,8 +123,6 @@ HTTP checklist in `docs/ARCHITECTURE.md`.
   files.
 - B-F15 `templates.py` "free of nested quantifiers" — `_IPV6` nests (still linear).
 - B-F16 `LogSummarizer` "streamed once" — count_lines makes a separate cached pass first.
-- B-F17 `LogSummarizer.summarize` Raises omits BinaryFileError and path errors; blank lines
-  skipped; limit capped — violates the Raises rule.
 - PARTIAL B-F19 `patch.parse_patch` Raises omits invalid header / empty hunk / misplaced marker
   (preamble lines are skipped, hunk-body lines are checked).
 - B-F20 `tracking.ReadTracker` "least recently used" — only record() refreshes recency.
@@ -118,10 +133,6 @@ HTTP checklist in `docs/ARCHITECTURE.md`.
   lite; several input/sub-models.
 - PARTIAL B-F24 `textio.count_lines` "memoized on the file's identity" — key also includes the
   format.
-- C-6 `Peeker.peek` Raises omits BinaryFileError, FileTooLargeError, path errors — violates the
-  Raises rule.
-- C-7 `DataQuery.query` Raises omits FileTooLargeError, BinaryFileError, path errors — violates
-  the Raises rule.
 - C-9 `peek/structured.py` module "(no values)" — manifest metadata are values.
 - C-10 `key_tree` "one row per top-level key" — at most MAX_KEYS plus a "more" row.
 - C-11 `summarize_log` "over the first scanned lines" — last timestamp from the file tail.
@@ -138,7 +149,7 @@ HTTP checklist in `docs/ARCHITECTURE.md`.
 
 </details>
 
-**Before the next release**
+**Before the next release** (only when cutting one)
 
 - [ ] `CHANGELOG.md`: move entries under Fixed and Security that fix features unreleased in
   0.1.0 into their Added entries, and write the version heading before tagging (the `[0.1.0]`
