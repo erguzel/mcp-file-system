@@ -58,7 +58,8 @@ another protocol) without a server. Both rules are enforced by
 - **Errors:** services raise subclasses of `errors.FsError` with agent-facing,
   actionable messages. `tools._common.translate_errors` turns them (and sanitized
   `OSError`s) into MCP tool errors. `FileReader.read_ranges` catches both per range and
-  reports them in its result instead, with the same text. Any other exception is reported
+  reports them in its result instead, with the same text and without the INFO log line
+  `translate_errors` writes for an `OSError`. Any other exception is reported
   by the SDK as a generic failure and logged with its traceback to stderr.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
