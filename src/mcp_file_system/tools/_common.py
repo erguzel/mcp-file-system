@@ -3,6 +3,7 @@
 import functools
 import inspect
 import logging
+import re
 import time
 from collections.abc import Callable
 from typing import Annotated, Any
@@ -15,9 +16,12 @@ from pydantic import Field, ValidationError
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.models import ToolResult
+from mcp_file_system.core.textio import UNDECODABLE_CHAR
 from mcp_file_system.errors import FsError, describe_os_error
 
 logger = logging.getLogger("mcp_file_system.tools")
+
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 """Annotations for tools that never modify anything."""
@@ -63,11 +67,36 @@ def unset_int(value: int) -> int | None:
     return value or None
 
 
+def scrub_surrogates(text: str) -> str:
+    """Replace lone surrogates, which JSON-RPC cannot carry, one character for one.
+
+    A file name that is not valid UTF-8, a JSON or YAML ``"\\ud800"`` escape and a path in a
+    list argument all bring them in. Over stdio one fails the SDK's writer outside any tool:
+    the client gets no reply and the server exits. The length stays the same, so output
+    limits still hold.
+    """
+    return _LONE_SURROGATE.sub(UNDECODABLE_CHAR, text)
+
+
+def _scrub_values(value: Any) -> Any:
+    """Apply :func:`scrub_surrogates` to the strings in dumped model data (not to field names)."""
+    if isinstance(value, str):
+        return scrub_surrogates(value)
+    if isinstance(value, list):
+        return [_scrub_values(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _scrub_values(item) for key, item in value.items()}
+    return value
+
+
 def to_call_result(result: ToolResult) -> CallToolResult:
-    """Wrap a result model: compact text for the model, structured data for the client."""
+    """Wrap a result model: compact text for the model, structured data for the client.
+
+    This and :func:`translate_errors` are where a tool's output leaves, so both scrub it.
+    """
     return CallToolResult(
-        content=[TextContent(type="text", text=result.render())],
-        structured_content=result.model_dump(mode="json"),
+        content=[TextContent(type="text", text=scrub_surrogates(result.render()))],
+        structured_content=_scrub_values(result.model_dump(mode="json")),
     )
 
 
@@ -75,8 +104,9 @@ def translate_errors[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
     """Turn anticipated failures into MCP tool errors the agent can act on.
 
     Domain errors carry agent-facing messages. Unexpected ``OSError``s are reduced to
-    their description so no stack trace or unrelated path is exposed. Anything else
-    propagates and is reported by the SDK as a generic failure.
+    their description so no stack trace or unrelated path is exposed. Both go out through
+    :func:`scrub_surrogates`. Anything else propagates and is reported by the SDK as a
+    generic failure.
     """
 
     @functools.wraps(fn)
@@ -84,10 +114,10 @@ def translate_errors[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
         try:
             return fn(*args, **kwargs)
         except FsError as exc:
-            raise ToolError(str(exc)) from exc
+            raise ToolError(scrub_surrogates(str(exc))) from exc
         except OSError as exc:
             logger.info("filesystem error in %s: %r", fn.__name__, exc)
-            raise ToolError(describe_os_error(exc)) from exc
+            raise ToolError(scrub_surrogates(describe_os_error(exc))) from exc
 
     return wrapper
 

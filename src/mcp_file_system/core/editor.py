@@ -35,6 +35,7 @@ from mcp_file_system.core.models import (
 from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
+    UNDECODABLE_CHAR,
     TextFormat,
     check_size,
     encode_text,
@@ -347,7 +348,12 @@ class FileEditor:
     ) -> EditResult:
         """Create a file (and missing parent directories), or overwrite one with its etag.
 
+        A missing path holding :data:`UNDECODABLE_CHAR` is refused: listings show a name that
+        is not valid UTF-8 that way, and writing to the shown name would create a second file
+        beside the listed one.
+
         Raises:
+            InvalidArgumentError: The path to create holds ``UNDECODABLE_CHAR``.
             StaleFileError: ``expected_etag`` was given but the file no longer exists.
         """
         resolved = self._guard.resolve(path, must_exist=False)
@@ -367,6 +373,12 @@ class FileEditor:
             new_text = normalize_newlines(content, document.fmt.newline)
             return self._commit(resolved, document, new_text, changes=1, dry_run=dry_run)
 
+        if UNDECODABLE_CHAR in path:
+            raise InvalidArgumentError(
+                f"{path} does not exist. Its {UNDECODABLE_CHAR} stands for a character of a file "
+                "name that cannot be shown, so this would create a different file; nothing was "
+                "written."
+            )
         if expected_etag is not None:
             # An etag means "replace the version I read"; that version is gone.
             raise StaleFileError(

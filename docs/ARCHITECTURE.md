@@ -61,6 +61,9 @@ another protocol) without a server. Both rules are enforced by
   reports them in its result instead, with the same text and without the INFO log line
   `translate_errors` writes for an `OSError`. Any other exception is reported
   by the SDK as a generic failure and logged with its traceback to stderr.
+- **Lone surrogates** cannot travel over JSON-RPC, and one in a result stops the stdio server
+  outside any tool. `translate_errors` and `to_call_result`, where output leaves, replace
+  them with U+FFFD (`tools._common.scrub_surrogates`), so services need not care.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
   `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.
@@ -162,9 +165,11 @@ around `server.run("streamable-http", host=..., port=...)` and the checklist bel
 - a container image that runs as a non-root user, with the workspace mounted (read-only
   unless writes are needed),
 - a health endpoint and request logging to stderr,
-- lone surrogates in arguments (JSON `"\ud800"`): over stdio the `mcp` 2.x SDK rejects such
-  messages before any tool runs, but an HTTP path must be checked again. If they get
-  through, `PathGuard.resolve` fails with an unhandled `UnicodeEncodeError` (generic
-  error, no file access) and `AuditLog.record` cannot write the record. The fix is an
-  `os.fsencode` check in the guard and `errors="backslashreplace"` plus a catch-all in
-  `record`, with tests in `tests/security/`.
+- lone surrogates in arguments (JSON `"\ud800"`): over stdio the `mcp` 2.x SDK drops a
+  message with one in a string argument before any tool runs, with no reply, but an HTTP path
+  must be checked again. A list argument can arrive as a string the SDK decodes later, so its
+  paths reach the tools even over stdio. There `\udce9` is an ordinary lookup, while `\ud800`
+  makes `PathGuard.resolve` fail with an unhandled `UnicodeEncodeError` (generic error, no
+  file access). A surrogate in a logged value makes `AuditLog.record` raise (A-D2 in
+  `ROADMAP.md`). The fix is an `os.fsencode` check in the guard and
+  `errors="backslashreplace"` plus a catch-all in `record`, with tests in `tests/security/`.

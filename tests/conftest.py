@@ -1,5 +1,6 @@
 """Shared fixtures: an isolated workspace root and factories for settings and services."""
 
+import errno
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -94,6 +95,23 @@ def junction_or_skip(link: Path, target: Path) -> None:
         _winapi.CreateJunction(str(target), str(link))
     else:
         pytest.skip("directory junctions exist only on Windows")
+
+
+def undecodable_name_or_skip(path: Path, content: str = "data\n") -> Path:
+    """Create a file below a name that is not valid UTF-8, or skip where the OS refuses it.
+
+    Write such a name with a surrogate escape, ``root / "caf\\udce9.txt"``. Only ``EILSEQ``
+    (APFS) means refused, so any other failure stays a real error instead of a silent skip,
+    and a filesystem that stores another name fails here rather than confusing the test.
+    """
+    try:
+        write(path, content)
+    except OSError as exc:
+        if exc.errno != errno.EILSEQ:
+            raise
+        pytest.skip(f"this filesystem refuses names that are not UTF-8: {exc.strerror}")
+    assert path in path.parent.iterdir()
+    return path
 
 
 def numbered(count: int, prefix: str = "line") -> str:

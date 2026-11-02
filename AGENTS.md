@@ -169,6 +169,8 @@ def my_tool(
   and Windows junctions only through `junction_or_skip(link, target)` (skipped elsewhere).
   `tests/unit/test_conventions.py` fails on direct `write_text`, `symlink_to` and similar
   calls outside `conftest.py`.
+- Create a file whose name is not valid UTF-8 only through `undecodable_name_or_skip(path)`
+  (APFS refuses such names).
 - Mark OS-specific tests with `pytest.mark.skipif(...)`.
 - Test file names must be unique across all test directories (there are no
   `__init__.py` files).

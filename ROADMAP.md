@@ -15,7 +15,7 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2 and D-1 plans. Unless noted, an entry was confirmed by reading
+entries from the reviews of the B-F2, D-1 and E-1 plans. Unless noted, an entry was confirmed by reading
 the code, not by running it, so reproduce it first.
 
 **Behavior bugs**
@@ -56,13 +56,14 @@ the code, not by running it, so reproduce it first.
   the value parsed cleanly, and later array elements got too high an index. Reproduced by running
   it. Now `JsonOutlineProvider._prepare` shows the grammar such a `+` as `-`, and values are read
   from the original text.
-- [ ] **A non-UTF-8 file name may stop the server (E-1).** On Linux such a name should reach
-  `PathGuard.display` with a lone surrogate; `list_directory`, `find_files`, `grep` and the read
-  tools all show that text. With `display` patched to return a surrogate, a `read_lines` call over
-  stdio got no reply and the server exited with code 1: `stdout_writer` in the SDK's
+- [x] **A lone surrogate in a tool's output stops the server (E-1).** `stdout_writer` in the SDK's
   `server/stdio.py` raises `PydanticSerializationError` on the JSON-RPC message, outside any tool,
-  so `translate_errors` never sees it. Not run with a real file name, which APFS refuses: reproduce
-  it on Linux first.
+  so the call got no reply and the server exited with code 1 at its next message. Reproduced by
+  running it, on macOS with `{"\ud800": 1}` (`outline`, `query`, `peek`, or a `grep` that matches
+  the file), and on Linux with a real file name that is not UTF-8 (`list_directory`) or such a
+  root. A path in the list argument of `read_ranges` did it too. Now `to_call_result`,
+  `translate_errors` and `build_instructions` replace surrogates with U+FFFD, and `write_file`
+  refuses to create a path holding it. Such a file stays listed but cannot be opened by that name.
 - [ ] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
   `core/query/service.py` takes `values[0]`, so on `{"a": 1}\n{"b": 2}` the whole document is
   `a: 1` with no note, and `b` gives `No key b` although the file holds it. Reproduced by running
@@ -86,9 +87,14 @@ the code, not by running it, so reproduce it first.
   and its `__init__.py` loads every grammar, so the server fails at import instead of skipping
   that format.
 - [ ] **The audit log can fail a tool call (A-D2).** `AuditLog.record` says it never raises, but
-  catches only `OSError`, so a lone surrogate in a logged value raises `UnicodeEncodeError`.
-  Arguments cannot carry one over stdio, which is why this is on the HTTP checklist in
-  `docs/ARCHITECTURE.md`; an OS error message naming a non-UTF-8 file might. Not run.
+  catches only `OSError`, so a lone surrogate in a logged value raises `UnicodeEncodeError`. With
+  the log on, `query` for a missing key in `{"\ud800": 1}` gets a generic `Error executing tool
+  query` instead of its message, and the call is missing from the log: `audited` in
+  `tools/_common.py` logs the cause's unscrubbed text. The server stays up. Reproduced by running it.
+- [ ] **A missing root whose name is not UTF-8 ends in a traceback (E-3).** Such a `--root` exits
+  with code 1 and a `UnicodeEncodeError` traceback, while a plain missing root exits with code 2:
+  `_resolve_roots` in `config.py` puts the surrogate in its `ValueError`. Startup only. Reproduced
+  by running it.
 - [ ] **Too deep JSON with a comment reports the wrong cause (D-3).** On `RecursionError`,
   `parse_json` in `core/peek/structured.py` raises the strict error, so deep but valid JSONC gives
   `Expecting value: line 1 column 1`, pointing at the comment instead of the nesting. Reproduced
