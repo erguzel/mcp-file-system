@@ -63,7 +63,7 @@ the code, not by running it, so reproduce it first.
   the file), and on Linux with a real file name that is not UTF-8 (`list_directory`) or such a
   root. A path in the list argument of `read_ranges` did it too. Now `to_call_result`,
   `translate_errors` and `build_instructions` replace surrogates with U+FFFD, and `write_file`
-  refuses to create a path holding it. Such a file stays listed but cannot be opened by that name.
+  refuses to create a name holding it. Such a file stays listed but cannot be opened by that name.
 - [ ] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
   `core/query/service.py` takes `values[0]`, so on `{"a": 1}\n{"b": 2}` the whole document is
   `a: 1` with no note, and `b` gives `No key b` although the file holds it. Reproduced by running

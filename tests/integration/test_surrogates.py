@@ -17,7 +17,14 @@ from mcp.client import Client
 from mcp.client.stdio import StdioServerParameters
 from mcp.types import CallToolResult, TextContent
 
-from conftest import SettingsFactory, undecodable_name_or_skip, write
+from conftest import (
+    ContextFactory,
+    SettingsFactory,
+    symlink_or_skip,
+    undecodable_name_or_skip,
+    write,
+)
+from mcp_file_system.errors import AccessDeniedError, StaleFileError
 from mcp_file_system.server import build_instructions, create_server
 
 pytestmark = pytest.mark.anyio
@@ -155,6 +162,33 @@ class TestWriteFileToADisplayedName:
         )
         assert result.is_error
         assert list(root.iterdir()) == []
+
+    async def test_a_dangling_link_to_such_a_name_is_refused(
+        self, root: Path, client: Client
+    ) -> None:
+        symlink_or_skip(root / "link", root / f"target{REPLACEMENT}.txt")
+        result = await client.call_tool("write_file", {"path": "link", "content": "x\n"})
+        assert result.is_error
+        assert not (root / f"target{REPLACEMENT}.txt").exists()
+
+    async def test_a_clean_new_name_in_a_real_directory_is_created(
+        self, root: Path, client: Client
+    ) -> None:
+        write(root / f"real{REPLACEMENT}" / "other.txt", "old\n")
+        path = f"real{REPLACEMENT}/new.txt"
+        result = await client.call_tool("write_file", {"path": path, "content": "x\n"})
+        assert not result.is_error
+        assert (root / path).read_bytes() == b"x\n"
+
+    def test_an_etag_on_a_missing_path_stays_stale(self, make_ctx: ContextFactory) -> None:
+        editor = make_ctx(allow_write=True).editor
+        with pytest.raises(StaleFileError):
+            editor.write(f"caf{REPLACEMENT}.txt", "x\n", overwrite=True, expected_etag="1-1")
+
+    def test_the_deny_list_comes_first(self, make_ctx: ContextFactory) -> None:
+        editor = make_ctx(allow_write=True).editor
+        with pytest.raises(AccessDeniedError):
+            editor.write(f"secret{REPLACEMENT}.pem", "x\n")
 
     async def test_a_real_name_with_the_character_can_be_overwritten(
         self, root: Path, client: Client
