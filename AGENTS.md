@@ -84,7 +84,7 @@ A change is finished only when **all** of these are true:
 | `src/mcp_file_system/security/` | `PathGuard`, `AccessPolicy` (deny list), safe regex with deadlines. |
 | `src/mcp_file_system/audit.py` | Optional audit log writer (one JSON line per tool call; content arguments as lengths only). |
 | `src/mcp_file_system/core/` | Domain logic: reading (`reader`, `textio`, `tracking`, `etag`), search (`search`, `finder`, `ignore`, `templates`, `logsummary`), structure (`outline`, `skeleton`, `peek`, `query`), editing (`editor`, `patch`, `history`), results (`models`, `render`). |
-| `src/mcp_file_system/tools/` | Thin MCP tool adapters, one module per group, each with `register()`; `_common.py` holds the `ToolRegistry`, shared parameter types and the audit wrapper. |
+| `src/mcp_file_system/tools/` | Thin MCP tool adapters, one module per group, each with `register()`; `_common.py` holds the `ToolRegistry`, shared parameter types, the audit wrapper and the scrub of lone surrogates from output. |
 | `tests/unit/`, `tests/security/`, `tests/integration/` | Tests; shared helpers in `tests/conftest.py`. |
 | `docs/ARCHITECTURE.md` | Layers, conventions, and how to extend (read before larger changes). |
 | `ROADMAP.md` | Single source of truth for open work: known bugs first, then planned items in order. |
@@ -160,7 +160,8 @@ def my_tool(
 
 ## Test conventions
 
-- Import helpers with `from conftest import write, symlink_or_skip, junction_or_skip, numbered`.
+- Import helpers with `from conftest import write, symlink_or_skip, junction_or_skip,
+  undecodable_name_or_skip, numbered`.
 - Create test files with `write(path, content)`. It writes exact bytes, so tests behave
   the same on Linux, macOS, and Windows. Do not rely on platform newline translation.
 - Use the `root` fixture for the workspace and `outside` for a directory that must stay

@@ -111,9 +111,9 @@ All notable changes to this project are documented here. The format follows
 
 - A lone surrogate in a tool's output no longer stops the server. It came from a JSON or YAML
   `"\ud800"` escape in a file, a file name that is not valid UTF-8, or such a name in the list
-  argument of `read_ranges`. The SDK could not send the result, so the call got no reply and the
-  server exited at the next message; a `grep` that matched such a file was enough. Output now
-  shows U+FFFD in its place. `write_file` refuses to create a file or directory with U+FFFD in its
+  argument of `read_ranges` sent as a string. The SDK could not send the result, so the call got no
+  reply and the server exited at the next message; a `grep` hit under such a key was enough.
+  Output now shows U+FFFD in its place. `write_file` refuses to create a file or directory with U+FFFD in its
   name, because writing to a name shown that way would create a second file beside the listed one.
 - `query` and `outline` read a JSON number with `+` in its exponent, such as `1e+5`, as one
   number. The grammar split it, so on valid JSON `query` gave `1` for that key and said the value

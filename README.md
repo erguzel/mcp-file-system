@@ -249,8 +249,8 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
 - JSON-RPC cannot carry a lone surrogate, so output shows U+FFFD (`�`) in its place. A file or
   directory whose name is not valid UTF-8 is listed that way but cannot be opened by the
   shown name, and `write_file` refuses to create a name holding U+FFFD. A JSON or YAML key
-  written as `"\ud800"` is shown the same way; `query` reaches it with that escape as a quoted
-  key path.
+  written as `"\ud800"` is shown the same way; `query` reaches it with a quoted key path holding
+  that escape as literal text, because a real surrogate in an argument gets no reply.
 
 ## Development
 
