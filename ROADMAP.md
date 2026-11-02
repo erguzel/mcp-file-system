@@ -15,8 +15,8 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2, D-1 and E-1 plans. Unless noted, an entry was confirmed by reading
-the code, not by running it, so reproduce it first.
+entries from the reviews of the B-F2, D-1 and E-1 plans and of the E-1 fix. Unless noted, an entry
+was confirmed by reading the code, not by running it, so reproduce it first.
 
 **Behavior bugs**
 
@@ -59,9 +59,9 @@ the code, not by running it, so reproduce it first.
 - [x] **A lone surrogate in a tool's output stops the server (E-1).** `stdout_writer` in the SDK's
   `server/stdio.py` raises `PydanticSerializationError` on the JSON-RPC message, outside any tool,
   so the call got no reply and the server exited with code 1 at its next message. Reproduced by
-  running it, on macOS with `{"\ud800": 1}` (`outline`, `query`, `peek`, or a `grep` that matches
-  the file), and on Linux with a real file name that is not UTF-8 (`list_directory`) or such a
-  root. A path in the list argument of `read_ranges` did it too. Now `to_call_result`,
+  running it, on macOS with `{"\ud800": 1}` (`outline`, `query`, `peek`, or a `grep` hit under that
+  key), and on Linux with a real file name that is not UTF-8 (`list_directory`) or such a root. A
+  path in the list argument of `read_ranges`, sent as a string, did it too. Now `to_call_result`,
   `translate_errors` and `build_instructions` replace surrogates with U+FFFD, and `write_file`
   refuses to create a name holding it. Such a file stays listed but cannot be opened by that name.
 - [ ] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
@@ -69,6 +69,11 @@ the code, not by running it, so reproduce it first.
   `a: 1` with no note, and `b` gives `No key b` although the file holds it. Reproduced by running
   it. `query` returns values from damaged files on purpose, so decide whether to reject such a
   file or to say that the rest was not read.
+- [ ] **`multi_replace` can write a raw byte into a UTF-8 file (E-4).** Its `edits` can arrive as a
+  string the SDK decodes, so a replacement holding `\udce9` reaches `encode_text` with
+  `errors="surrogateescape"` in `FileEditor._commit`, which writes it as the byte `\xe9`: `alpha`
+  became `b'caf\xe9\n'`, invalid UTF-8, and the result looked normal. `\ud800` is refused, and
+  `_unencodable_message` says every surrogate is. Reproduced by running it.
 
 **Lower priority**
 
@@ -95,6 +100,12 @@ the code, not by running it, so reproduce it first.
   with code 1 and a `UnicodeEncodeError` traceback, while a plain missing root exits with code 2:
   `_resolve_roots` in `config.py` puts the surrogate in its `ValueError`. Startup only. Reproduced
   by running it.
+- [ ] **A surrogate in an argument gets no reply (E-5).** The SDK's `stdin_reader` cannot validate a
+  message with `"\ud800"` or `"\udce9"` in its JSON, so that call waits forever, though the server
+  stays up. Reproduced by running it. A list argument sent as a string gets through (see E-4).
+- [ ] **A name shown with U+FFFD gives no clue (E-6).** Opening one says only `No such file or
+  directory`, with no cause or next step. `read_symbol` has no form that reaches a key shown that
+  way, while its error lists that same key, and `lite` has no `query`. Reproduced by running it.
 - [ ] **Too deep JSON with a comment reports the wrong cause (D-3).** On `RecursionError`,
   `parse_json` in `core/peek/structured.py` raises the strict error, so deep but valid JSONC gives
   `Expecting value: line 1 column 1`, pointing at the comment instead of the nesting. Reproduced
