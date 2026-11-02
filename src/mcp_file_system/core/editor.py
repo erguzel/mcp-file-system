@@ -602,6 +602,4 @@ class FileEditor:
                 lineterm="",
             )
         )
-        # Undecodable bytes are carried as lone surrogates, which cannot be serialized.
-        diff = diff.encode("utf-8", errors="replace").decode("utf-8")
         return truncate_text(diff, self._settings.max_output_chars, "diff truncated")

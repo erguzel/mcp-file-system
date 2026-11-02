@@ -130,6 +130,17 @@ async def test_structured_output_is_replaced_too(root: Path, client: Client) -> 
     assert REPLACEMENT in result.structured_content["content"]
 
 
+async def test_diff_shows_an_undecodable_byte_as_a_read_does(root: Path, client: Client) -> None:
+    # A BOM keeps the file UTF-8, so the byte stays undecodable rather than Latin-1.
+    write(root / "bom.txt", b"\xef\xbb\xbfcaf\xe9 line\nnext\n")
+    arguments = {"path": "bom.txt", "pattern": "next", "replacement": "after", "dry_run": True}
+    read = await client.call_tool("read_lines", {"path": "bom.txt"})
+    diff = await client.call_tool("replace_in_file", arguments)
+    assert_sendable(diff)
+    assert f"caf{REPLACEMENT} line" in text_of(read)
+    assert f"caf{REPLACEMENT} line" in text_of(diff)
+
+
 async def test_replacing_keeps_the_length_output_limits_count(root: Path, client: Client) -> None:
     write(root / "odd.json", '{"' + "\\ud800" * 200 + '": 1}\n')
     write(root / "wide.json", '{"' + "é" * 200 + '": 1}\n')
