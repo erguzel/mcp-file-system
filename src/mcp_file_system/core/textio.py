@@ -39,6 +39,8 @@ _BOM_ENCODINGS: dict[bytes, str] = {
 # Encodings in which every newline is the single ASCII byte, so bytes can be counted.
 _BYTE_COUNTABLE = frozenset({"utf-8", "utf-8-sig", "latin-1"})
 NEWLINE_NAMES = {"\n": "LF", "\r\n": "CRLF", "\r": "CR"}
+UNDECODABLE_CHAR = "�"
+"""Stands for what cannot be shown as text, in a decoded file and in a tool's output."""
 
 _EOL = re.compile(r"\r\n|\r|\n")
 _LINE_WITH_END = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+")

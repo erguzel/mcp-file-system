@@ -21,7 +21,7 @@ from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog
 from mcp_file_system.config import LogLevel, Settings
 from mcp_file_system.context import AppContext
 from mcp_file_system.tools import register_all
-from mcp_file_system.tools._common import UNKNOWN_TOOL_ERROR, describe_rejection
+from mcp_file_system.tools._common import UNKNOWN_TOOL_ERROR, describe_rejection, scrub_surrogates
 
 SERVER_NAME = "mcp-file-system"
 
@@ -113,7 +113,7 @@ def build_instructions(settings: Settings) -> str:
     def offered(*names: str) -> list[str]:
         return [name for name in names if not settings.tools or name in settings.tools]
 
-    roots = "\n".join(f"- {root}" for root in settings.roots)
+    roots = scrub_surrogates("\n".join(f"- {root}" for root in settings.roots))
     lines = [
         "Fine-grained filesystem access. Read only what you need instead of whole files.",
         f"Allowed roots (relative paths resolve against the first):\n{roots}",
