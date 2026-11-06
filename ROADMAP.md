@@ -15,8 +15,8 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2, D-1, E-1 and E-4 plans and of the E-1 fix, and from probing
-the E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
+entries from the reviews of the B-F2, D-1, E-1, E-4 and E-9 plans and of the E-1 fix, and from
+probing the E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
 reproduce it first.
 
 **Behavior bugs**
@@ -91,6 +91,14 @@ reproduce it first.
   bytes would read back differently (a shifted or joined unit) or as another encoding (U+0000
   first in UTF-16-LE). Any file that starts with a UTF-16 or UTF-32 BOM, a binary one too, is
   now edited this way, byte for byte.
+- [ ] **An edit can change the encoding a UTF-8 or Latin-1 file is read as (E-10).** The encoding
+  is sniffed from the first 8 KiB on every read. E-4 lets a file's own undecodable byte move, so a
+  regex edit that moves a late `\xff` of a UTF-8 file into that window makes the next read take the
+  file as Latin-1: `café` then reads `cafÃ©`, with no word about it. The other way, removing the
+  only non-UTF-8 byte from the first 8 KiB of a Latin-1 file whose later lines hold more makes it
+  read as UTF-8, and `été` further down reads `�t�`. The bytes are kept either way. UTF-16 and
+  UTF-32 refuse such an edit since E-9. Reproduced by running it. Decide whether to refuse it, as
+  for UTF-16, or to say so in the result.
 
 **Lower priority**
 
