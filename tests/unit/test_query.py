@@ -210,6 +210,36 @@ class TestJson:
         with pytest.raises(SymbolNotFoundError, match="syntax errors, which may hide keys"):
             query(ctx, root / "bad.json", "missing")
 
+    @pytest.mark.parametrize(
+        ("body", "count"),
+        [
+            ('{"a": 1}\n{"b": 2}\n', 2),
+            ('{"a": 1}\r\n{"b": 2}\r\n{"c": 3}\r\n', 3),
+            ('{"a": 1}{"b": 2}', 2),
+            ('// header\n{"a": 1}\n{"b": 2}\n', 2),
+            ("1\n2\n", 2),
+        ],
+        ids=["newline-delimited", "crlf", "side-by-side", "comment-first", "scalars"],
+    )
+    def test_several_top_level_values_are_rejected(
+        self, root: Path, ctx: AppContext, body: str, count: int
+    ) -> None:
+        write(root / "several.json", body)
+        with pytest.raises(ParseError, match=r"Cannot parse several\.json.*read_lines") as error:
+            query(ctx, root / "several.json")
+        assert str(count) in str(error.value)
+
+    @pytest.mark.parametrize(
+        "body", ['{"a": 1}}\n', '{"a": 1} x {"b": 2}\n'], ids=["junk", "two-values"]
+    )
+    def test_file_with_syntax_errors_keeps_its_first_value(
+        self, root: Path, ctx: AppContext, body: str
+    ) -> None:
+        write(root / "junk.json", body)
+        result = query(ctx, root / "junk.json")
+        assert result.content == "a: 1"
+        assert result.note == "The file has syntax errors elsewhere; this value parsed cleanly."
+
 
 class TestYaml:
     def test_multi_document_streams_are_indexed(self, root: Path, ctx: AppContext) -> None:
