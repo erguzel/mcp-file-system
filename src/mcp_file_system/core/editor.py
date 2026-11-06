@@ -184,8 +184,9 @@ def _check_next_reading(display: str, fmt: TextFormat, data: bytes, new_text: st
     if detected is None:
         raise InvalidArgumentError(
             f"After this edit {display} would hold a NUL byte (U+0000) in its first {window}, "
-            "so it would look binary and text tools could not read it; nothing was changed. "
-            "Leave out U+0000."
+            "from the new text or from the file's own text moving up, so it would look binary "
+            "and text tools could not read it; nothing was changed. Leave out U+0000, and keep "
+            f"any NUL the file already holds beyond its first {window}."
         )
     if _signature(detected) != _signature(fmt):
         raise InvalidArgumentError(
@@ -202,7 +203,7 @@ def _check_next_reading(display: str, fmt: TextFormat, data: bytes, new_text: st
             f"After this edit {display} is read as {_ENCODING_NAMES[detected.encoding]}, not "
             f"{_ENCODING_NAMES[fmt.encoding]}, since its encoding is guessed from its first "
             f"{window}; its other non-ASCII characters may read differently, though their "
-            "bytes are unchanged. If that is not wanted, do not keep this edit."
+            "bytes are unchanged. Check the lines that hold them with read_lines."
         )
     if decode_text(data, fmt) != new_text:
         raise InvalidArgumentError(
@@ -461,9 +462,9 @@ class FileEditor:
             InvalidArgumentError: The path is empty or holds a NUL byte; an overwrite lacks
                 ``expected_etag``; a file or directory to create has ``UNDECODABLE_CHAR`` in
                 its name; ``content`` holds a lone surrogate the file did not, or a
-                character the file's encoding cannot store; or, in a UTF-16 or UTF-32 file,
-                the bytes would not read back as ``content`` or would read as another
-                encoding.
+                character the file's encoding cannot store; the bytes would put a NUL byte in
+                the sniffed start or begin with another byte-order mark (also for a new
+                file); or, in a UTF-16 or UTF-32 file, would not read back as ``content``.
             PathOutsideRootError: The path escapes every root.
             AccessDeniedError: The deny list blocks the path.
             PathTypeError: The path exists but is not a regular file.
