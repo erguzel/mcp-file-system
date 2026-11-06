@@ -15,9 +15,9 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2, D-1 and E-1 plans and of the E-1 fix, and from probing the E-2
-fix. Unless noted, an entry
-was confirmed by reading the code, not by running it, so reproduce it first.
+entries from the reviews of the B-F2, D-1 and E-1 plans and of the E-1 fix, and from probing the
+E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
+reproduce it first.
 
 **Behavior bugs**
 
