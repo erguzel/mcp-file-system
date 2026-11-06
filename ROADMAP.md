@@ -68,9 +68,9 @@ was confirmed by reading the code, not by running it, so reproduce it first.
 - [x] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
   `core/query/service.py` took `values[0]`, so on `{"a": 1}\n{"b": 2}` the whole document was
   `a: 1` with no note, and `b` gave `No key b` although the file holds it. Reproduced by running
-  it. Now such a file is rejected with `ParseError`, as in `peek`. A file with syntax errors is
-  not counted, because recovery can split one broken value (`true+5`); it keeps its first value
-  and the damage note.
+  it. Now such a file is rejected with `ParseError`, as in `peek`, also when a record is broken.
+  Values with an `ERROR` node between them are not counted, because recovery splits one broken
+  value that way (`true+5`); such a file keeps its first value and the damage note.
 - [ ] **`multi_replace` can write a raw byte into a UTF-8 file (E-4).** Its `edits` can arrive as a
   string the SDK decodes, so a replacement holding `\udce9` reaches `encode_text` with
   `errors="surrogateescape"` in `FileEditor._commit`, which writes it as the byte `\xe9`: `alpha`
