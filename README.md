@@ -245,8 +245,9 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
 - Writes are off by default. When enabled, they are confined like reads and written
   atomically. `edit_lines`, `apply_patch` and overwrites require the file's etag,
   replacements verify one when given, and the etag is re-checked immediately before the
-  write. Edits preserve encoding, BOM, newline style and permissions; bytes a file holds that
-  its encoding cannot decode are kept, and new text that would add one is refused.
+  write. Edits preserve encoding, BOM, newline style and permissions. Bytes a UTF-8 file holds
+  that do not decode are kept, and new text holding a lone surrogate (U+D800..U+DFFF) the file
+  did not hold is refused, since it could add such a byte.
 - JSON-RPC cannot carry a lone surrogate, so output shows U+FFFD (`�`) in its place. A file or
   directory whose name is not valid UTF-8 is listed that way but cannot be opened by the
   shown name, and `write_file` refuses to create a name holding U+FFFD. A JSON or YAML key

@@ -118,12 +118,13 @@ def _new_name_is_undecodable(path: Path) -> bool:
 def _reject_added_surrogates(display: str, old: str, new: str) -> None:
     """Refuse new text holding a lone surrogate the file's own text did not hold.
 
-    ``surrogateescape`` writes U+DC80..U+DCFF as the raw byte it stands for, so one sent by
-    the agent (a list argument the SDK decodes from a string, or a ``\\udce9`` escape in a
-    regex replacement) would add a byte the file never had. Reads show such bytes as
-    U+FFFD, so legitimate new text never holds one. Counting keeps the file's own bytes
-    where they were, or moved, but never adds a copy. A move can join stray bytes into
-    valid text; that is accepted, since no byte is added.
+    In a UTF-8 or Latin-1 file ``surrogateescape`` writes U+DC80..U+DCFF as the raw byte it
+    stands for, so one sent by the agent (a list argument the SDK decodes from a string, or
+    a ``\\udce9`` escape in a regex replacement) would add a byte the file never had; a
+    regex group repeated over one of the file's undecodable bytes would copy it. Reads
+    show such bytes as U+FFFD, so legitimate new text never holds one. Counting keeps the
+    file's own bytes where they were, or moved, but never adds a copy. A move can join
+    stray bytes into valid text; that is accepted, since no byte is added.
 
     Raises:
         InvalidArgumentError: ``new`` holds more of some surrogate than ``old``.
@@ -133,9 +134,10 @@ def _reject_added_surrogates(display: str, old: str, new: str) -> None:
     added = Counter(LONE_SURROGATE.findall(new)) - Counter(LONE_SURROGATE.findall(old))
     if added:
         raise InvalidArgumentError(
-            f"The new text holds a character in U+D800..U+DFFF, which stands for no text and "
-            f"would be written as a raw byte; nothing was changed in {display}. Send each "
-            "character as itself."
+            "The edit would add a lone surrogate (U+D800..U+DFFF), which stands for no text, "
+            f"so nothing was changed in {display}. It comes from a character sent as an escape "
+            "for one, or from another copy of an undecodable byte the file holds (shown as "
+            "U+FFFD). Send each character as itself, and do not copy text shown as U+FFFD."
         )
 
 
@@ -387,9 +389,20 @@ class FileEditor:
         file beside the listed one. Existing parents may hold it.
 
         Raises:
-            InvalidArgumentError: A file or directory to create has ``UNDECODABLE_CHAR`` in its
-                name, or ``content`` would add an undecodable byte.
-            StaleFileError: ``expected_etag`` was given but the file no longer exists.
+            InvalidArgumentError: The path is empty or holds a NUL byte; an overwrite lacks
+                ``expected_etag``; a file or directory to create has ``UNDECODABLE_CHAR`` in
+                its name; or ``content`` holds a lone surrogate the file did not, or a
+                character the file's encoding cannot store.
+            PathOutsideRootError: The path escapes every root.
+            AccessDeniedError: The deny list blocks the path.
+            PathTypeError: The path exists but is not a regular file.
+            AlreadyExistsError: The file exists and ``overwrite`` is off, or it appeared
+                before it could be created.
+            StaleFileError: ``expected_etag`` was given but the file no longer exists, or
+                the file changed since that etag.
+            FileTooLargeError: The file to overwrite, or the new content, exceeds
+                ``max_file_bytes``.
+            BinaryFileError: The file to overwrite looks binary.
         """
         resolved = self._guard.resolve(path, must_exist=False)
         if resolved.path.exists():

@@ -64,9 +64,9 @@ another protocol) without a server. Both rules are enforced by
 - **Lone surrogates** cannot travel over JSON-RPC, and one in a result stops the stdio server
   outside any tool. `translate_errors` and `to_call_result`, where a tool's output leaves, and
   `build_instructions` replace them with U+FFFD (`tools._common.scrub_surrogates`), so services
-  need not care. The one exception is the editor: it writes U+DC80..U+DCFF as raw bytes
-  (`surrogateescape`), so `FileEditor._commit` refuses new text holding more of them than the
-  file's own text.
+  need not care. The one exception is the editor: in a UTF-8 or Latin-1 file it writes
+  U+DC80..U+DCFF as raw bytes (`surrogateescape`), so `FileEditor._commit` refuses new text
+  holding more of any surrogate (U+D800..U+DFFF) than the file's own text.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
   `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.

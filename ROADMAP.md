@@ -81,9 +81,9 @@ reproduce it first.
   editing tool; the file's own undecodable bytes still round-trip.
 - [ ] **A UTF-16 or UTF-32 file that is not valid in its encoding cannot be edited (E-9).**
   `FileEditor._load` decodes with `errors="surrogateescape"`, which cannot escape a byte below
-  0x80, so a lone surrogate unit such as `\x00\xd8` (UTF-16-LE) or a cut-off last unit raises a raw
-  `UnicodeDecodeError`: every editing tool gives a generic `Error executing tool` and the SDK logs a
-  traceback. When both bytes of the bad unit are 0x80 or above (`\x80\xdc`), the file loads, but
+  0x80, so a lone surrogate unit such as `\x00\xd8` (UTF-16-LE), or a cut-off last unit with such a
+  byte, raises a raw `UnicodeDecodeError`: every editing tool gives a generic `Error executing tool`
+  and the SDK logs a traceback. When every bad byte is 0x80 or above (`\x80\xdc`), the file loads, but
   those codecs refuse to encode the escapes back, so every edit fails with "The new text contains
   an unpaired surrogate", although the new text holds none. The file stays unchanged; read tools
   show U+FFFD. Reproduced by running it.
