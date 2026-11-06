@@ -218,8 +218,9 @@ class TestJson:
             ('{"a": 1}{"b": 2}', 2),
             ('// header\n{"a": 1}\n{"b": 2}\n', 2),
             ("1\n2\n", 2),
+            ('{"a": 1}\n{"b": }\n{"c": 3}\n', 3),
         ],
-        ids=["newline-delimited", "crlf", "side-by-side", "comment-first", "scalars"],
+        ids=["newline-delimited", "crlf", "side-by-side", "comment-first", "scalars", "bad-record"],
     )
     def test_several_top_level_values_are_rejected(
         self, root: Path, ctx: AppContext, body: str, count: int
