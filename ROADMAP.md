@@ -15,8 +15,8 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2, D-1 and E-1 plans and of the E-1 fix, and from probing the
-E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
+entries from the reviews of the B-F2, D-1, E-1 and E-4 plans and of the E-1 fix, and from probing
+the E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
 reproduce it first.
 
 **Behavior bugs**
@@ -79,6 +79,14 @@ reproduce it first.
   while the result looked normal. UTF-16 and UTF-32 files refused it. Reproduced by running it.
   Now `_commit` refuses new text holding more of any surrogate than the file's own text, for every
   editing tool; the file's own undecodable bytes still round-trip.
+- [ ] **A UTF-16 or UTF-32 file that is not valid in its encoding cannot be edited (E-9).**
+  `FileEditor._load` decodes with `errors="surrogateescape"`, which cannot escape a byte below
+  0x80, so a lone surrogate unit such as `\x00\xd8` (UTF-16-LE) or a cut-off last unit raises a raw
+  `UnicodeDecodeError`: every editing tool gives a generic `Error executing tool` and the SDK logs a
+  traceback. When both bytes of the bad unit are 0x80 or above (`\x80\xdc`), the file loads, but
+  those codecs refuse to encode the escapes back, so every edit fails with "The new text contains
+  an unpaired surrogate", although the new text holds none. The file stays unchanged; read tools
+  show U+FFFD. Reproduced by running it.
 
 **Lower priority**
 
