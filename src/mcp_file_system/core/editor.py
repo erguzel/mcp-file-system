@@ -149,10 +149,11 @@ def _reject_added_surrogates(display: str, old: str, new: str) -> None:
 def _reject_changed_reading(display: str, fmt: TextFormat, data: bytes, new_text: str) -> None:
     """Refuse UTF-16 or UTF-32 bytes that would not read back as ``new_text``.
 
-    A cut-off last unit leaves an odd number of undecodable bytes at the end of the file.
-    Text added after it, or a moved or deleted escape (a regex ``.`` matches one), shifts
-    every later unit, and moved units can join into a character; the diff would not show
-    what the file then holds. A U+0000 written first makes a UTF-16-LE BOM look like the
+    A cut-off last unit leaves undecodable bytes at the end of the file that are not a whole
+    unit: one byte in UTF-16, one to three in UTF-32, so the count may be even. Text added
+    after it, or a moved or deleted escape (a regex ``.`` matches one), shifts every later
+    unit, and moved units can join into a character; the diff would not show what the file
+    then holds. A U+0000 written first makes a UTF-16-LE BOM look like the
     UTF-32-LE one. Neither message quotes the text (errors reach the audit log).
 
     Raises:
