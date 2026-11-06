@@ -41,6 +41,8 @@ _BYTE_COUNTABLE = frozenset({"utf-8", "utf-8-sig", "latin-1"})
 NEWLINE_NAMES = {"\n": "LF", "\r\n": "CRLF", "\r": "CR"}
 UNDECODABLE_CHAR = "�"
 """Stands for what cannot be shown as text, in a decoded file and in a tool's output."""
+LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+"""Matches a lone surrogate: an undecodable byte kept by ``surrogateescape``, or a JSON escape."""
 
 _EOL = re.compile(r"\r\n|\r|\n")
 _LINE_WITH_END = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+")

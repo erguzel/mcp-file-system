@@ -148,9 +148,12 @@ All notable changes to this project are documented here. The format follows
   longer reads on to the end of the file. A `read_between` block cut before its end
   pattern has no known end and keeps the start-only hint.
 - Editing a file with text its encoding cannot store (e.g. `ş` or `€` in a legacy file
-  read as Latin-1, or an unpaired surrogate) no longer fails with a generic tool error
-  and a stack trace on stderr. All editing tools now report which encoding is involved
-  and what to do, and leave the file unchanged.
+  read as Latin-1) no longer fails with a generic tool error and a stack trace on stderr.
+  All editing tools now report which encoding is involved and what to do, and leave the
+  file unchanged. New text holding a lone surrogate is refused too, with its own message:
+  one in U+DC80..U+DCFF, from a list argument sent as a string or a `\udce9` escape in a
+  regex replacement, used to be written as a raw byte, which made a UTF-8 file invalid and
+  put a silent `é` into a Latin-1 file.
 - `.gitignore` files are split into patterns at line ends only. Characters such as a form
   feed inside a pattern no longer split it into two patterns that could hide unrelated
   paths from walks and searches.
