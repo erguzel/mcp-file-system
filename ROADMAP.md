@@ -96,9 +96,13 @@ reproduce it first.
   regex edit that moves a late `\xff` of a UTF-8 file into that window makes the next read take the
   file as Latin-1: `café` then reads `cafÃ©`, with no word about it. The other way, removing the
   only non-UTF-8 byte from the first 8 KiB of a Latin-1 file whose later lines hold more makes it
-  read as UTF-8, and `été` further down reads `�t�`. The bytes are kept either way. UTF-16 and
-  UTF-32 refuse such an edit since E-9. Reproduced by running it. Decide whether to refuse it, as
-  for UTF-16, or to say so in the result.
+  read as UTF-8, and `été` further down reads `�t�`. Worse, an edit can make the file start with
+  a byte-order mark, even with valid new text: replacing the `é` that starts a Latin-1 file with
+  `ÿþ` writes `FF FE`, and the whole file then reads as UTF-16-LE garbage; a UTF-8 file's own
+  `\xff\xfe` moved to the start does the same. U+FEFF written first in a UTF-8 file makes it
+  `utf-8-sig`, and the character disappears from reads. The bytes are kept in every case. UTF-16
+  and UTF-32 refuse such an edit since E-9. Reproduced by running it. Decide whether to refuse
+  it, as for UTF-16, or to say so in the result.
 
 **Lower priority**
 
