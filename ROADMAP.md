@@ -71,11 +71,14 @@ reproduce it first.
   it. Now such a file is rejected with `ParseError`, as in `peek`, also when a record is broken.
   Values with an `ERROR` node between them are not counted, because recovery splits one broken
   value that way (`true+5`); such a file keeps its first value and the damage note.
-- [ ] **`multi_replace` can write a raw byte into a UTF-8 file (E-4).** Its `edits` can arrive as a
-  string the SDK decodes, so a replacement holding `\udce9` reaches `encode_text` with
-  `errors="surrogateescape"` in `FileEditor._commit`, which writes it as the byte `\xe9`: `alpha`
-  became `b'caf\xe9\n'`, invalid UTF-8, and the result looked normal. `\ud800` is refused, and
-  `_unencodable_message` says every surrogate is. Reproduced by running it.
+- [x] **Editing tools can write a raw byte into a file (E-4).** `multi_replace`'s `edits` can arrive
+  as a string the SDK decodes, and `replace_in_file` with `regex=true` expands a `\udce9` escape in
+  its replacement, plain ASCII on the wire. Either way a surrogate in U+DC80..U+DCFF reached
+  `encode_text` with `errors="surrogateescape"` in `FileEditor._commit`, which wrote it as the byte
+  `\xe9`: `alpha` became `b'caf\xe9\n'`, invalid UTF-8, and a Latin-1 file silently gained `é`,
+  while the result looked normal. UTF-16 and UTF-32 files refused it. Reproduced by running it.
+  Now `_commit` refuses new text holding more of any surrogate than the file's own text, for every
+  editing tool; the file's own undecodable bytes still round-trip.
 
 **Lower priority**
 
@@ -104,7 +107,8 @@ reproduce it first.
   by running it.
 - [ ] **A surrogate in an argument gets no reply (E-5).** The SDK's `stdin_reader` cannot validate a
   message with `"\ud800"` or `"\udce9"` in its JSON, so that call waits forever, though the server
-  stays up. Reproduced by running it. A list argument sent as a string gets through (see E-4).
+  stays up. Reproduced by running it. A list argument sent as a string gets through; the editing
+  tools refuse its surrogates in new text (E-4).
 - [ ] **A name shown with U+FFFD gives no clue (E-6).** Opening one says only `No such file or
   directory`, with no cause or next step. `read_symbol` has no form that reaches a key shown that
   way, while its error lists that same key, and `lite` has no `query`. Reproduced by running it.

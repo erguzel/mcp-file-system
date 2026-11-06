@@ -115,18 +115,10 @@ class TestReplace:
         ctx.editor.replace("a.txt", "café", "bar")
         assert path.read_bytes() == b"bar\n"
 
-    @pytest.mark.parametrize(
-        ("original", "replacement", "message"),
-        [
-            (b"caf\xe9\n", "\u015feker", "latin-1 cannot store"),
-            (b"cafe\n", "\ud800", "unpaired surrogate"),
-        ],
-    )
-    def test_unencodable_text_is_an_actionable_error(
-        self, ctx: AppContext, root: Path, original: bytes, replacement: str, message: str
-    ) -> None:
+    def test_unencodable_text_is_an_actionable_error(self, ctx: AppContext, root: Path) -> None:
+        original, replacement = b"caf\xe9\n", "\u015feker"
         path = write(root / "a.txt", original)
-        with pytest.raises(InvalidArgumentError, match=message) as error:
+        with pytest.raises(InvalidArgumentError, match="latin-1 cannot store") as error:
             ctx.editor.replace("a.txt", "caf", replacement, dry_run=True)
         assert replacement not in str(error.value)
         with pytest.raises(InvalidArgumentError, match="nothing was changed"):
@@ -467,6 +459,88 @@ class TestApplyPatch:
             ctx.editor.apply_patch(str(outside / "secret.txt"), self.DIFF, expected_etag="0-0")
         with pytest.raises(InvalidArgumentError, match="larger than max_file_bytes"):
             ctx.editor.apply_patch("f.txt", self.DIFF + " x\n" * 30, expected_etag=etag(path))
+
+
+def _escape(char: str) -> str:
+    """The ASCII ``\\uXXXX`` escape for ``char``, as a regex replacement template takes it."""
+    return f"\\u{ord(char):04x}"
+
+
+# Each writer puts "caf" + the character in place of line 1, "alpha", of a.txt.
+WRITERS: dict[str, Callable[[FileEditor, Path, str, bool], object]] = {
+    "replace": lambda e, p, c, d: e.replace("a.txt", "alpha", f"caf{c}", dry_run=d),
+    "replace-regex-escape": lambda e, p, c, d: e.replace(
+        "a.txt", "alpha", f"caf{_escape(c)}", regex=True, dry_run=d
+    ),
+    "multi_replace": lambda e, p, c, d: e.multi_replace(
+        "a.txt", [edit("alpha", f"caf{c}")], dry_run=d
+    ),
+    "edit_lines": lambda e, p, c, d: e.edit_lines(
+        "a.txt", 1, 1, f"caf{c}", expected_etag=etag(p), dry_run=d
+    ),
+    "apply_patch": lambda e, p, c, d: e.apply_patch(
+        "a.txt", f"@@ -1,1 +1,1 @@\n-alpha\n+caf{c}\n", expected_etag=etag(p), dry_run=d
+    ),
+    "write-overwrite": lambda e, p, c, d: e.write(
+        "a.txt", f"caf{c}\nbeta\n", overwrite=True, expected_etag=etag(p), dry_run=d
+    ),
+}
+
+
+# U+DCE9 stands for the byte 0xE9 under surrogateescape; U+D800 stands for no byte at all.
+SURROGATES = [chr(0xDCE9), chr(0xD800)]
+SURROGATE_IDS = ["escaped-byte", "high-surrogate"]
+
+
+class TestNewTextCannotAddAByte:
+    """A lone surrogate in new text would be written as a raw byte (``surrogateescape``)."""
+
+    @pytest.mark.parametrize("dry_run", [False, True])
+    @pytest.mark.parametrize("char", SURROGATES, ids=SURROGATE_IDS)
+    @pytest.mark.parametrize(
+        "original",
+        [b"alpha\nbeta\n", codecs.BOM_UTF8 + b"alpha\nbeta\n", b"alpha\nbeta \xe9\n"],
+        ids=["utf-8", "utf-8-sig", "latin-1"],
+    )
+    @pytest.mark.parametrize("writer", list(WRITERS), ids=list(WRITERS))
+    def test_is_refused_and_changes_nothing(
+        self, ctx: AppContext, root: Path, writer: str, original: bytes, char: str, dry_run: bool
+    ) -> None:
+        path = write(root / "a.txt", original)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed") as error:
+            WRITERS[writer](ctx.editor, path, char, dry_run)
+        assert char not in str(error.value)
+        assert _escape(char) not in str(error.value)
+        assert path.read_bytes() == original
+
+    @pytest.mark.parametrize("char", SURROGATES, ids=SURROGATE_IDS)
+    def test_creating_is_refused(self, ctx: AppContext, root: Path, char: str) -> None:
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            ctx.editor.write("new.txt", f"caf{char}\n")
+        assert not (root / "new.txt").exists()
+
+    # Valid UTF-8 for the sniffed prefix, so the late byte is read as a surrogate escape.
+    UNDECODABLE = b"a = 1\n" * 2000 + b"blob = '\xff'\nb = 2\n"
+
+    def test_the_files_own_byte_can_move(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.py", self.UNDECODABLE)
+        ctx.editor.replace("a.py", r"blob = '(.)'\nb = 2", r"b = 2\nblob = '\1'", regex=True)
+        assert path.read_bytes() == b"a = 1\n" * 2000 + b"b = 2\nblob = '\xff'\n"
+
+    def test_utf16_cannot_write_back_its_own_bad_unit(self, ctx: AppContext, root: Path) -> None:
+        # Both bytes of the lone unit are >= 0x80, so it loads as two escapes, which the
+        # UTF-16 codec refuses to encode; the file is left alone.
+        original = codecs.BOM_UTF16_LE + "A\n".encode("utf-16-le") + b"\x80\xdc"
+        path = write(root / "a.txt", original)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            ctx.editor.replace("a.txt", "A", "Z")
+        assert path.read_bytes() == original
+
+    def test_the_files_own_byte_cannot_be_copied(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.py", self.UNDECODABLE)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            ctx.editor.replace("a.py", r"'(.)'", r"'\1\1'", regex=True)
+        assert path.read_bytes() == self.UNDECODABLE
 
 
 class TestUndo:

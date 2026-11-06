@@ -6,7 +6,7 @@ Every edit:
 * refuses to run against a stale view of the file (etag check, re-verified right
   before writing),
 * preserves the file's encoding, BOM, newline style and permissions, and round-trips
-  undecodable bytes unchanged (``surrogateescape``),
+  undecodable bytes unchanged (``surrogateescape``), while new text cannot add one,
 * is written atomically (temporary file in the same directory + :func:`os.replace`),
 * returns a unified diff, and can be previewed with ``dry_run``,
 * is recorded for ``undo_last_edit`` when an edit history is configured.
@@ -17,6 +17,7 @@ import os
 import re
 import stat
 import tempfile
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -36,6 +37,7 @@ from mcp_file_system.core.models import (
 from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
+    LONE_SURROGATE,
     UNDECODABLE_CHAR,
     TextFormat,
     check_size,
@@ -113,12 +115,37 @@ def _new_name_is_undecodable(path: Path) -> bool:
     return any(UNDECODABLE_CHAR in part.name for part in missing)
 
 
+def _reject_added_surrogates(display: str, old: str, new: str) -> None:
+    """Refuse new text holding a lone surrogate the file's own text did not hold.
+
+    ``surrogateescape`` writes U+DC80..U+DCFF as the raw byte it stands for, so one sent by
+    the agent (a list argument the SDK decodes from a string, or a ``\\udce9`` escape in a
+    regex replacement) would add a byte the file never had. Reads show such bytes as
+    U+FFFD, so legitimate new text never holds one. Counting keeps the file's own bytes
+    where they were, or moved, but never adds a copy. A move can join stray bytes into
+    valid text; that is accepted, since no byte is added.
+
+    Raises:
+        InvalidArgumentError: ``new`` holds more of some surrogate than ``old``.
+    """
+    if not LONE_SURROGATE.search(new):
+        return
+    added = Counter(LONE_SURROGATE.findall(new)) - Counter(LONE_SURROGATE.findall(old))
+    if added:
+        raise InvalidArgumentError(
+            f"The new text holds a character in U+D800..U+DFFF, which stands for no text and "
+            f"would be written as a raw byte; nothing was changed in {display}. Send each "
+            "character as itself."
+        )
+
+
 def _unencodable_message(display: str, encoding: str) -> str:
     """Explain why new text cannot be written, without quoting it (errors reach the audit log).
 
     Legacy files are read as Latin-1 when they are not valid UTF-8, so characters such as
-    'ş' or '€' cannot be stored in them. UTF encodings store every character except
-    unpaired surrogates, which can arrive through JSON escapes.
+    'ş' or '€' cannot be stored in them. A UTF encoding stores every character except a lone
+    surrogate; :func:`_reject_added_surrogates` already refused one the new text adds, so
+    only a UTF-16 or UTF-32 file's own undecodable bytes reach the first branch.
     """
     if encoding.startswith("utf"):
         return (
@@ -361,7 +388,7 @@ class FileEditor:
 
         Raises:
             InvalidArgumentError: A file or directory to create has ``UNDECODABLE_CHAR`` in its
-                name.
+                name, or ``content`` would add an undecodable byte.
             StaleFileError: ``expected_etag`` was given but the file no longer exists.
         """
         resolved = self._guard.resolve(path, must_exist=False)
@@ -547,6 +574,7 @@ class FileEditor:
         dry_run: bool,
         create: bool = False,
     ) -> EditResult:
+        _reject_added_surrogates(resolved.display, document.text, new_text)
         diff, cut = self._diff(resolved.display, document.text, new_text, create=create)
         try:
             data = encode_text(new_text, document.fmt, errors="surrogateescape")

@@ -3,7 +3,6 @@
 import functools
 import inspect
 import logging
-import re
 import time
 from collections.abc import Callable
 from typing import Annotated, Any
@@ -16,12 +15,10 @@ from pydantic import Field, ValidationError
 from mcp_file_system.audit import MAX_ARGUMENT_CHARS, AuditLog
 from mcp_file_system.config import Settings
 from mcp_file_system.core.models import ToolResult
-from mcp_file_system.core.textio import UNDECODABLE_CHAR
+from mcp_file_system.core.textio import LONE_SURROGATE, UNDECODABLE_CHAR
 from mcp_file_system.errors import FsError, describe_os_error
 
 logger = logging.getLogger("mcp_file_system.tools")
-
-_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 """Annotations for tools that never modify anything."""
@@ -75,7 +72,7 @@ def scrub_surrogates(text: str) -> str:
     the client gets no reply and the server exits. The length stays the same, so output
     limits still hold.
     """
-    return _LONE_SURROGATE.sub(UNDECODABLE_CHAR, text)
+    return LONE_SURROGATE.sub(UNDECODABLE_CHAR, text)
 
 
 def _scrub_values(value: Any) -> Any:

@@ -64,7 +64,9 @@ another protocol) without a server. Both rules are enforced by
 - **Lone surrogates** cannot travel over JSON-RPC, and one in a result stops the stdio server
   outside any tool. `translate_errors` and `to_call_result`, where a tool's output leaves, and
   `build_instructions` replace them with U+FFFD (`tools._common.scrub_surrogates`), so services
-  need not care.
+  need not care. The one exception is the editor: it writes U+DC80..U+DCFF as raw bytes
+  (`surrogateescape`), so `FileEditor._commit` refuses new text holding more of them than the
+  file's own text.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
   `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.
@@ -169,7 +171,8 @@ around `server.run("streamable-http", host=..., port=...)` and the checklist bel
 - lone surrogates in arguments (JSON `"\ud800"`): over stdio the `mcp` 2.x SDK drops a
   message with one in its JSON before any tool runs, with no reply (E-5 in `ROADMAP.md`), but an
   HTTP path must be checked again. A list argument can arrive as a string the SDK decodes later,
-  so its text reaches the tools even over stdio (E-4). As a path, `\udce9` is an ordinary lookup,
+  so its text reaches the tools even over stdio, as does a `\udce9` escape in a regex
+  replacement; the editor refuses such text (E-4). As a path, `\udce9` is an ordinary lookup,
   while `\ud800` makes `PathGuard.resolve` fail with an unhandled `UnicodeEncodeError` (generic
   error, no file access). A surrogate in a logged string makes `AuditLog.record` raise (A-D2).
   The fix is an `os.fsencode` check in the guard and

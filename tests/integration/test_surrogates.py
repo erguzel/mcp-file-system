@@ -151,6 +151,25 @@ async def test_replacing_keeps_the_length_output_limits_count(root: Path, client
     assert len(odd.structured_content["content"]) == len(wide.structured_content["content"])
 
 
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [
+        ("multi_replace", {"edits": '[{"pattern": "alpha", "replacement": "caf\\udce9"}]'}),
+        ("replace_in_file", {"pattern": "alpha", "replacement": "caf\\udce9", "regex": True}),
+    ],
+    ids=["list-argument", "regex-escape"],
+)
+async def test_new_text_cannot_add_an_undecodable_byte(
+    root: Path, client: Client, tool: str, arguments: dict[str, Any]
+) -> None:
+    # Both arrive as plain ASCII escapes, the way the wire carries them.
+    path = write(root / "a.txt", b"alpha\n")
+    result = await client.call_tool(tool, {"path": "a.txt", **arguments})
+    assert_sendable(result)
+    assert result.is_error
+    assert path.read_bytes() == b"alpha\n"
+
+
 def test_instructions_replace_a_surrogate_in_a_root(
     root: Path, make_settings: SettingsFactory
 ) -> None:
