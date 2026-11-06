@@ -8,11 +8,14 @@ Every edit:
 * preserves the file's encoding, BOM, newline style and permissions, and round-trips
   undecodable bytes unchanged (:func:`~mcp_file_system.core.textio.decode_text`), while new
   text cannot add one, and in UTF-16 or UTF-32 cannot shift or join them,
+* cannot make the next read take the file as binary or as another BOM encoding, and
+  notes when it makes it read as UTF-8 instead of Latin-1 or the reverse,
 * is written atomically (temporary file in the same directory + :func:`os.replace`),
 * returns a unified diff, and can be previewed with ``dry_run``,
 * is recorded for ``undo_last_edit`` when an edit history is configured.
 """
 
+import codecs
 import difflib
 import os
 import re
@@ -67,6 +70,8 @@ from mcp_file_system.security.regex import Deadline, compile_pattern
 NEW_FILE_MODE = 0o644
 MAX_EDITS = 50
 """Most replacements per multi_replace call."""
+_ENCODING_NAMES = {"utf-8": "UTF-8", "latin-1": "Latin-1"}
+"""Names for the encodings sniffed when a file has no byte-order mark."""
 MAX_RENAME_ATTEMPTS = 100
 """Candidate names tried when undo renames a created file."""
 _EOL = re.compile(r"\r\n|\r|\n")
@@ -129,7 +134,7 @@ def _reject_added_surrogates(display: str, old: str, new: str) -> None:
     Reads show such bytes as U+FFFD, so legitimate new text never holds one. Counting keeps
     the file's own bytes where they were, or moved, but never adds a copy. In UTF-8 and
     Latin-1 a move can join stray bytes into valid text; that is accepted, since no byte is
-    added. UTF-16 and UTF-32 refuse it in :func:`_reject_changed_reading`.
+    added. UTF-16 and UTF-32 refuse it in :func:`_check_next_reading`.
 
     Raises:
         InvalidArgumentError: ``new`` holds more of some surrogate than ``old``.
@@ -146,26 +151,58 @@ def _reject_added_surrogates(display: str, old: str, new: str) -> None:
         )
 
 
-def _reject_changed_reading(display: str, fmt: TextFormat, data: bytes, new_text: str) -> None:
-    """Refuse UTF-16 or UTF-32 bytes that would not read back as ``new_text``.
+def _signature(fmt: TextFormat) -> bytes:
+    """The byte-order mark a format is detected by; empty for UTF-8 and Latin-1."""
+    return codecs.BOM_UTF8 if fmt.encoding == "utf-8-sig" else fmt.bom
 
-    A cut-off last unit leaves undecodable bytes at the end of the file that are not a whole
-    unit: one byte in UTF-16, one to three in UTF-32, so the count may be even. Text added
-    after it, or a moved or deleted escape (a regex ``.`` matches one), shifts every later
-    unit, and moved units can join into a character; the diff would not show what the file
-    then holds. A U+0000 written first makes a UTF-16-LE BOM look like the
-    UTF-32-LE one. Neither message quotes the text (errors reach the audit log).
+
+def _check_next_reading(display: str, fmt: TextFormat, data: bytes, new_text: str) -> str | None:
+    """Check how the next read will take ``data``; return a note when it reads differently.
+
+    Every read sniffs the format from the first :data:`SNIFF_BYTES`, so an edit can change
+    it. A NUL byte there makes the file look binary, and a byte-order mark at the start
+    (U+0000 first in UTF-16-LE writes the UTF-32-LE one; ``ÿþ`` first in Latin-1 writes
+    UTF-16-LE's) makes the whole file read as another encoding: both are refused. Without a
+    BOM the sniff picks UTF-8 or Latin-1, and losing or gaining a byte that is not valid
+    UTF-8 in that window switches between them; refusing would leave edits such as deleting
+    the top lines impossible, so the edit goes ahead with a note, unless the text reads the
+    same either way (pure ASCII).
+
+    In UTF-16 and UTF-32 the bytes must also read back as ``new_text``. A cut-off last unit
+    leaves undecodable bytes at the end of the file that are not a whole unit: one byte in
+    UTF-16, one to three in UTF-32, so the count may be even. Text added after it, or a
+    moved or deleted escape (a regex ``.`` matches one), shifts every later unit, and moved
+    units can join into a character; the diff would not show what the file then holds.
+    No message quotes the text (errors reach the audit log).
 
     Raises:
-        InvalidArgumentError: ``data`` would be detected as another encoding, or would
-            decode to other text than ``new_text``.
+        InvalidArgumentError: ``data`` would look binary or start with another byte-order
+            mark, or, in UTF-16 or UTF-32, would decode to other text than ``new_text``.
     """
-    # The newline is not compared: an edit may change the first line terminator.
+    window = f"{SNIFF_BYTES // 1024} KiB"
     detected = detect_format_bytes(data[:SNIFF_BYTES])
-    if detected is None or detected.bom != fmt.bom:
+    if detected is None:
         raise InvalidArgumentError(
-            f"After this edit {display} would no longer be read as {fmt.encoding}, so nothing "
-            "was changed. Change how the file starts, e.g. do not begin it with U+0000."
+            f"After this edit {display} would hold a NUL byte (U+0000) in its first {window}, "
+            "so it would look binary and text tools could not read it; nothing was changed. "
+            "Leave out U+0000."
+        )
+    if _signature(detected) != _signature(fmt):
+        raise InvalidArgumentError(
+            f"After this edit {display} would start with another byte-order mark and be read "
+            f"as {detected.encoding}, not {fmt.encoding}; nothing was changed. Change how the "
+            "file starts: do not begin it with U+FEFF, U+0000, a U+FFFD, or characters whose "
+            "bytes form a byte-order mark (such as ÿþ in Latin-1)."
+        )
+    # The newline is not compared: an edit may change the first line terminator.
+    if not fmt.bom:
+        if detected.encoding == fmt.encoding or decode_text(data, detected) == new_text:
+            return None
+        return (
+            f"After this edit {display} is read as {_ENCODING_NAMES[detected.encoding]}, not "
+            f"{_ENCODING_NAMES[fmt.encoding]}, since its encoding is guessed from its first "
+            f"{window}; its other non-ASCII characters may read differently, though their "
+            "bytes are unchanged. If that is not wanted, do not keep this edit."
         )
     if decode_text(data, fmt) != new_text:
         raise InvalidArgumentError(
@@ -175,6 +212,7 @@ def _reject_changed_reading(display: str, fmt: TextFormat, data: bytes, new_text
             "U+FFFD at the end of the file and leave each U+FFFD where it is, or replace the "
             "whole lines holding one with edit_lines."
         )
+    return None
 
 
 def _unencodable_message(display: str, encoding: str) -> str:
@@ -627,8 +665,7 @@ class FileEditor:
             raise InvalidArgumentError(
                 _unencodable_message(resolved.display, document.fmt.encoding)
             ) from exc
-        if document.fmt.bom:
-            _reject_changed_reading(resolved.display, document.fmt, data, new_text)
+        note = _check_next_reading(resolved.display, document.fmt, data, new_text)
         if len(data) > self._settings.max_file_bytes:
             raise FileTooLargeError(
                 f"The new content of {resolved.display} would be {len(data)} bytes; the limit "
@@ -644,6 +681,7 @@ class FileEditor:
                 diff=diff,
                 created=False,
                 truncated=cut,
+                note=note,
             )
         if create:
             if resolved.path.exists():  # appeared since the existence check
@@ -664,6 +702,7 @@ class FileEditor:
             diff=diff,
             created=create,
             truncated=cut,
+            note=note,
         )
 
     def _diff(self, display: str, old: str, new: str, *, create: bool) -> tuple[str, bool]:

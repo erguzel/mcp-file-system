@@ -571,6 +571,10 @@ class EditResult(ToolResult):
         description="True if the diff was cut at max_output_chars. An applied edit is "
         "complete regardless.",
     )
+    note: str | None = Field(
+        default=None,
+        description="Set when the edit changes the encoding later reads take the file as.",
+    )
 
     def render(self) -> str:  # noqa: D102
         if self.dry_run:
@@ -582,6 +586,8 @@ class EditResult(ToolResult):
         parts = [head, self.diff or "[No textual changes]"]
         if self.truncated:
             parts.append(_diff_cut_hint(dry_run=self.dry_run, renamed=False))
+        if self.note:
+            parts.append(f"[{self.note}]")
         return "\n".join(parts)
 
 
