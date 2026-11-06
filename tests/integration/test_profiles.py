@@ -218,8 +218,12 @@ async def test_lite_hints_name_only_lite_tools(make_settings: SettingsFactory, r
     write(root / "big.py", "def f():\n    pass\n" * 20)
     write(root / "twice.txt", "x\nx\n")
     write(root / "other.txt", "x\n")
+    # UTF-16-LE "A" and a cut-off last unit: a line appended after it would shift it.
+    broken = write(root / "broken.txt", b"\xff\xfeA\x00\x41")
     settings = make_settings(profile="lite", allow_write=True, max_file_bytes=100, max_matches=1)
+    append: dict[str, Any] = {"path": "broken.txt", "start": 2, "end": 1, "new_text": "C"}
     calls = [
+        ("edit_lines", {**append, "expected_etag": compute_etag(broken.stat())}, "nothing was"),
         ("outline", {"path": "big.py"}, "limited to 100 bytes"),
         ("write_file", {"path": "new.txt", "content": "y" * 200}, "Nothing was written"),
         ("replace_in_file", {"path": "twice.txt", "pattern": "x", "replacement": "y"}, "2 time"),

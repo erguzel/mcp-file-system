@@ -6,7 +6,8 @@ Every edit:
 * refuses to run against a stale view of the file (etag check, re-verified right
   before writing),
 * preserves the file's encoding, BOM, newline style and permissions, and round-trips
-  undecodable bytes unchanged (``surrogateescape``), while new text cannot add one,
+  undecodable bytes unchanged (:func:`~mcp_file_system.core.textio.decode_text`), while new
+  text cannot add one, and in UTF-16 or UTF-32 cannot shift or join them,
 * is written atomically (temporary file in the same directory + :func:`os.replace`),
 * returns a unified diff, and can be previewed with ``dry_run``,
 * is recorded for ``undo_last_edit`` when an edit history is configured.
@@ -38,9 +39,12 @@ from mcp_file_system.core.patch import apply_hunks, parse_patch
 from mcp_file_system.core.render import truncate_text
 from mcp_file_system.core.textio import (
     LONE_SURROGATE,
+    SNIFF_BYTES,
     UNDECODABLE_CHAR,
     TextFormat,
     check_size,
+    decode_text,
+    detect_format_bytes,
     encode_text,
     require_text,
     split_lines,
@@ -118,13 +122,14 @@ def _new_name_is_undecodable(path: Path) -> bool:
 def _reject_added_surrogates(display: str, old: str, new: str) -> None:
     """Refuse new text holding a lone surrogate the file's own text did not hold.
 
-    In a UTF-8 or Latin-1 file ``surrogateescape`` writes U+DC80..U+DCFF as the raw byte it
-    stands for, so one sent by the agent (a list argument the SDK decodes from a string, or
-    a ``\\udce9`` escape in a regex replacement) would add a byte the file never had; a
-    regex group repeated over one of the file's undecodable bytes would copy it. Reads
-    show such bytes as U+FFFD, so legitimate new text never holds one. Counting keeps the
-    file's own bytes where they were, or moved, but never adds a copy. A move can join
-    stray bytes into valid text; that is accepted, since no byte is added.
+    :func:`encode_text` writes U+DC80..U+DCFF (U+DC00..U+DCFF in UTF-16 and UTF-32) as the
+    raw byte it stands for, so one sent by the agent (a list argument the SDK decodes from a
+    string, or a ``\\udce9`` escape in a regex replacement) would add a byte the file never
+    had; a regex group repeated over one of the file's undecodable bytes would copy it.
+    Reads show such bytes as U+FFFD, so legitimate new text never holds one. Counting keeps
+    the file's own bytes where they were, or moved, but never adds a copy. In UTF-8 and
+    Latin-1 a move can join stray bytes into valid text; that is accepted, since no byte is
+    added. UTF-16 and UTF-32 refuse it in :func:`_reject_changed_reading`.
 
     Raises:
         InvalidArgumentError: ``new`` holds more of some surrogate than ``old``.
@@ -141,19 +146,44 @@ def _reject_added_surrogates(display: str, old: str, new: str) -> None:
         )
 
 
+def _reject_changed_reading(display: str, fmt: TextFormat, data: bytes, new_text: str) -> None:
+    """Refuse UTF-16 or UTF-32 bytes that would not read back as ``new_text``.
+
+    A cut-off last unit leaves an odd number of undecodable bytes at the end of the file.
+    Text added after it, or a moved or deleted escape (a regex ``.`` matches one), shifts
+    every later unit, and moved units can join into a character; the diff would not show
+    what the file then holds. A U+0000 written first makes a UTF-16-LE BOM look like the
+    UTF-32-LE one. Neither message quotes the text (errors reach the audit log).
+
+    Raises:
+        InvalidArgumentError: ``data`` would be detected as another encoding, or would
+            decode to other text than ``new_text``.
+    """
+    # The newline is not compared: an edit may change the first line terminator.
+    detected = detect_format_bytes(data[:SNIFF_BYTES])
+    if detected is None or detected.bom != fmt.bom:
+        raise InvalidArgumentError(
+            f"After this edit {display} would no longer be read as {fmt.encoding}, so nothing "
+            "was changed. Change how the file starts, e.g. do not begin it with U+0000."
+        )
+    if decode_text(data, fmt) != new_text:
+        raise InvalidArgumentError(
+            f"{display} holds bytes that are not valid {fmt.encoding} (shown as U+FFFD), and "
+            "this edit would shift them or join them into a character, so the file would read "
+            "differently than the diff shows; nothing was changed. Do not add text after a "
+            "U+FFFD at the end of the file and leave each U+FFFD where it is, or replace the "
+            "whole lines holding one with edit_lines."
+        )
+
+
 def _unencodable_message(display: str, encoding: str) -> str:
     """Explain why new text cannot be written, without quoting it (errors reach the audit log).
 
     Legacy files are read as Latin-1 when they are not valid UTF-8, so characters such as
     'ş' or '€' cannot be stored in them. A UTF encoding stores every character except a lone
-    surrogate; :func:`_reject_added_surrogates` already refused one the new text adds, so
-    only a UTF-16 or UTF-32 file's own undecodable bytes reach the first branch.
+    surrogate, and :func:`_reject_added_surrogates` lets new text hold only those the file
+    already held, which :func:`encode_text` writes back as bytes.
     """
-    if encoding.startswith("utf"):
-        return (
-            f"The new text contains an unpaired surrogate, which {encoding} cannot store; "
-            f"nothing was changed in {display}. Remove or replace that character."
-        )
     return (
         f"{display} is read as {encoding}, and {encoding} cannot store some characters of "
         "the new text; nothing was changed. Use only characters this encoding supports, or "
@@ -391,8 +421,10 @@ class FileEditor:
         Raises:
             InvalidArgumentError: The path is empty or holds a NUL byte; an overwrite lacks
                 ``expected_etag``; a file or directory to create has ``UNDECODABLE_CHAR`` in
-                its name; or ``content`` holds a lone surrogate the file did not, or a
-                character the file's encoding cannot store.
+                its name; ``content`` holds a lone surrogate the file did not, or a
+                character the file's encoding cannot store; or, in a UTF-16 or UTF-32 file,
+                the bytes would not read back as ``content`` or would read as another
+                encoding.
             PathOutsideRootError: The path escapes every root.
             AccessDeniedError: The deny list blocks the path.
             PathTypeError: The path exists but is not a regular file.
@@ -470,7 +502,7 @@ class FileEditor:
             if result.applied:
                 self._history.discard(resolved.path)
             return result
-        before = snapshot.before.decode(document.fmt.encoding, errors="surrogateescape")
+        before = decode_text(snapshot.before, document.fmt)
         diff, cut = self._diff(resolved.display, document.text, before, create=False)
         if dry_run:
             return UndoResult(
@@ -574,8 +606,7 @@ class FileEditor:
         check_size(resolved, file_stat.st_size, self._settings.max_file_bytes)
         fmt = require_text(resolved)
         raw = resolved.path.read_bytes()
-        text = raw.decode(fmt.encoding, errors="surrogateescape")
-        return _Document(text=text, fmt=fmt, etag=etag, raw=raw)
+        return _Document(text=decode_text(raw, fmt), fmt=fmt, etag=etag, raw=raw)
 
     def _commit(
         self,
@@ -590,11 +621,13 @@ class FileEditor:
         _reject_added_surrogates(resolved.display, document.text, new_text)
         diff, cut = self._diff(resolved.display, document.text, new_text, create=create)
         try:
-            data = encode_text(new_text, document.fmt, errors="surrogateescape")
+            data = encode_text(new_text, document.fmt)
         except UnicodeEncodeError as exc:
             raise InvalidArgumentError(
                 _unencodable_message(resolved.display, document.fmt.encoding)
             ) from exc
+        if document.fmt.bom:
+            _reject_changed_reading(resolved.display, document.fmt, data, new_text)
         if len(data) > self._settings.max_file_bytes:
             raise FileTooLargeError(
                 f"The new content of {resolved.display} would be {len(data)} bytes; the limit "

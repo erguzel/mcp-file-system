@@ -9,6 +9,7 @@ from mcp_file_system.core.textio import (
     TextFormat,
     check_size,
     count_lines,
+    decode_text,
     detect_format,
     detect_format_bytes,
     encode_text,
@@ -75,7 +76,41 @@ def test_encode_text_round_trips_the_detected_format(bom: bytes, codec: str) -> 
     fmt = detect_format_bytes(raw)
     assert fmt is not None
     text = raw.decode(fmt.encoding)
-    assert encode_text(text, fmt, errors="strict") == raw
+    assert encode_text(text, fmt) == raw
+
+
+@pytest.mark.parametrize(
+    ("bom", "body"),
+    [
+        (codecs.BOM_UTF16_LE, b"\x00\xd8"),  # lone high surrogate unit
+        (codecs.BOM_UTF16_LE, b"A\x00\x80\xdc"),  # lone low unit, both bytes >= 0x80
+        (codecs.BOM_UTF16_BE, b"\x00A\xd8\x00\x00B"),
+        (codecs.BOM_UTF16_LE, b"A\x00\x41"),  # cut-off last unit
+        (codecs.BOM_UTF16_LE, b"\x00\xd8\x41"),  # lone unit, then a cut-off one
+        (codecs.BOM_UTF32_LE, b"\x00\x00\x11\x00"),  # beyond U+10FFFF
+        (codecs.BOM_UTF32_BE, b"\x00\x00\xd8\x00\x00\x00\x00A"),  # surrogate code point
+        (codecs.BOM_UTF32_LE, b"A\x00\x00\x00\x41\x00"),  # cut-off last unit
+    ],
+)
+def test_broken_utf16_and_utf32_round_trip(bom: bytes, body: bytes) -> None:
+    raw = bom + body
+    fmt = detect_format_bytes(raw)
+    assert fmt is not None
+    assert fmt.bom == bom
+    text = decode_text(raw, fmt)
+    assert encode_text(text, fmt) == raw
+
+
+def test_utf8_round_trips_undecodable_bytes() -> None:
+    raw = b"caf\xc3\xa9 \xff\n"
+    fmt = TextFormat("utf-8", "\n")
+    assert decode_text(raw, fmt) == "café \udcff\n"
+    assert encode_text(decode_text(raw, fmt), fmt) == raw
+
+
+def test_byte_escape_handler_is_for_decoding_only() -> None:
+    with pytest.raises(UnicodeEncodeError):
+        "\udc41".encode("utf-16-le", errors=textio._BYTE_ESCAPE_HANDLER)
 
 
 def test_truncated_multibyte_at_sample_end_is_still_utf8() -> None:

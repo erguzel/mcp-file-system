@@ -154,6 +154,14 @@ All notable changes to this project are documented here. The format follows
   too, with its own message: one in U+DC80..U+DCFF, from a list argument sent as a string or
   a `\udce9` escape in a regex replacement, used to be written as a raw byte, which made a
   UTF-8 file invalid and put a silent character such as `é` into a Latin-1 file.
+- A UTF-16 or UTF-32 file that is not valid in its encoding, such as one with a lone
+  surrogate or a cut-off last unit, can be edited. Every editing tool used to fail on it,
+  with a generic tool error and a stack trace, or with a message about an unpaired surrogate
+  the new text did not hold. Its invalid bytes are now kept as they are, as in UTF-8 files.
+  An edit that would shift them or join them into a character, so that the file would read
+  differently than the diff shows, is refused with its own message. So is an edit that would
+  make any UTF-16 or UTF-32 file read as another encoding, such as U+0000 put first in a
+  little-endian UTF-16 file, whose start then looks like a UTF-32 byte-order mark.
 - `.gitignore` files are split into patterns at line ends only. Characters such as a form
   feed inside a pattern no longer split it into two patterns that could hide unrelated
   paths from walks and searches.

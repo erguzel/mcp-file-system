@@ -499,8 +499,14 @@ class TestNewTextCannotAddAByte:
     @pytest.mark.parametrize("char", SURROGATES, ids=SURROGATE_IDS)
     @pytest.mark.parametrize(
         "original",
-        [b"alpha\nbeta\n", codecs.BOM_UTF8 + b"alpha\nbeta\n", b"alpha\nbeta \xe9\n"],
-        ids=["utf-8", "utf-8-sig", "latin-1"],
+        [
+            b"alpha\nbeta\n",
+            codecs.BOM_UTF8 + b"alpha\nbeta\n",
+            b"alpha\nbeta \xe9\n",
+            # Broken, so the UTF-16 escape writer is in play (E-9).
+            codecs.BOM_UTF16_LE + "alpha\n".encode("utf-16-le") + b"\x00\xd8",
+        ],
+        ids=["utf-8", "utf-8-sig", "latin-1", "utf-16-broken"],
     )
     @pytest.mark.parametrize("writer", list(WRITERS), ids=list(WRITERS))
     def test_is_refused_and_changes_nothing(
@@ -527,20 +533,123 @@ class TestNewTextCannotAddAByte:
         ctx.editor.replace("a.py", r"blob = '(.)'\nb = 2", r"b = 2\nblob = '\1'", regex=True)
         assert path.read_bytes() == b"a = 1\n" * 2000 + b"b = 2\nblob = '\xff'\n"
 
-    def test_utf16_cannot_write_back_its_own_bad_unit(self, ctx: AppContext, root: Path) -> None:
-        # Both bytes of the lone unit are >= 0x80, so it loads as two escapes, which the
-        # UTF-16 codec refuses to encode; the file is left alone.
-        original = codecs.BOM_UTF16_LE + "A\n".encode("utf-16-le") + b"\x80\xdc"
-        path = write(root / "a.txt", original)
-        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
-            ctx.editor.replace("a.txt", "A", "Z")
-        assert path.read_bytes() == original
-
     def test_the_files_own_byte_cannot_be_copied(self, ctx: AppContext, root: Path) -> None:
         path = write(root / "a.py", self.UNDECODABLE)
         with pytest.raises(InvalidArgumentError, match="nothing was changed"):
             ctx.editor.replace("a.py", r"'(.)'", r"'\1\1'", regex=True)
         assert path.read_bytes() == self.UNDECODABLE
+
+
+# Bytes that are not valid in their UTF-16 or UTF-32 encoding: a lone unit sits between two
+# lines, a cut-off last unit (tail) ends the file.
+BROKEN_UNITS = {
+    "utf-16-le-lone-high": (codecs.BOM_UTF16_LE, "utf-16-le", b"\x00\xd8", False),
+    "utf-16-le-lone-low": (codecs.BOM_UTF16_LE, "utf-16-le", b"\x80\xdc", False),
+    "utf-16-be-lone-high": (codecs.BOM_UTF16_BE, "utf-16-be", b"\xd8\x00", False),
+    "utf-16-le-tail": (codecs.BOM_UTF16_LE, "utf-16-le", b"\x41", True),
+    "utf-32-le-out-of-range": (codecs.BOM_UTF32_LE, "utf-32-le", b"\x00\x00\x11\x00", False),
+    "utf-32-be-surrogate": (codecs.BOM_UTF32_BE, "utf-32-be", b"\x00\x00\xd8\x00", False),
+    "utf-32-le-tail": (codecs.BOM_UTF32_LE, "utf-32-le", b"\x41\x00", True),
+}
+
+
+def broken_file(name: str, first: str = "A", second: str = "B\n") -> bytes:
+    """The file of :data:`BROKEN_UNITS` ``name`` with the given first and second line."""
+    bom, codec, bad, tail = BROKEN_UNITS[name]
+    head = f"{first}\n".encode(codec)
+    if tail:
+        return bom + head + second.encode(codec) + bad
+    return bom + head + bad + second.encode(codec)
+
+
+# Each tool puts "Z" in place of line 1, "A", of a.txt.
+BROKEN_EDITS: dict[str, Callable[[FileEditor, Path], object]] = {
+    "replace": lambda e, p: e.replace("a.txt", "A", "Z"),
+    "replace-regex": lambda e, p: e.replace("a.txt", "[A]", "Z", regex=True),
+    "multi_replace": lambda e, p: e.multi_replace("a.txt", [edit("A", "Z")]),
+    "edit_lines": lambda e, p: e.edit_lines("a.txt", 1, 1, "Z", expected_etag=etag(p)),
+    "apply_patch": lambda e, p: e.apply_patch(
+        "a.txt", "@@ -1,1 +1,1 @@\n-A\n+Z\n", expected_etag=etag(p)
+    ),
+}
+
+# Each edit of a.txt would leave bytes that read back differently than the diff shows.
+BROKEN_SHIFTS: dict[str, tuple[bytes, Callable[[FileEditor, Path, bool], object]]] = {
+    "text-after-tail": (
+        broken_file("utf-16-le-tail", second="B"),
+        lambda e, p, d: e.edit_lines("a.txt", 3, 2, "C", expected_etag=etag(p), dry_run=d),
+    ),
+    "moved-escape": (
+        broken_file("utf-16-le-tail", second="B"),
+        lambda e, p, d: e.replace("a.txt", "B(.)", r"\1B", regex=True, dry_run=d),
+    ),
+    "joined-units": (
+        codecs.BOM_UTF16_LE + b"\x00\xd8" + "X".encode("utf-16-le") + b"\x00\xdc",
+        lambda e, p, d: e.replace("a.txt", "X", "", dry_run=d),
+    ),
+}
+
+
+class TestBrokenUtf16And32:
+    """A UTF-16 or UTF-32 file keeps its broken units through an edit, like UTF-8 (E-9)."""
+
+    @pytest.mark.parametrize("name", list(BROKEN_UNITS))
+    def test_edit_keeps_the_broken_unit(self, ctx: AppContext, root: Path, name: str) -> None:
+        path = write(root / "a.txt", broken_file(name))
+        result = ctx.editor.replace("a.txt", "A", "Z")
+        assert result.applied
+        assert path.read_bytes() == broken_file(name, first="Z")
+
+    @pytest.mark.parametrize(
+        "name", ["utf-16-le-lone-high", "utf-16-le-lone-low", "utf-16-le-tail"]
+    )
+    @pytest.mark.parametrize("tool", list(BROKEN_EDITS))
+    def test_every_editing_tool_edits_it(
+        self, ctx: AppContext, root: Path, tool: str, name: str
+    ) -> None:
+        path = write(root / "a.txt", broken_file(name))
+        BROKEN_EDITS[tool](ctx.editor, path)
+        assert path.read_bytes() == broken_file(name, first="Z")
+
+    @pytest.mark.parametrize("name", ["utf-16-le-lone-high", "utf-16-le-tail"])
+    def test_overwrite_and_dry_run(self, ctx: AppContext, root: Path, name: str) -> None:
+        original = broken_file(name)
+        path = write(root / "a.txt", original)
+        preview = ctx.editor.replace("a.txt", "A", "Z", dry_run=True)
+        assert not preview.applied
+        assert "+Z" in preview.diff
+        assert path.read_bytes() == original
+        ctx.editor.write("a.txt", "Z\nB\n", overwrite=True, expected_etag=etag(path))
+        assert path.read_bytes() == codecs.BOM_UTF16_LE + "Z\nB\n".encode("utf-16-le")
+
+    def test_whole_line_with_the_tail_can_be_replaced(self, ctx: AppContext, root: Path) -> None:
+        # The way out the refusal names: edit the whole line that holds the U+FFFD.
+        path = write(root / "a.txt", broken_file("utf-16-le-tail", second="B"))
+        ctx.editor.edit_lines("a.txt", 2, 2, "B\nC", expected_etag=etag(path))
+        assert path.read_bytes() == codecs.BOM_UTF16_LE + "A\nB\nC".encode("utf-16-le")
+
+    @pytest.mark.parametrize("dry_run", [False, True])
+    @pytest.mark.parametrize("case", list(BROKEN_SHIFTS))
+    def test_shifting_the_broken_bytes_is_refused(
+        self, ctx: AppContext, root: Path, case: str, dry_run: bool
+    ) -> None:
+        original, change = BROKEN_SHIFTS[case]
+        path = write(root / "a.txt", original)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed") as error:
+            change(ctx.editor, path, dry_run)
+        assert "edit_lines" in str(error.value)
+        assert path.read_bytes() == original
+
+    @pytest.mark.parametrize("dry_run", [False, True])
+    def test_a_start_that_reads_as_utf32_is_refused(
+        self, ctx: AppContext, root: Path, dry_run: bool
+    ) -> None:
+        # FF FE 00 00 is the UTF-32-LE BOM, so the file would read as UTF-32 afterwards.
+        original = codecs.BOM_UTF16_LE + "A\n".encode("utf-16-le")
+        path = write(root / "a.txt", original)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            ctx.editor.replace("a.txt", "A", "\x00A", dry_run=dry_run)
+        assert path.read_bytes() == original
 
 
 class TestUndo:
@@ -556,6 +665,7 @@ class TestUndo:
             codecs.BOM_UTF8 + b"x = 1\ny = 2\n",
             b"x = 1\n\xff\xfe junk\ny = 2\n",
             "x = 1 é\ny = 2\n".encode("latin-1"),
+            codecs.BOM_UTF16_LE + "x = 1\n".encode("utf-16-le") + b"\x00\xd8\x41",
         ],
     )
     def test_restores_exact_bytes(self, writer: AppContext, root: Path, original: bytes) -> None:
