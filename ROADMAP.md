@@ -15,7 +15,8 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2, D-1 and E-1 plans and of the E-1 fix. Unless noted, an entry
+entries from the reviews of the B-F2, D-1 and E-1 plans and of the E-1 fix, and from probing the E-2
+fix. Unless noted, an entry
 was confirmed by reading the code, not by running it, so reproduce it first.
 
 **Behavior bugs**
@@ -114,6 +115,16 @@ was confirmed by reading the code, not by running it, so reproduce it first.
 - [ ] **`peek` accepts an undecodable JSON key (D-4).** `unquote` swallows the `ValueError`, so
   `{"a\tb": 1}` and `{"\u": 1} // c` report the raw text as the key, while the same text as a
   value is a `ParseError`. Reproduced by running it. Decide whether keys should be as strict.
+- [ ] **`query` takes junk before a JSON value as the document (E-7).** `DataQuery._parse` in
+  `core/query/service.py` uses the first top-level node even when it is an `ERROR` node, so on
+  `x {"a": 1}` the whole document is `x`, and `query a` says the root is a scalar value with no word
+  about syntax errors, while `outline` shows `a: 1`. A value that parsed cleanly cannot be reached.
+  A UTF-8 BOM is not affected. Reproduced by running it. Whether YAML has the same gap is not checked.
+- [ ] **`outline` merges several top-level JSON values (E-8).** `JsonOutlineProvider._extract` in
+  `core/outline/treesitter/structured.py` lists every value's keys at the root, so
+  `{"a": 1}\n{"a": 2, "b": 3}` looks like one object with `a` twice and no note, and
+  `read_symbol a` reports 2 definitions. `query` and `peek` reject such a file. Reproduced by
+  running it. Decide whether to name them like YAML documents (`[0].a`) or to add a note.
 
 **Misleading docstrings**
 
