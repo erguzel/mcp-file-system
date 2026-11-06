@@ -42,10 +42,29 @@ NEWLINE_NAMES = {"\n": "LF", "\r\n": "CRLF", "\r": "CR"}
 UNDECODABLE_CHAR = "�"
 """Stands for what cannot be shown as text, in a decoded file and in a tool's output."""
 LONE_SURROGATE = re.compile("[\ud800-\udfff]")
-"""Matches a lone surrogate: an undecodable byte kept by ``surrogateescape``, or an escape."""
+"""Matches a lone surrogate: an undecodable byte kept by :func:`decode_text`, or an escape."""
 
 _EOL = re.compile(r"\r\n|\r|\n")
 _LINE_WITH_END = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+")
+_BYTE_ESCAPE_HANDLER = "mcp_file_system.byteescape"
+_BYTE_ESCAPE_BASE = 0xDC00
+_BYTE_ESCAPES = re.compile("([\udc00-\udcff]+)")
+
+
+def _escape_bytes(exc: UnicodeError) -> tuple[str, int]:
+    """Decode error handler: keep each undecodable byte ``b`` as ``chr(0xDC00 + b)``.
+
+    ``surrogateescape`` cannot escape a byte below 0x80, which a broken UTF-16 or UTF-32
+    unit often holds; this handler covers every byte, and agrees with ``surrogateescape``
+    on the bytes both can escape.
+    """
+    if not isinstance(exc, UnicodeDecodeError):
+        raise exc
+    bad = exc.object[exc.start : exc.end]
+    return "".join(chr(_BYTE_ESCAPE_BASE + byte) for byte in bad), exc.end
+
+
+codecs.register_error(_BYTE_ESCAPE_HANDLER, _escape_bytes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,15 +161,37 @@ def read_text(path: Path, fmt: TextFormat, *, errors: str = "replace") -> str:
     return path.read_bytes().decode(fmt.encoding, errors=errors)
 
 
-def encode_text(text: str, fmt: TextFormat, *, errors: str) -> bytes:
+def decode_text(raw: bytes, fmt: TextFormat) -> str:
+    """Decode a whole file so that :func:`encode_text` gives back the same bytes.
+
+    Undecodable bytes become lone surrogates: U+DC80..U+DCFF (``surrogateescape``) in
+    UTF-8 and Latin-1, U+DC00..U+DCFF in UTF-16 and UTF-32, whose broken units may hold
+    any byte.
+    """
+    if fmt.bom:
+        return raw.decode(fmt.encoding, errors=_BYTE_ESCAPE_HANDLER)
+    return raw.decode(fmt.encoding, errors="surrogateescape")
+
+
+def encode_text(text: str, fmt: TextFormat) -> bytes:
     """Encode ``text`` as a file of format ``fmt``, keeping its BOM and byte order.
+
+    The escapes :func:`decode_text` makes are written as the bytes they stand for. In
+    UTF-16 and UTF-32 they are written around the encoder, because its error handlers
+    may only add whole units, while a cut-off last unit is shorter.
 
     Raises:
         UnicodeEncodeError: ``text`` holds characters the encoding cannot store.
     """
-    if fmt.bom:
-        return fmt.bom + text.encode(_BOM_ENCODINGS[fmt.bom], errors=errors)
-    return text.encode(fmt.encoding, errors=errors)
+    if not fmt.bom:
+        return text.encode(fmt.encoding, errors="surrogateescape")
+    codec = _BOM_ENCODINGS[fmt.bom]
+    # re.split with a group alternates text segments (even) and escape runs (odd).
+    parts = _BYTE_ESCAPES.split(text)
+    return fmt.bom + b"".join(
+        bytes(ord(char) - _BYTE_ESCAPE_BASE for char in part) if index % 2 else part.encode(codec)
+        for index, part in enumerate(parts)
+    )
 
 
 def split_lines(text: str) -> list[str]:

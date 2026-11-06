@@ -64,9 +64,14 @@ another protocol) without a server. Both rules are enforced by
 - **Lone surrogates** cannot travel over JSON-RPC, and one in a result stops the stdio server
   outside any tool. `translate_errors` and `to_call_result`, where a tool's output leaves, and
   `build_instructions` replace them with U+FFFD (`tools._common.scrub_surrogates`), so services
-  need not care. The one exception is the editor: in a UTF-8 or Latin-1 file it writes
-  U+DC80..U+DCFF as raw bytes (`surrogateescape`), so `FileEditor._commit` refuses new text
-  holding more of any surrogate (U+D800..U+DFFF) than the file's own text.
+  need not care. The one exception is the editor: `textio.decode_text` keeps each undecodable
+  byte as a surrogate, U+DC80..U+DCFF in a UTF-8 or Latin-1 file (`surrogateescape`) and
+  U+DC00..U+DCFF in a UTF-16 or UTF-32 file, and `textio.encode_text` writes them back as raw
+  bytes, so `FileEditor._commit` refuses new text holding more of any surrogate
+  (U+D800..U+DFFF) than the file's own text. In UTF-16 and UTF-32 it also refuses bytes that
+  would not read back as the new text, or would be read as another encoding: a moved byte
+  can shift every later unit, or join with another into a character. UTF-8 and Latin-1
+  accept such a join, since no byte is added and nothing shifts.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
   `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.

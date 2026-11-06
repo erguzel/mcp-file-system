@@ -79,14 +79,18 @@ reproduce it first.
   while the result looked normal. UTF-16 and UTF-32 files refused it. Reproduced by running it.
   Now `_commit` refuses new text holding more of any surrogate than the file's own text, for every
   editing tool; the file's own undecodable bytes still round-trip.
-- [ ] **A UTF-16 or UTF-32 file that is not valid in its encoding cannot be edited (E-9).**
+- [x] **A UTF-16 or UTF-32 file that is not valid in its encoding cannot be edited (E-9).**
   `FileEditor._load` decodes with `errors="surrogateescape"`, which cannot escape a byte below
   0x80, so a lone surrogate unit such as `\x00\xd8` (UTF-16-LE), or a cut-off last unit with such a
   byte, raises a raw `UnicodeDecodeError`: every editing tool gives a generic `Error executing tool`
   and the SDK logs a traceback. When every bad byte is 0x80 or above (`\x80\xdc`), the file loads, but
   those codecs refuse to encode the escapes back, so every edit fails with "The new text contains
   an unpaired surrogate", although the new text holds none. The file stays unchanged; read tools
-  show U+FFFD. Reproduced by running it.
+  show U+FFFD. Reproduced by running it. Now `textio.decode_text` keeps every bad byte as
+  U+DC00..U+DCFF and `encode_text` writes it back, and `_commit` refuses an edit after which the
+  bytes would read back differently (a shifted or joined unit) or as another encoding (U+0000
+  first in UTF-16-LE). Any file that starts with a UTF-16 or UTF-32 BOM, a binary one too, is
+  now edited this way, byte for byte.
 
 **Lower priority**
 
