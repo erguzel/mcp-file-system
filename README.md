@@ -248,8 +248,10 @@ See [SECURITY.md](SECURITY.md) for the threat model. In short:
   write. Edits preserve encoding, BOM, newline style and permissions. Bytes a file holds that
   do not decode are kept, and new text holding a lone surrogate (U+D800..U+DFFF) the file did
   not hold is refused, since it could add such a byte. In a UTF-16 or UTF-32 file, an edit
-  that would shift such bytes or join them into a character, or make the file read as another
-  encoding, is refused too.
+  that would shift such bytes or join them into a character is refused too. Reads guess the
+  encoding from the first 8 KiB, so an edit that would make a file look binary (a NUL byte
+  there) or start with another byte-order mark is refused; one that makes a file read as
+  UTF-8 instead of Latin-1, or the reverse, is applied with a `note` in its result.
 - JSON-RPC cannot carry a lone surrogate, so output shows U+FFFD (`�`) in its place. A file or
   directory whose name is not valid UTF-8 is listed that way but cannot be opened by the
   shown name, and `write_file` refuses to create a name holding U+FFFD. A JSON or YAML key

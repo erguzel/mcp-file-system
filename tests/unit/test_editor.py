@@ -652,6 +652,90 @@ class TestBrokenUtf16And32:
         assert path.read_bytes() == original
 
 
+FILLER = b"x" * 9000 + b"\n"  # pushes what follows past the 8 KiB the format is sniffed from
+
+# Edits after which the file would look binary or start with another byte-order mark.
+SNIFF_BREAKERS: dict[str, tuple[bytes | None, Callable[[FileEditor, bool], object]]] = {
+    "utf-8-nul": (b"abc\n", lambda e, d: e.replace("a.txt", "b", "\x00", dry_run=d)),
+    "create-nul": (None, lambda e, d: e.write("a.txt", "a\x00b\n", dry_run=d)),
+    "utf-8-feff": (b"abc\n", lambda e, d: e.replace("a.txt", "abc", "﻿abc", dry_run=d)),
+    "create-feff": (None, lambda e, d: e.write("a.txt", "﻿abc\n", dry_run=d)),
+    "latin-1-utf-16-bom": (
+        b"\xe9 line\n",
+        lambda e, d: e.replace("a.txt", "é", "ÿþ", dry_run=d),
+    ),
+    "latin-1-utf-8-bom": (
+        b"\xe9 line\n",
+        lambda e, d: e.replace("a.txt", "é", "ï»¿", dry_run=d),
+    ),
+    "utf-8-own-bytes-first": (
+        b"abc\n" + FILLER + b"\xff\xfe\n",
+        lambda e, d: e.replace("a.txt", "(?s)^(.*)(\udcff\udcfe)", r"\2\1", regex=True, dry_run=d),
+    ),
+}
+
+
+class TestSniffedEncodingStays:
+    """An edit cannot leave a file that the next read takes as binary or another encoding (E-10)."""
+
+    @pytest.mark.parametrize("dry_run", [False, True])
+    @pytest.mark.parametrize("case", list(SNIFF_BREAKERS))
+    def test_binary_or_new_bom_is_refused(
+        self, ctx: AppContext, root: Path, case: str, dry_run: bool
+    ) -> None:
+        original, edit = SNIFF_BREAKERS[case]
+        path = root / "a.txt"
+        if original is not None:
+            write(path, original)
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            edit(ctx.editor, dry_run)
+        if original is None:
+            assert not path.exists()
+        else:
+            assert path.read_bytes() == original
+
+    @pytest.mark.parametrize("dry_run", [False, True])
+    def test_latin1_read_as_utf8_is_noted(self, ctx: AppContext, root: Path, dry_run: bool) -> None:
+        # The first 8 KiB lose their only byte that is not valid UTF-8.
+        original = b"\xe9\n" + FILLER + b"\xe9t\xe9\n"
+        path = write(root / "a.txt", original)
+        result = ctx.editor.edit_lines(
+            "a.txt", 1, 1, "e\n", expected_etag=etag(path), dry_run=dry_run
+        )
+        assert result.note is not None
+        assert "UTF-8" in result.note
+        assert "Latin-1" in result.note
+        assert result.note in result.render()
+        expected = original if dry_run else b"e\n" + FILLER + b"\xe9t\xe9\n"
+        assert path.read_bytes() == expected
+
+    def test_utf8_read_as_latin1_is_noted(self, ctx: AppContext, root: Path) -> None:
+        # Deleting the filler brings a stray byte into the first 8 KiB.
+        path = write(root / "a.txt", "café\n".encode() + FILLER + b"\xff\n")
+        result = ctx.editor.edit_lines("a.txt", 2, 2, "", expected_etag=etag(path))
+        assert result.note is not None
+        assert "UTF-8" in result.note
+        assert "Latin-1" in result.note
+        assert path.read_bytes() == "café\n".encode() + b"\xff\n"
+
+    @pytest.mark.parametrize(
+        ("original", "old", "new"),
+        [
+            pytest.param(b"\xe9t\xe9\n", "été", "ete", id="latin-1-now-ascii"),
+            pytest.param("café\n".encode(), "caf", "th", id="utf-8"),
+            pytest.param(b"\xe9t\xe9\n", "t", "s", id="latin-1"),
+            pytest.param(codecs.BOM_UTF8 + b"abc\n", "abc", "xyz", id="utf-8-sig"),
+        ],
+    )
+    def test_no_note_when_the_text_reads_the_same(
+        self, ctx: AppContext, root: Path, original: bytes, old: str, new: str
+    ) -> None:
+        write(root / "a.txt", original)
+        result = ctx.editor.replace("a.txt", old, new)
+        assert result.applied
+        assert result.note is None
+
+
 class TestUndo:
     @pytest.fixture
     def writer(self, make_ctx: ContextFactory) -> AppContext:

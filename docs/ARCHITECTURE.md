@@ -69,9 +69,15 @@ another protocol) without a server. Both rules are enforced by
   U+DC00..U+DCFF in a UTF-16 or UTF-32 file, and `textio.encode_text` writes them back as raw
   bytes, so `FileEditor._commit` refuses new text holding more of any surrogate
   (U+D800..U+DFFF) than the file's own text. In UTF-16 and UTF-32 it also refuses bytes that
-  would not read back as the new text, or would be read as another encoding: a moved byte
-  can shift every later unit, or join with another into a character. UTF-8 and Latin-1
-  accept such a join, since no byte is added and nothing shifts.
+  would not read back as the new text: a moved byte can shift every later unit, or join with
+  another into a character. UTF-8 and Latin-1 accept such a join, since no byte is added and
+  nothing shifts.
+- **Re-sniffing after an edit:** every read guesses the format from the first
+  `textio.SNIFF_BYTES`, so `FileEditor._commit` sniffs the bytes it is about to write. It
+  refuses bytes that would look binary or start with another byte-order mark, since all of
+  the file would then read differently. A switch between UTF-8 and Latin-1 is only noted
+  (`EditResult.note`): refusing it would make ordinary edits, such as deleting the top lines,
+  impossible, and the bytes outside the edit stay as they were.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,
   `max_line_chars`, `max_matches`, `max_results`, `max_file_bytes`, `max_pattern_length`,
   `search_timeout_s`) or by a named module constant for fixed per-call caps (e.g.

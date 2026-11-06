@@ -162,6 +162,14 @@ All notable changes to this project are documented here. The format follows
   differently than the diff shows, is refused with its own message. So is an edit that would
   make any UTF-16 or UTF-32 file read as another encoding, such as U+0000 put first in a
   little-endian UTF-16 file, whose start then looks like a UTF-32 byte-order mark.
+- An edit can no longer leave a file that the next read takes as binary or as another
+  encoding without a word. Each read guesses the encoding from the first 8 KiB, so a NUL
+  byte there made the file unreadable for the text tools, and a byte-order mark at the start
+  (U+FEFF, or `ÿþ` first in a Latin-1 file) made all of it read as UTF-16 or UTF-8 with BOM.
+  Such edits are now refused. An edit that makes a file without BOM read as UTF-8 instead of
+  Latin-1, or the reverse (for example by deleting the top lines), still goes ahead, and its
+  result carries a `note` saying so, since its other non-ASCII characters may read
+  differently.
 - `.gitignore` files are split into patterns at line ends only. Characters such as a form
   feed inside a pattern no longer split it into two patterns that could hide unrelated
   paths from walks and searches.

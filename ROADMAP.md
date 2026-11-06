@@ -91,7 +91,7 @@ reproduce it first.
   bytes would read back differently (a shifted or joined unit) or as another encoding (U+0000
   first in UTF-16-LE). Any file that starts with a UTF-16 or UTF-32 BOM, a binary one too, is
   now edited this way, byte for byte.
-- [ ] **An edit can change the encoding a UTF-8 or Latin-1 file is read as (E-10).** The encoding
+- [x] **An edit can change the encoding a UTF-8 or Latin-1 file is read as (E-10).** The encoding
   is sniffed from the first 8 KiB on every read. E-4 lets a file's own undecodable byte move, so a
   regex edit that moves a late `\xff` of a UTF-8 file into that window makes the next read take the
   file as Latin-1: `café` then reads `cafÃ©`, with no word about it. The other way, removing the
@@ -101,8 +101,11 @@ reproduce it first.
   `ÿþ` writes `FF FE`, and the whole file then reads as UTF-16-LE garbage; a UTF-8 file's own
   `\xff\xfe` moved to the start does the same. U+FEFF written first in a UTF-8 file makes it
   `utf-8-sig`, and the character disappears from reads. The bytes are kept in every case. UTF-16
-  and UTF-32 refuse such an edit since E-9. Reproduced by running it. Decide whether to refuse
-  it, as for UTF-16, or to say so in the result.
+  and UTF-32 refuse such an edit since E-9. Reproduced by running it, as was a NUL byte written
+  into the first 8 KiB, after which the file looks binary and no text tool reads it. Now every
+  edit sniffs the bytes it writes: one that would look binary or start with another byte-order
+  mark is refused, and a switch between UTF-8 and Latin-1 is applied with a `note` in the
+  result, since refusing it would block edits such as deleting the top lines.
 
 **Lower priority**
 
