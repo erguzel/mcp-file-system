@@ -64,11 +64,12 @@ was confirmed by reading the code, not by running it, so reproduce it first.
   path in the list argument of `read_ranges`, sent as a string, did it too. Now `to_call_result`,
   `translate_errors` and `build_instructions` replace surrogates with U+FFFD, and `write_file`
   refuses to create a name holding it. Such a file stays listed but cannot be opened by that name.
-- [ ] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
-  `core/query/service.py` takes `values[0]`, so on `{"a": 1}\n{"b": 2}` the whole document is
-  `a: 1` with no note, and `b` gives `No key b` although the file holds it. Reproduced by running
-  it. `query` returns values from damaged files on purpose, so decide whether to reject such a
-  file or to say that the rest was not read.
+- [x] **`query` reads only the first of several JSON values (E-2).** `DataQuery._parse` in
+  `core/query/service.py` took `values[0]`, so on `{"a": 1}\n{"b": 2}` the whole document was
+  `a: 1` with no note, and `b` gave `No key b` although the file holds it. Reproduced by running
+  it. Now such a file is rejected with `ParseError`, as in `peek`. A file with syntax errors is
+  not counted, because recovery can split one broken value (`true+5`); it keeps its first value
+  and the damage note.
 - [ ] **`multi_replace` can write a raw byte into a UTF-8 file (E-4).** Its `edits` can arrive as a
   string the SDK decodes, so a replacement holding `\udce9` reaches `encode_text` with
   `errors="surrogateescape"` in `FileEditor._commit`, which writes it as the byte `\xe9`: `alpha`

@@ -45,7 +45,8 @@ class DataQuery:
             InvalidArgumentError: Unsupported file type, malformed key path, bad depth,
                 or a key path that steps into the wrong kind of value.
             SymbolNotFoundError: A key or index along the path does not exist.
-            ParseError: A TOML file is malformed, or a JSON file holds no value.
+            ParseError: A TOML file is malformed, or a JSON file holds no value or several
+                top-level values.
         """
         if not 1 <= depth <= MAX_DEPTH:
             raise InvalidArgumentError(f"depth must be between 1 and {MAX_DEPTH}.")
@@ -96,7 +97,11 @@ class DataQuery:
         """Parse ``text``; return the document's root value and whether it has syntax errors.
 
         Tree-sitter recovers from errors, so JSON and YAML files with errors still yield
-        values; TOML files with errors are rejected by ``tomllib``.
+        values; TOML files with errors are rejected by ``tomllib``. A JSON file without syntax
+        errors but with several top-level values is a :class:`ParseError`, because returning
+        only the first would pass it off as the whole document. A file with syntax errors is
+        not counted: error recovery may split one broken value into several (``true+5``), so
+        it yields its first value, which the caller marks as damaged.
         """
         if language == "toml":
             return ValueNode(parse_toml(text)), False
@@ -107,6 +112,11 @@ class DataQuery:
         values = [child for child in root.named_children if child.type != "comment"]
         if not values:
             raise ParseError("no JSON value found")
+        if len(values) > 1 and not root.has_error:
+            raise ParseError(
+                f"it holds {len(values)} top-level JSON values (newline-delimited JSON, for "
+                "example), and query reads one document"
+            )
         return JsonNode(values[0], source), root.has_error
 
 

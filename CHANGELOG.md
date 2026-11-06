@@ -109,6 +109,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `query` rejects a JSON file with several top-level values, such as newline-delimited JSON. It
+  used to return the first value as the whole document with no note, and a key of a later value
+  was reported missing. A file with syntax errors still gives its first value with a note.
 - A lone surrogate in a tool's output no longer stops the server. It came from a JSON or YAML
   `"\ud800"` escape in a file, a file name that is not valid UTF-8, or such a name in the list
   argument of `read_ranges` sent as a string. The SDK could not send the result, so the call got no
