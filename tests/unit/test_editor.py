@@ -659,7 +659,6 @@ SNIFF_BREAKERS: dict[str, tuple[bytes | None, Callable[[FileEditor, bool], objec
     "utf-8-nul": (b"abc\n", lambda e, d: e.replace("a.txt", "b", "\x00", dry_run=d)),
     "create-nul": (None, lambda e, d: e.write("a.txt", "a\x00b\n", dry_run=d)),
     "utf-8-feff": (b"abc\n", lambda e, d: e.replace("a.txt", "abc", "﻿abc", dry_run=d)),
-    "create-feff": (None, lambda e, d: e.write("a.txt", "﻿abc\n", dry_run=d)),
     "latin-1-utf-16-bom": (
         b"\xe9 line\n",
         lambda e, d: e.replace("a.txt", "é", "ÿþ", dry_run=d),
@@ -697,6 +696,19 @@ class TestSniffedEncodingStays:
             assert not path.exists()
         else:
             assert path.read_bytes() == original
+
+    def test_new_file_may_start_with_a_utf8_bom(self, ctx: AppContext, root: Path) -> None:
+        result = ctx.editor.write("b.csv", "﻿a,b\n")
+        assert result.created
+        assert result.note is None
+        assert (root / "b.csv").read_bytes() == codecs.BOM_UTF8 + b"a,b\n"
+        assert ctx.editor.replace("b.csv", "a", "c").applied  # still edits as UTF-8 with BOM
+
+    def test_overwrite_cannot_add_a_utf8_bom(self, ctx: AppContext, root: Path) -> None:
+        path = write(root / "a.txt", b"abc\n")
+        with pytest.raises(InvalidArgumentError, match="nothing was changed"):
+            ctx.editor.write("a.txt", "﻿abc\n", overwrite=True, expected_etag=etag(path))
+        assert path.read_bytes() == b"abc\n"
 
     @pytest.mark.parametrize("dry_run", [False, True])
     def test_latin1_read_as_utf8_is_noted(self, ctx: AppContext, root: Path, dry_run: bool) -> None:

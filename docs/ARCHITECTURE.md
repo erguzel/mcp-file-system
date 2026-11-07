@@ -75,7 +75,8 @@ another protocol) without a server. Both rules are enforced by
 - **Re-sniffing after an edit:** every read guesses the format from the first
   `textio.SNIFF_BYTES`, so `FileEditor._commit` sniffs the bytes it is about to write. It
   refuses bytes that would look binary or start with another byte-order mark, since all of
-  the file would then read differently. A switch between UTF-8 and Latin-1 is only noted
+  the file would then read differently; a file being created may start with the UTF-8 BOM,
+  since it has no earlier text to misread. A switch between UTF-8 and Latin-1 is only noted
   (`EditResult.note`): refusing it would make ordinary edits, such as deleting the top lines,
   impossible, and the bytes outside the edit stay as they were.
 - **Budgets:** every result is bounded, by a setting (`max_read_lines`, `max_output_chars`,

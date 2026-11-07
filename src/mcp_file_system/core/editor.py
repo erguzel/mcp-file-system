@@ -8,8 +8,9 @@ Every edit:
 * preserves the file's encoding, BOM, newline style and permissions, and round-trips
   undecodable bytes unchanged (:func:`~mcp_file_system.core.textio.decode_text`), while new
   text cannot add one, and in UTF-16 or UTF-32 cannot shift or join them,
-* cannot make the next read take the file as binary or as another BOM encoding, and
-  notes when it makes it read as UTF-8 instead of Latin-1 or the reverse,
+* cannot make the next read take the file as binary or as another BOM encoding (a new
+  file may start with the UTF-8 BOM), and notes when it makes it read as UTF-8 instead of
+  Latin-1 or the reverse,
 * is written atomically (temporary file in the same directory + :func:`os.replace`),
 * returns a unified diff, and can be previewed with ``dry_run``,
 * is recorded for ``undo_last_edit`` when an edit history is configured.
@@ -156,13 +157,17 @@ def _signature(fmt: TextFormat) -> bytes:
     return codecs.BOM_UTF8 if fmt.encoding == "utf-8-sig" else fmt.bom
 
 
-def _check_next_reading(display: str, fmt: TextFormat, data: bytes, new_text: str) -> str | None:
+def _check_next_reading(
+    display: str, fmt: TextFormat, data: bytes, new_text: str, *, new_file: bool
+) -> str | None:
     """Check how the next read will take ``data``; return a note when it reads differently.
 
     Every read sniffs the format from the first :data:`SNIFF_BYTES`, so an edit can change
     it. A NUL byte there makes the file look binary, and a byte-order mark at the start
     (U+0000 first in UTF-16-LE writes the UTF-32-LE one; ``ÿþ`` first in Latin-1 writes
-    UTF-16-LE's) makes the whole file read as another encoding: both are refused. Without a
+    UTF-16-LE's) makes the whole file read as another encoding: both are refused. A file
+    being created (``new_file``) may start with U+FEFF, which writes the UTF-8 BOM: that
+    is how a UTF-8 file with BOM is made, and no earlier text can read differently. Without a
     BOM the sniff picks UTF-8 or Latin-1, and losing or gaining a byte that is not valid
     UTF-8 in that window switches between them; refusing would leave edits such as deleting
     the top lines impossible, so the edit goes ahead with a note, unless the text reads the
@@ -177,7 +182,8 @@ def _check_next_reading(display: str, fmt: TextFormat, data: bytes, new_text: st
 
     Raises:
         InvalidArgumentError: ``data`` would look binary or start with another byte-order
-            mark, or, in UTF-16 or UTF-32, would decode to other text than ``new_text``.
+            mark (other than a new file's UTF-8 BOM), or, in UTF-16 or UTF-32, would decode
+            to other text than ``new_text``.
     """
     window = f"{SNIFF_BYTES // 1024} KiB"
     detected = detect_format_bytes(data[:SNIFF_BYTES])
@@ -189,6 +195,8 @@ def _check_next_reading(display: str, fmt: TextFormat, data: bytes, new_text: st
             f"any NUL the file already holds beyond its first {window}."
         )
     if _signature(detected) != _signature(fmt):
+        if new_file and detected.encoding == "utf-8-sig":
+            return None  # a U+FEFF starting a new file asks for UTF-8 with BOM
         raise InvalidArgumentError(
             f"After this edit {display} would start with another byte-order mark and be read "
             f"as {detected.encoding}, not {fmt.encoding}; nothing was changed. Change how the "
@@ -463,8 +471,9 @@ class FileEditor:
                 ``expected_etag``; a file or directory to create has ``UNDECODABLE_CHAR`` in
                 its name; ``content`` holds a lone surrogate the file did not, or a
                 character the file's encoding cannot store; the bytes would put a NUL byte in
-                the sniffed start or begin with another byte-order mark (also for a new
-                file); or, in a UTF-16 or UTF-32 file, would not read back as ``content``.
+                the sniffed start (also for a new file) or begin an existing file with
+                another byte-order mark; or, in a UTF-16 or UTF-32 file, would not read back
+                as ``content``.
             PathOutsideRootError: The path escapes every root.
             AccessDeniedError: The deny list blocks the path.
             PathTypeError: The path exists but is not a regular file.
@@ -666,7 +675,7 @@ class FileEditor:
             raise InvalidArgumentError(
                 _unencodable_message(resolved.display, document.fmt.encoding)
             ) from exc
-        note = _check_next_reading(resolved.display, document.fmt, data, new_text)
+        note = _check_next_reading(resolved.display, document.fmt, data, new_text, new_file=create)
         if len(data) > self._settings.max_file_bytes:
             raise FileTooLargeError(
                 f"The new content of {resolved.display} would be {len(data)} bytes; the limit "
