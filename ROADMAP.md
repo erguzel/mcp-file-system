@@ -104,8 +104,9 @@ reproduce it first.
   and UTF-32 refuse such an edit since E-9. Reproduced by running it, as was a NUL byte written
   into the first 8 KiB, after which the file looks binary and no text tool reads it. Now every
   edit sniffs the bytes it writes: one that would look binary or start with another byte-order
-  mark is refused, and a switch between UTF-8 and Latin-1 is applied with a `note` in the
-  result, since refusing it would block edits such as deleting the top lines.
+  mark is refused (a new file may still start with U+FEFF, the way to create UTF-8 with BOM),
+  and a switch between UTF-8 and Latin-1 is applied with a `note` in the result, since
+  refusing it would block edits such as deleting the top lines.
 
 **Lower priority**
 

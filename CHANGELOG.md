@@ -166,7 +166,8 @@ All notable changes to this project are documented here. The format follows
   encoding without a word. Each read guesses the encoding from the first 8 KiB, so a NUL
   byte there made the file unreadable for the text tools, and a byte-order mark at the start
   (U+FEFF, or `ÿþ` first in a Latin-1 file) made all of it read as UTF-16 or UTF-8 with BOM.
-  Such edits are now refused. An edit that makes a file without BOM read as UTF-8 instead of
+  Such edits are now refused; a new file may still start with U+FEFF, which creates UTF-8
+  with BOM. An edit that makes a file without BOM read as UTF-8 instead of
   Latin-1, or the reverse (for example by deleting the top lines), still goes ahead, and its
   result carries a `note` saying so, since its other non-ASCII characters may read
   differently.
