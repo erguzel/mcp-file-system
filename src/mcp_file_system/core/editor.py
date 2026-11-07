@@ -163,7 +163,7 @@ def _check_next_reading(
     """Check how the next read will take ``data``; return a note when it reads differently.
 
     Every read sniffs the format from the first :data:`SNIFF_BYTES`, so an edit can change
-    it. A NUL byte there makes the file look binary, and a byte-order mark at the start
+    it. A NUL byte there makes a file without BOM look binary, and a byte-order mark at the start
     (U+0000 first in UTF-16-LE writes the UTF-32-LE one; ``ÿþ`` first in Latin-1 writes
     UTF-16-LE's) makes the whole file read as another encoding: both are refused. A file
     being created (``new_file``) may start with U+FEFF, which writes the UTF-8 BOM: that
@@ -211,7 +211,8 @@ def _check_next_reading(
             f"After this edit {display} is read as {_ENCODING_NAMES[detected.encoding]}, not "
             f"{_ENCODING_NAMES[fmt.encoding]}, since its encoding is guessed from its first "
             f"{window}; its other non-ASCII characters may read differently, though their "
-            "bytes are unchanged. Check the lines that hold them with read_lines."
+            "bytes are unchanged. Once the edit is applied, check the lines that hold them "
+            "with read_lines, and rewrite any that read wrongly with edit_lines."
         )
     if decode_text(data, fmt) != new_text:
         raise InvalidArgumentError(
@@ -470,10 +471,10 @@ class FileEditor:
             InvalidArgumentError: The path is empty or holds a NUL byte; an overwrite lacks
                 ``expected_etag``; a file or directory to create has ``UNDECODABLE_CHAR`` in
                 its name; ``content`` holds a lone surrogate the file did not, or a
-                character the file's encoding cannot store; the bytes would put a NUL byte in
-                the sniffed start (also for a new file) or begin an existing file with
-                another byte-order mark; or, in a UTF-16 or UTF-32 file, would not read back
-                as ``content``.
+                character the file's encoding cannot store; the bytes would start with no
+                byte-order mark and hold a NUL byte in the sniffed start (also for a new
+                file), or begin an existing file with another byte-order mark; or, in a
+                UTF-16 or UTF-32 file, would not read back as ``content``.
             PathOutsideRootError: The path escapes every root.
             AccessDeniedError: The deny list blocks the path.
             PathTypeError: The path exists but is not a regular file.
