@@ -15,8 +15,8 @@ change with a test that fails without the fix, and tick the box in the same chan
 groups here do not block numbered items. They come from the documentation audits of October
 2026; IDs such as B-F18 are their handles, and PARTIAL marks a finding where only part of the
 original claim held. The D entries come from the review of the C-5 fix in November 2026, the E
-entries from the reviews of the B-F2, D-1, E-1, E-4 and E-9 plans and of the E-1 fix, and from
-probing the E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
+entries from the reviews of the B-F2, D-1, E-1, E-4 and E-9 plans and of the E-1 and E-10
+fixes, and from probing the E-2 fix. Unless noted, an entry was confirmed by reading the code, not by running it, so
 reproduce it first.
 
 **Behavior bugs**
@@ -157,6 +157,20 @@ reproduce it first.
   `{"a": 1}\n{"a": 2, "b": 3}` looks like one object with `a` twice and no note, and
   `read_symbol a` reports 2 definitions. `query` and `peek` reject such a file. Reproduced by
   running it. Decide whether to name them like YAML documents (`[0].a`) or to add a note.
+- [ ] **Overwriting a UTF-8-BOM file with text that starts with U+FEFF writes a second BOM
+  (E-11).** The `utf-8-sig` codec writes its own BOM, so `write_file(..., "﻿c,d\n",
+  overwrite=True)` on such a file writes `EF BB BF EF BB BF c,d`, with no refusal and no note;
+  reads then show `﻿c,d`, and a CSV's first column name gains a U+FEFF. Since E-10 a new
+  file that starts with U+FEFF gets a UTF-8 BOM, so an agent may well send one when it rewrites
+  such a file. Seen before E-10 too. Reproduced by running it. Drop one leading U+FEFF from an
+  overwrite of a `utf-8-sig` file, so a leading U+FEFF means the BOM in both cases; a U+FEFF
+  that `replace_in_file` inserts on purpose can stay as it is.
+- [ ] **The undo diff decodes the old version in the file's current format (E-12).**
+  `undo_last_edit` decodes the snapshot with the format sniffed from the file as it is now. After
+  an edit that made a UTF-8 file read as Latin-1 (noted since E-10), undo restores the exact bytes
+  and the file reads `café` again, but the diff shows the old lines as `cafÃ©`, so the agent may
+  think undo garbled them. Seen before E-10 too. Reproduced by running it. Sniff the snapshot's own
+  format from its first bytes before decoding it.
 
 **Misleading docstrings**
 
