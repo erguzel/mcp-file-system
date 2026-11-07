@@ -672,6 +672,10 @@ SNIFF_BREAKERS: dict[str, tuple[bytes | None, Callable[[FileEditor, bool], objec
         b"abc\n" + FILLER + b"\xff\xfe\n",
         lambda e, d: e.replace("a.txt", "(?s)^(.*)(\udcff\udcfe)", r"\2\1", regex=True, dry_run=d),
     ),
+    "utf-8-own-nul-moves-up": (
+        b"abc\n" + FILLER + b"a\x00b\n",
+        lambda e, d: e.replace("a.txt", "x+\n", "", regex=True, dry_run=d),
+    ),
 }
 
 
@@ -703,8 +707,8 @@ class TestSniffedEncodingStays:
             "a.txt", 1, 1, "e\n", expected_etag=etag(path), dry_run=dry_run
         )
         assert result.note is not None
-        assert "UTF-8" in result.note
-        assert "Latin-1" in result.note
+        # The encoding the file is now read as comes before the one it was read as.
+        assert result.note.index("UTF-8") < result.note.index("Latin-1")
         assert result.note in result.render()
         expected = original if dry_run else b"e\n" + FILLER + b"\xe9t\xe9\n"
         assert path.read_bytes() == expected
@@ -714,8 +718,7 @@ class TestSniffedEncodingStays:
         path = write(root / "a.txt", "café\n".encode() + FILLER + b"\xff\n")
         result = ctx.editor.edit_lines("a.txt", 2, 2, "", expected_etag=etag(path))
         assert result.note is not None
-        assert "UTF-8" in result.note
-        assert "Latin-1" in result.note
+        assert result.note.index("Latin-1") < result.note.index("UTF-8")
         assert path.read_bytes() == "café\n".encode() + b"\xff\n"
 
     @pytest.mark.parametrize(
