@@ -245,8 +245,6 @@ All notable changes to this project are documented here. The format follows
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,
   `grep(glob="")`, `replace_in_file(expected_count=0)` for any number of matches, at
   least one). Results are unchanged.
-- CI matrix trimmed: macOS runs on manual dispatch only and Windows on Python 3.12 and
-  3.14; Linux keeps 3.12 to 3.14.
 
 ## [0.1.0] - 2026-10-03
 

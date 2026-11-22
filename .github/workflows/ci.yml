@@ -40,15 +40,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux covers every supported Python; Windows covers path semantics and
-        # case-insensitivity at the ends of the range. macOS (10x billing) runs only
-        # on manual dispatch, see test-macos.
-        include:
-          - {os: ubuntu-latest, python: "3.12"}
-          - {os: ubuntu-latest, python: "3.13"}
-          - {os: ubuntu-latest, python: "3.14"}
-          - {os: windows-latest, python: "3.12"}
-          - {os: windows-latest, python: "3.14"}
+        # Every supported Python on every OS: macOS and Windows have case-insensitive
+        # filesystems, and Windows adds drive, junction and NTFS stream semantics.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,21 +51,6 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: ${{ matrix.python }}
-          enable-cache: true
-      - run: uv sync --all-extras
-      - run: uv run pytest --cov --cov-report=term-missing
-
-  test-macos:
-    name: Test (macos-latest, py3.14, manual)
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          python-version: "3.14"
           enable-cache: true
       - run: uv sync --all-extras
       - run: uv run pytest --cov --cov-report=term-missing
