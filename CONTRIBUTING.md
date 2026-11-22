@@ -9,8 +9,8 @@ uv run pre-commit install  # ruff, mypy and file checks (e.g. private keys) on e
 
 ## Checks
 
-All of these run in CI. Tests run on Linux (Python 3.12–3.14) and Windows (3.12 and 3.14),
-and on macOS on manual dispatch; ruff and mypy run once, on Linux with Python 3.12:
+All of these run in CI. Tests run on Linux, macOS and Windows, each with Python 3.12–3.14;
+ruff and mypy run once, on Linux with Python 3.12:
 
 ```bash
 uv run ruff check .
