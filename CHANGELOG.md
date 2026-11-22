@@ -238,8 +238,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- New core dependencies: `tree-sitter` (pinned `>=0.25.2,<0.26`: 0.26.0 crashes with heap
-  corruption during tree walks) and the Markdown, JSON, TOML, YAML and Bash grammars.
+- New core dependencies: `tree-sitter` (`>=0.25.2,!=0.26.0,<0.27`: 0.26.0 crashes with heap
+  corruption during tree walks, 0.26.1 fixes it) and the Markdown, JSON, TOML, YAML and Bash
+  grammars.
 - Tool parameters no longer use nullable types, so input schemas contain no `anyOf`.
   "Unset" values are now `""` or `0` (for example `read_lines(end=-1)`,
   `grep(glob="")`, `replace_in_file(expected_count=0)` for any number of matches, at
