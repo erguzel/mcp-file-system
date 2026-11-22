@@ -2,8 +2,12 @@
 
 ## Reporting a vulnerability
 
-Report vulnerabilities privately by email to the maintainer (address in `pyproject.toml`),
-not through public issues. Include a description, a reproduction and the affected version.
+Report vulnerabilities privately through GitHub's private vulnerability reporting: on the
+repository's **Security** tab, choose **Report a vulnerability**
+(<https://github.com/erguzel/mcp-file-system/security/advisories/new>). Do not open a
+public issue. Include a description, a reproduction and the affected version.
+
+If you cannot use GitHub, email the maintainer instead (address in `pyproject.toml`).
 
 ## Threat model
 
