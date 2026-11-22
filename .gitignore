@@ -28,6 +28,7 @@ htmlcov/
 
 # Local agent configuration (conventions live in AGENTS.md)
 CLAUDE.md
+.claude/settings.local.json
 
 # Local scratch space (drafts, upstream bug reports); never committed
 .scratch/
