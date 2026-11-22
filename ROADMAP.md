@@ -315,7 +315,7 @@ and prints a summary table.
 
 - [x] **Status:** done. Markdown, JSON, TOML, YAML (incl. Helm/Go templates), shell
   scripts (incl. shebang detection) and Dockerfiles in core; JS/TS, Go and Java in the
-  `[code]` extra. `tree-sitter` is pinned below 0.26 because 0.26.0 corrupts the heap.
+  `[code]` extra. `tree-sitter` excludes 0.26.0, which corrupts the heap; 0.26.1 fixes it.
 
 **What**
 - Add `tree-sitter` plus the Markdown, JSON, TOML and YAML grammars as **core
